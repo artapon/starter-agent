@@ -57,7 +57,7 @@
         </span>
       </div>
       <div class="graph-body">
-        <svg viewBox="0 0 640 210" class="graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+        <svg viewBox="0 0 640 235" class="graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
           <defs>
             <marker v-for="m in markerIds" :key="m.id"
               :id="m.id" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
@@ -74,16 +74,16 @@
           <path d="M407,42 L441,42" :stroke="edgeColor('developer','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('developer','reviewer')})`"/>
           <!-- reviewer → assembler (straight down, score=10) -->
           <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
-          <!-- reviewer → loop_reset (outside curve, score<10) -->
-          <path d="M551,42 L585,42 L585,172 L409,172" stroke-dasharray="5,3" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
-          <!-- loop_reset → developer (left+up) -->
-          <path d="M297,172 L262,172 L262,64 L297,64" stroke-dasharray="5,3" :stroke="edgeColor('loop_reset','developer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','developer')})`"/>
+          <!-- reviewer → loop_reset: routes RIGHT then DOWN below all boxes then LEFT to loop_reset bottom -->
+          <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
+          <!-- loop_reset → developer (direct vertical) -->
+          <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke="edgeColor('loop_reset','developer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','developer')})`"/>
           <!-- assembler → done -->
-          <path d="M551,172 L583,172" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
+          <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
 
           <!-- Edge labels -->
-          <text x="585" y="110" class="edge-label" text-anchor="middle" transform="rotate(-90,585,110)">score &lt; 10</text>
-          <text x="509" y="108" class="edge-label">10/10 ✓</text>
+          <text x="615" y="120" class="edge-label" text-anchor="middle" transform="rotate(-90,615,120)">score &lt; 10</text>
+          <text x="510" y="108" class="edge-label">10/10 ✓</text>
 
           <!-- ── Nodes ─────────────────────────────────────── -->
           <!-- researcher -->
