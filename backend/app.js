@@ -11,7 +11,7 @@ import { errorHandler } from './core/middleware/error.handler.js';
 import { AgentsModule } from './modules/agents/agents.module.js';
 import { ResearcherModule } from './modules/researcher/researcher.module.js';
 import { PlannerModule } from './modules/planner/planner.module.js';
-import { DeveloperModule } from './modules/developer/developer.module.js';
+import { WorkerModule } from './modules/worker/worker.module.js';
 import { ReviewerModule } from './modules/reviewer/reviewer.module.js';
 import { WorkflowModule } from './modules/workflow/workflow.module.js';
 import { ChatModule } from './modules/chat/chat.module.js';
@@ -58,7 +58,7 @@ export function createApp() {
   app.use('/api/agents', AgentsModule.router);
   app.use('/api/researcher', ResearcherModule.router);
   app.use('/api/planner', PlannerModule.router);
-  app.use('/api/developer', DeveloperModule.router);
+  app.use('/api/worker', WorkerModule.router);
   app.use('/api/reviewer', ReviewerModule.router);
   app.use('/api/workflow', WorkflowModule.router);
   app.use('/api/chat', ChatModule.router);

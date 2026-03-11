@@ -18,7 +18,7 @@
         />
         <v-select
           v-model="filters.agentId"
-          :items="['', 'planner', 'developer', 'reviewer', 'chat', 'workflow', 'http']"
+          :items="['', 'planner', 'worker', 'reviewer', 'chat', 'workflow', 'http']"
           label="Agent" density="compact" hide-details variant="outlined"
           style="width:130px" clearable
         />

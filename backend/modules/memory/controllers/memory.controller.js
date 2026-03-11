@@ -3,7 +3,7 @@ import { memoryStore } from '../services/memory.store.js';
 export class MemoryController {
   getLatest = (req, res, next) => {
     try {
-      const agents = ['researcher', 'planner', 'developer', 'reviewer'];
+      const agents = ['researcher', 'planner', 'worker', 'reviewer'];
       const result = agents.map(agentId => {
         const snaps = memoryStore.getSnapshots(agentId);
         if (!snaps.length) return null;

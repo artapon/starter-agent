@@ -14,8 +14,8 @@ export const config = {
       temperature: 0.3,
       maxTokens: 4096,
     },
-    developer: {
-      model: process.env.DEVELOPER_MODEL || 'qwen2.5-coder-7b-instruct',
+    worker: {
+      model: process.env.WORKER_MODEL || 'qwen2.5-coder-7b-instruct',
       temperature: 0.2,
       maxTokens: 8192,
     },

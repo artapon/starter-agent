@@ -1,12 +1,12 @@
 import { ResearcherAgent } from '../../researcher/services/researcher.agent.js';
 import { PlannerAgent } from '../../planner/services/planner.agent.js';
-import { DeveloperAgent } from '../../developer/services/developer.agent.js';
+import { WorkerAgent } from '../../worker/services/worker.agent.js';
 import { ReviewerAgent } from '../../reviewer/services/reviewer.agent.js';
 
 export function createNodes(socketManager) {
   const researcherAgent = new ResearcherAgent(socketManager);
   const plannerAgent = new PlannerAgent(socketManager);
-  const developerAgent = new DeveloperAgent(socketManager);
+  const workerAgent = new WorkerAgent(socketManager);
   const reviewerAgent = new ReviewerAgent(socketManager);
 
   // Emit a visible status line to the chat stream (not a token — a formatted message)
@@ -50,27 +50,27 @@ export function createNodes(socketManager) {
     return { plan, currentStepIdx: 0, status: 'running' };
   }
 
-  async function developerNode(state) {
+  async function workerNode(state) {
     const steps = state.plan?.steps || [];
     const step = steps[state.currentStepIdx];
     if (!step) return { status: 'review_ready' };
 
     const label = `Step ${state.currentStepIdx + 1}/${steps.length}`;
-    socketManager?.emitWorkflowNode(state.runId, 'developer', {
+    socketManager?.emitWorkflowNode(state.runId, 'worker', {
       status: 'running',
       step: step.description,
       stepIdx: state.currentStepIdx,
     });
-    emitStatus(state.sessionId, 'developer', `\n---\n💻 **${label}:** ${step.description}\n\n`);
+    emitStatus(state.sessionId, 'worker', `\n---\n💻 **${label}:** ${step.description}\n\n`);
 
-    const result = await developerAgent.execute(
+    const result = await workerAgent.execute(
       step.description,
       state.sessionId,
       state.plan?.planId,
       state.runId
     );
 
-    socketManager?.emitWorkflowNode(state.runId, 'developer', {
+    socketManager?.emitWorkflowNode(state.runId, 'worker', {
       status: 'complete',
       stepIdx: state.currentStepIdx,
       result: result.result,
@@ -106,7 +106,7 @@ export function createNodes(socketManager) {
     const willLoop = allDone && state.loopEnabled && state.loopCount < state.maxLoops && (review.score ?? 10) < 10;
     const suggestionLines = (review.suggestions || []).map(s => `  - ${s}`).join('\n');
     const loopHint = willLoop
-      ? `\n⏩ Score below 10/10 — sending back to Developer to apply suggestions (loop ${state.loopCount + 1}/${state.maxLoops})`
+      ? `\n⏩ Score below 10/10 — sending back to Worker to apply suggestions (loop ${state.loopCount + 1}/${state.maxLoops})`
       : (review.score >= 10 ? '\n🎯 Perfect score — proceeding to final assembly.' : '');
     emitStatus(
       state.sessionId, 'reviewer',
@@ -142,8 +142,8 @@ export function createNodes(socketManager) {
       : review.feedback || 'Improve overall code quality.';
 
     emitStatus(
-      state.sessionId, 'developer',
-      `\n\n🔄 **Improvement Loop ${nextLoop}/${state.maxLoops}** — Review score was **${score}/10**. Sending back to Developer to apply suggestions:\n${(review.suggestions || []).map(s => `  - ${s}`).join('\n') || `  - ${review.feedback}`}\n\n`
+      state.sessionId, 'worker',
+      `\n\n🔄 **Improvement Loop ${nextLoop}/${state.maxLoops}** — Review score was **${score}/10**. Sending back to Worker to apply suggestions:\n${(review.suggestions || []).map(s => `  - ${s}`).join('\n') || `  - ${review.feedback}`}\n\n`
     );
     socketManager?.emitWorkflowNode(state.runId, 'loop_reset', { status: 'running', loop: nextLoop, score });
 
@@ -166,5 +166,5 @@ export function createNodes(socketManager) {
     };
   }
 
-  return { researcherNode, plannerNode, developerNode, reviewerNode, assemblerNode, loopResetNode };
+  return { researcherNode, plannerNode, workerNode, reviewerNode, assemblerNode, loopResetNode };
 }

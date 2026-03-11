@@ -3,23 +3,23 @@ import { AgentStateAnnotation } from './workflow.state.js';
 import { createNodes } from './workflow.nodes.js';
 
 export function buildWorkflowGraph(socketManager) {
-  const { researcherNode, plannerNode, developerNode, reviewerNode, assemblerNode, loopResetNode } = createNodes(socketManager);
+  const { researcherNode, plannerNode, workerNode, reviewerNode, assemblerNode, loopResetNode } = createNodes(socketManager);
 
   const graph = new StateGraph(AgentStateAnnotation)
     .addNode('researcher', researcherNode)
     .addNode('planner', plannerNode)
-    .addNode('developer', developerNode)
+    .addNode('worker', workerNode)
     .addNode('reviewer', reviewerNode)
     .addNode('assembler', assemblerNode)
     .addNode('loop_reset', loopResetNode)
 
-    // Entry: researcher → planner → developer
+    // Entry: researcher → planner → worker
     .addEdge('__start__', 'researcher')
     .addEdge('researcher', 'planner')
-    .addEdge('planner', 'developer')
+    .addEdge('planner', 'worker')
 
-    // After developer: go to reviewer
-    .addEdge('developer', 'reviewer')
+    // After worker: go to reviewer
+    .addEdge('worker', 'reviewer')
 
     // After reviewer: per-step retry, advance, improvement loop, or assemble
     .addConditionalEdges('reviewer', (state) => {
@@ -28,15 +28,15 @@ export function buildWorkflowGraph(socketManager) {
       const maxRetries = 3;
 
       if (state.status === 'revision_needed' && state.retryCount < maxRetries) {
-        return 'developer'; // retry the current step
+        return 'worker'; // retry the current step
       }
       if (!allDone) {
-        return 'developer'; // advance to next step
+        return 'worker'; // advance to next step
       }
       // All steps done — check if improvement loop should run
       const score = state.reviewFeedback?.score ?? 10;
       if (state.loopEnabled && state.loopCount < state.maxLoops && score < 10) {
-        return 'loop_reset'; // send developer back with fix instructions
+        return 'loop_reset'; // send worker back with fix instructions
       }
       return 'assembler'; // score is 10/10 or loops exhausted
     })
@@ -44,8 +44,8 @@ export function buildWorkflowGraph(socketManager) {
     // assembler always finishes
     .addEdge('assembler', END)
 
-    // loop_reset feeds directly back into developer (skip researcher + planner)
-    .addEdge('loop_reset', 'developer');
+    // loop_reset feeds directly back into worker (skip researcher + planner)
+    .addEdge('loop_reset', 'worker');
 
   return graph.compile();
 }

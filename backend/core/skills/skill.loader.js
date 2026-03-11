@@ -14,7 +14,7 @@ const SKILL_FILES = {
   global:     'SKILL.md',
   researcher: 'RESEARCHER.md',
   planner:    'PLANNER.md',
-  developer:  'DEVELOPER.md',
+  worker:     'WORKER.md',
   reviewer:   'REVIEWER.md',
 };
 
@@ -48,7 +48,7 @@ for (const [key, filename] of Object.entries(SKILL_FILES)) {
  * Returns a formatted string combining global SKILL.md + agent-specific skill file.
  * Returns '' if both are empty.
  *
- * @param {'planner'|'developer'|'reviewer'} agentId
+ * @param {'planner'|'worker'|'reviewer'} agentId
  */
 export function getSkillPrompt(agentId) {
   if (!(agentId in cache)) {

@@ -11,13 +11,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('planner');
 
-const BASE_PROMPT = `You are a Planner Agent. Decompose the user's goal into an ordered list of developer subtasks.
+const BASE_PROMPT = `You are a Planner Agent. Decompose the user's goal into an ordered list of worker subtasks.
 
 Output ONLY a valid JSON object — no markdown, no explanation:
-{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<what to do>","dependsOn":[],"agentHint":"developer"}}],"priority":"medium","estimatedSteps":<number>}}
+{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<what to do>","dependsOn":[],"agentHint":"worker"}}],"priority":"medium","estimatedSteps":<number>}}
 
 Rules:
-- agentHint must be "developer" for coding tasks
+- agentHint must be "worker" for coding tasks
 - Be concise and actionable
 - Return raw JSON only`;
 
@@ -76,7 +76,7 @@ export class PlannerAgent {
     } catch {
       plan = {
         goal: compressedGoal,
-        steps: [{ id: uuidv4(), description: compressedGoal, dependsOn: [], agentHint: 'developer' }],
+        steps: [{ id: uuidv4(), description: compressedGoal, dependsOn: [], agentHint: 'worker' }],
         priority: 'medium',
         estimatedSteps: 1,
       };

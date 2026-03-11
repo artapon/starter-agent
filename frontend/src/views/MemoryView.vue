@@ -106,7 +106,7 @@ import { useSocket } from '../plugins/socket.js';
 import axios from 'axios';
 
 const socket = useSocket();
-const agents = ['researcher', 'planner', 'developer', 'reviewer'];
+const agents = ['researcher', 'planner', 'worker', 'reviewer'];
 const activeAgent = ref('researcher');
 const loading = ref(false);
 const agentMemory = ref({});

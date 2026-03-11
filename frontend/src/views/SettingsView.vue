@@ -266,7 +266,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 const agentSettings = ref([]);
-const AGENT_ORDER = ['researcher', 'planner', 'developer', 'reviewer'];
+const AGENT_ORDER = ['researcher', 'planner', 'worker', 'reviewer'];
 const activeAgent = ref('researcher');
 const workspacePath = ref('./workspace');
 const savingWorkspace = ref(false);
@@ -324,7 +324,7 @@ function categoryIcon(cat) {
   return { filesystem: 'mdi-folder-outline', scaffold: 'mdi-rocket-launch-outline', workflow: 'mdi-sitemap' }[cat] || 'mdi-wrench';
 }
 function agentAccent(id) {
-  return { researcher: '#22D3EE', planner: '#6366F1', developer: '#10B981', reviewer: '#F59E0B' }[id] || '#6366F1';
+  return { researcher: '#22D3EE', planner: '#6366F1', worker: '#10B981', reviewer: '#F59E0B' }[id] || '#6366F1';
 }
 function connStatus(id) {
   return connectionStatus[id] === true ? 'success' : connectionStatus[id] === false ? 'error' : 'grey';

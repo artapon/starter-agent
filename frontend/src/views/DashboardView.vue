@@ -52,7 +52,7 @@
         <span class="graph-active-bar__dot" />
         <span class="graph-active-bar__label">Processing</span>
         <span class="graph-active-bar__node">{{ graphCurrentNode.replace('_', ' ') }}</span>
-        <span v-if="graphDevStep && graphCurrentNode === 'developer'" class="graph-active-bar__step">
+        <span v-if="graphDevStep && graphCurrentNode === 'worker'" class="graph-active-bar__step">
           — Step {{ graphDevStep }}{{ graphTotalSteps ? ' of ' + graphTotalSteps : '' }}
         </span>
       </div>
@@ -68,16 +68,16 @@
           <!-- ── Edges ─────────────────────────────────────── -->
           <!-- researcher → planner -->
           <path d="M120,42 L153,42" :stroke="edgeColor('researcher','planner')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','planner')})`"/>
-          <!-- planner → developer -->
-          <path d="M263,42 L297,42" :stroke="edgeColor('planner','developer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','developer')})`"/>
-          <!-- developer → reviewer -->
-          <path d="M407,42 L441,42" :stroke="edgeColor('developer','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('developer','reviewer')})`"/>
+          <!-- planner → worker -->
+          <path d="M263,42 L297,42" :stroke="edgeColor('planner','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','worker')})`"/>
+          <!-- worker → reviewer -->
+          <path d="M407,42 L441,42" :stroke="edgeColor('worker','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('worker','reviewer')})`"/>
           <!-- reviewer → assembler (straight down, score=10) -->
           <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
           <!-- reviewer → loop_reset: routes RIGHT then DOWN below all boxes then LEFT to loop_reset bottom -->
           <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
-          <!-- loop_reset → developer (direct vertical) -->
-          <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke="edgeColor('loop_reset','developer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','developer')})`"/>
+          <!-- loop_reset → worker (direct vertical) -->
+          <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke="edgeColor('loop_reset','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','worker')})`"/>
           <!-- assembler → done -->
           <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
 
@@ -98,12 +98,12 @@
             <text x="209" y="38" class="node-icon" text-anchor="middle">📋</text>
             <text x="209" y="56" class="node-label" text-anchor="middle">Planner</text>
           </g>
-          <!-- developer -->
-          <g :class="['graph-node-g', nodeClass('developer')]">
-            <rect x="297" y="20" width="110" height="44" rx="8" :fill="nodeFill('developer')" :stroke="nodeStroke('developer')" stroke-width="1.5"/>
+          <!-- worker -->
+          <g :class="['graph-node-g', nodeClass('worker')]">
+            <rect x="297" y="20" width="110" height="44" rx="8" :fill="nodeFill('worker')" :stroke="nodeStroke('worker')" stroke-width="1.5"/>
             <text x="352" y="36" class="node-icon" text-anchor="middle">💻</text>
-            <text x="352" y="51" class="node-label" text-anchor="middle">Developer</text>
-            <text v-if="graphNodeStatus['developer']==='running' && graphDevStep" x="352" y="62" class="node-step-label" text-anchor="middle">Step {{ graphDevStep }}{{ graphTotalSteps ? '/'+graphTotalSteps : '' }}</text>
+            <text x="352" y="51" class="node-label" text-anchor="middle">Worker</text>
+            <text v-if="graphNodeStatus['worker']==='running' && graphDevStep" x="352" y="62" class="node-step-label" text-anchor="middle">Step {{ graphDevStep }}{{ graphTotalSteps ? '/'+graphTotalSteps : '' }}</text>
           </g>
           <!-- reviewer -->
           <g :class="['graph-node-g', nodeClass('reviewer')]">
@@ -244,7 +244,7 @@ const agentCurrentTask = ref({});
 const logContainer = ref(null);
 
 // ── Workflow graph state ───────────────────────────────────────────────────
-const GRAPH_NODES = ['researcher','planner','developer','reviewer','loop_reset','assembler','done'];
+const GRAPH_NODES = ['researcher','planner','worker','reviewer','loop_reset','assembler','done'];
 const graphNodeStatus  = reactive(Object.fromEntries(GRAPH_NODES.map(n => [n, 'idle'])));
 const graphRunId       = ref(null);
 const graphOverallStatus = ref('idle');
@@ -281,7 +281,7 @@ function nodeStroke(n) { return (NODE_COLORS[graphNodeStatus[n]] || NODE_COLORS.
 function nodeClass(n)  { return graphNodeStatus[n] === 'running' ? 'node-running' : ''; }
 
 function edgeStatus(from, to) {
-  const loopEdges = new Set(['reviewer->loop_reset','loop_reset->developer']);
+  const loopEdges = new Set(['reviewer->loop_reset','loop_reset->worker']);
   const key = `${from}->${to}`;
   const fs = graphNodeStatus[from];
   const ts2 = graphNodeStatus[to];
@@ -330,7 +330,7 @@ async function fetchStats() {
   try {
     const { data } = await axios.get('/api/dashboard/stats');
     stats.value = data;
-    const order = ['researcher', 'planner', 'developer', 'reviewer'];
+    const order = ['researcher', 'planner', 'worker', 'reviewer'];
     agentStatuses.value = (data.agents || []).sort((a, b) => {
       const ai = order.indexOf(a.agentId), bi = order.indexOf(b.agentId);
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
@@ -344,7 +344,7 @@ function statusColor(s) {
   return { complete: 'success', running: 'warning', error: 'error', pending: 'default', stopped: 'default' }[s] || 'default';
 }
 function agentChipColor(id) {
-  return { researcher: 'info', planner: 'primary', developer: 'success', reviewer: 'warning' }[id] || 'default';
+  return { researcher: 'info', planner: 'primary', worker: 'success', reviewer: 'warning' }[id] || 'default';
 }
 function levelBg(l) {
   return { error: 'rgba(239,68,68,0.12)', warn: 'rgba(245,158,11,0.12)', info: 'rgba(56,189,248,0.1)', debug: 'rgba(255,255,255,0.06)' }[l] || 'rgba(255,255,255,0.06)';
@@ -361,7 +361,7 @@ async function scrollLogs() {
 
 onMounted(() => {
   fetchStats();
-  const AGENT_NODES = new Set(['researcher', 'planner', 'developer', 'reviewer']);
+  const AGENT_NODES = new Set(['researcher', 'planner', 'worker', 'reviewer']);
 
   socket.on('log:entry', (entry) => {
     logs.value.push(entry);
@@ -389,7 +389,7 @@ onMounted(() => {
       graphNodeStatus[agentId] = 'running';
       graphCurrentNode.value = agentId;
 
-      if (agentId === 'developer') {
+      if (agentId === 'worker') {
         const stepMatch = message.match(/Executing task.*?Step\s+(\d+)/i);
         if (stepMatch) graphDevStep.value = parseInt(stepMatch[1]);
       }
@@ -429,7 +429,7 @@ onMounted(() => {
     }
   });
   // agent → graph node mapping (agent:status is proven reliable — drives graph animation)
-  const AGENT_NODE = { researcher: 'researcher', planner: 'planner', developer: 'developer', reviewer: 'reviewer' };
+  const AGENT_NODE = { researcher: 'researcher', planner: 'planner', worker: 'worker', reviewer: 'reviewer' };
   socket.on('agent:status', (data) => {
     agentLiveStatus.value = { ...agentLiveStatus.value, [data.agentId]: data.status };
     if (data.status === 'working' && data.currentTask) {
@@ -473,12 +473,12 @@ onMounted(() => {
     if (st === 'running') {
       graphCurrentNode.value = node;
       if (node in graphNodeStatus) graphNodeStatus[node] = 'running';
-      if (node === 'developer') graphDevStep.value = (data.state.stepIdx ?? 0) + 1;
+      if (node === 'worker') graphDevStep.value = (data.state.stepIdx ?? 0) + 1;
     } else {
       if (node === 'loop_reset') {
         graphLoopCount.value = data.state?.loop ?? (graphLoopCount.value + 1);
         graphNodeStatus['loop_reset'] = 'complete';
-        graphNodeStatus['developer']  = 'pending';
+        graphNodeStatus['worker']     = 'pending';
         graphNodeStatus['reviewer']   = 'pending';
         graphDevStep.value = null;
       } else if (node in graphNodeStatus) {
@@ -486,7 +486,7 @@ onMounted(() => {
         if (node === 'planner' && data.state?.plan?.steps) {
           graphTotalSteps.value = data.state.plan.steps.length;
         }
-        if (node === 'developer') graphDevStep.value = null;
+        if (node === 'worker') graphDevStep.value = null;
       }
       if (graphCurrentNode.value === node) graphCurrentNode.value = null;
     }

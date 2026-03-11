@@ -207,7 +207,7 @@ const bottomAnchor = ref(null);
 
 const isStreaming = ref(false);
 const streamingContent = ref('');
-const streamingAgentId = ref('developer');
+const streamingAgentId = ref('worker');
 const activeAgent = ref(null);
 
 const showWorkspace = ref(false);
@@ -222,7 +222,7 @@ const sessionItems = computed(() =>
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function agentColor(id) {
-  return { researcher: 'info', planner: 'primary', developer: 'success', reviewer: 'warning', workflow: 'secondary', system: 'error' }[id] || 'primary';
+  return { researcher: 'info', planner: 'primary', worker: 'success', reviewer: 'warning', workflow: 'secondary', system: 'error' }[id] || 'primary';
 }
 function renderMarkdown(text) {
   try { return marked.parse(text || ''); } catch { return text || ''; }

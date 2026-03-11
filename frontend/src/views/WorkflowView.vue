@@ -86,6 +86,12 @@
         :items-per-page="10"
         class="bg-transparent history-table"
       >
+        <template #item.id="{ item }">
+          <span class="font-mono" style="font-size:12px">{{ item.id.slice(0, 12) }}…</span>
+        </template>
+        <template #item.session_id="{ item }">
+          <span class="font-mono" style="font-size:12px;color:rgba(226,232,240,0.45)">{{ item.session_id.slice(0, 12) }}…</span>
+        </template>
         <template #item.status="{ item }">
           <v-chip :color="runStatusColor(item.status)" size="x-small" variant="tonal">
             {{ item.status }}
@@ -96,8 +102,14 @@
             {{ new Date(item.started_at * 1000).toLocaleString() }}
           </span>
         </template>
-        <template #item.id="{ item }">
-          <span class="font-mono" style="font-size:12px">{{ item.id.slice(0, 12) }}…</span>
+        <template #item.report="{ item }">
+          <a v-if="reportSessions.has(item.session_id)"
+            :href="`/reports/${item.session_id}/walkthrough.html`"
+            target="_blank" rel="noopener"
+            class="report-btn">
+            <v-icon size="13">mdi-file-chart-outline</v-icon> Walkthrough
+          </a>
+          <span v-else style="font-size:11px;color:rgba(226,232,240,0.2)">—</span>
         </template>
       </v-data-table>
     </div>
@@ -121,11 +133,13 @@ const nodeEvents = ref([]);
 const isRunning = computed(() => activeRun.value?.status === 'running');
 
 const headers = [
-  { title: 'Run ID',  key: 'id' },
-  { title: 'Session', key: 'session_id' },
-  { title: 'Status',  key: 'status' },
-  { title: 'Started', key: 'started_at' },
+  { title: 'Run ID',   key: 'id' },
+  { title: 'Session',  key: 'session_id' },
+  { title: 'Status',   key: 'status' },
+  { title: 'Started',  key: 'started_at' },
+  { title: 'Report',   key: 'report',     sortable: false },
 ];
+const reportSessions = ref(new Set());
 
 function runStatusColor(s) {
   return { complete: 'success', running: 'warning', error: 'error', pending: 'grey', stopped: 'default' }[s] || 'grey';
@@ -160,8 +174,12 @@ async function stopWorkflow() {
 }
 
 async function fetchRuns() {
-  const { data } = await axios.get('/api/workflow/runs');
+  const [{ data }, { data: rpt }] = await Promise.all([
+    axios.get('/api/workflow/runs'),
+    axios.get('/api/reports/sessions'),
+  ]);
   runs.value = data;
+  reportSessions.value = new Set(rpt.sessions || []);
 }
 
 onMounted(() => {
@@ -269,4 +287,15 @@ onMounted(() => {
 
 .empty-state { font-size: 13px; color: rgba(226,232,240,0.3) !important; padding: 8px 0; }
 .gap-2 { gap: 8px; }
+
+.report-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  color: #22D3EE; text-decoration: none;
+  padding: 2px 8px; border-radius: 4px;
+  border: 1px solid rgba(34,211,238,0.25);
+  background: rgba(34,211,238,0.07);
+  transition: background 0.15s;
+}
+.report-btn:hover { background: rgba(34,211,238,0.15); }
 </style>

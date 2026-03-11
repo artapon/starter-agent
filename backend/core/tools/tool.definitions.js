@@ -97,7 +97,7 @@ export const ALL_TOOLS = [
 export const DEFAULT_AGENT_TOOLS = {
   researcher: ['read_file', 'list_files', 'bulk_read'],
   planner:    ['read_file', 'list_files', 'bulk_read', 'order_fix', 'request_review'],
-  developer:  ['read_file', 'write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'list_files', 'create_directory', 'bulk_read', 'scaffold_project', 'order_fix', 'request_review'],
+  worker:     ['read_file', 'write_file', 'replace_in_file', 'bulk_write', 'apply_blueprint', 'list_files', 'create_directory', 'bulk_read', 'scaffold_project', 'order_fix', 'request_review'],
   reviewer:   ['read_file', 'bulk_read', 'list_files', 'replace_in_file', 'order_fix'],
 };
 
