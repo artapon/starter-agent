@@ -1,354 +1,264 @@
 <template>
-  <v-container fluid class="pa-4">
-    <v-row class="mb-2">
-      <v-col>
-        <h1 class="text-h5 font-weight-bold">
-          <v-icon color="primary" class="mr-2">mdi-cog</v-icon>Settings
-        </h1>
-        <p class="text-medium-emphasis text-body-2">Configure LLM model and tools for each agent</p>
-      </v-col>
-    </v-row>
+  <div class="page-root">
 
-    <!-- Workspace card -->
-    <v-card color="surface-variant" rounded="lg" class="mb-4">
-      <v-card-title class="d-flex align-center pb-1">
-        <v-icon class="mr-2" size="18">mdi-folder-cog</v-icon>
-        Workspace
-      </v-card-title>
-      <v-card-subtitle class="pb-2">Directory where agents read and write files</v-card-subtitle>
-      <v-card-text class="pb-2">
+    <!-- Header -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">Settings</div>
+        <div class="page-subtitle">Configure LLM models, tools and workspace for each agent</div>
+      </div>
+    </div>
+
+    <!-- Workspace -->
+    <div class="panel card-hover">
+      <div class="panel__header">
+        <v-icon size="15" color="#6366F1">mdi-folder-cog-outline</v-icon>
+        <span class="section-title">Workspace</span>
+      </div>
+      <div class="panel__body row-layout">
         <v-text-field
           v-model="workspacePath"
           label="Workspace Path"
-          density="compact"
-          variant="outlined"
+          density="compact" variant="outlined" hide-details
+          prepend-inner-icon="mdi-folder-outline"
           placeholder="./workspace"
-          hide-details
-          prepend-inner-icon="mdi-folder"
+          style="max-width:480px"
         />
-      </v-card-text>
-      <v-card-actions class="px-4 pb-4">
-        <span class="text-caption text-medium-emphasis">
-          Relative to backend directory, or use an absolute path.
-        </span>
-        <v-spacer />
-        <v-btn
-          color="primary"
-          size="small"
-          prepend-icon="mdi-content-save"
-          :loading="savingWorkspace"
-          @click="saveWorkspace"
-        >Save</v-btn>
-      </v-card-actions>
-    </v-card>
+        <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
+          :loading="savingWorkspace" @click="saveWorkspace">
+          Save
+        </v-btn>
+        <span class="hint">Relative to project root, or use an absolute path</span>
+      </div>
+    </div>
+
+    <!-- Workflow Loop -->
+    <div class="panel card-hover">
+      <div class="panel__header">
+        <v-icon size="15" color="#6366F1">mdi-repeat</v-icon>
+        <span class="section-title">Workflow Loop</span>
+      </div>
+      <div class="panel__body">
+        <div class="loop-grid">
+          <div class="loop-toggle-row">
+            <div class="loop-toggle-info">
+              <div class="loop-toggle-label">Auto-repeat workflow if review score &lt; 10/10</div>
+              <div class="loop-toggle-hint">When enabled the full pipeline (Research → Plan → Develop → Review) restarts automatically until the reviewer scores 10/10 or the loop limit is reached.</div>
+            </div>
+            <v-switch v-model="loopEnabled" color="primary" hide-details density="compact" inset />
+          </div>
+
+          <div class="loop-max-row" :class="{ 'loop-max-row--disabled': !loopEnabled }">
+            <div class="field-label">
+              Max loops: <strong>{{ maxLoops }}</strong>
+              <span class="muted-label">&nbsp;({{ maxLoops }} extra run{{ maxLoops !== 1 ? 's' : '' }} allowed)</span>
+            </div>
+            <v-slider v-model="maxLoops" :min="1" :max="10" :step="1"
+              thumb-label color="primary" class="mt-1" hide-details :disabled="!loopEnabled" />
+          </div>
+
+          <div class="loop-divider" />
+
+          <div class="loop-toggle-row">
+            <div class="loop-toggle-info">
+              <div class="loop-toggle-label">Recursion limit</div>
+              <div class="loop-toggle-hint">Max number of agent node executions per run. Set to 0 for unlimited. Increase if your workflow has many steps or loops.</div>
+            </div>
+            <div class="recursion-input-wrap">
+              <v-text-field
+                v-model.number="recursionLimit"
+                type="number" min="0" step="50"
+                density="compact" variant="outlined" hide-details
+                style="width:110px"
+                :placeholder="'200'"
+              />
+              <span class="muted-label" style="font-size:11px;margin-left:6px">0 = unlimited</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="panel__footer">
+        <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
+          :loading="savingLoop" @click="saveLoopSettings">Save</v-btn>
+      </div>
+    </div>
 
     <!-- Agent tabs -->
-    <v-tabs v-model="activeAgent" color="primary" class="mb-4">
-      <v-tab v-for="s in agentSettings" :key="s.agent_id" :value="s.agent_id">
-        <v-icon class="mr-2" :color="agentColor(s.agent_id)">mdi-robot</v-icon>
-        <span class="text-capitalize">{{ s.agent_id }}</span>
-      </v-tab>
-    </v-tabs>
+    <div class="agent-tabs">
+      <button
+        v-for="s in agentSettings" :key="s.agent_id"
+        class="agent-tab"
+        :class="{ 'agent-tab--active': activeAgent === s.agent_id }"
+        @click="activeAgent = s.agent_id"
+      >
+        <v-icon size="13" class="mr-1" :color="activeAgent === s.agent_id ? agentAccent(s.agent_id) : undefined">mdi-robot-outline</v-icon>
+        {{ s.agent_id }}
+      </button>
+    </div>
 
-    <v-window v-model="activeAgent">
-      <v-window-item v-for="agent in agentSettings" :key="agent.agent_id" :value="agent.agent_id">
-        <v-row>
+    <!-- Agent panels -->
+    <div v-for="agent in agentSettings" :key="agent.agent_id"
+      v-show="activeAgent === agent.agent_id" class="agent-grid">
 
-          <!-- ── LLM Config card ──────────────────────────────────────────── -->
-          <v-col cols="12" md="5">
-            <v-card color="surface-variant" rounded="lg" height="100%">
-              <v-card-title class="d-flex align-center pb-1">
-                <v-icon class="mr-2" size="18">mdi-brain</v-icon>
-                LLM Configuration
-                <v-spacer />
-                <v-chip
-                  :color="connStatus(agent.agent_id)"
-                  size="x-small"
-                  variant="tonal"
-                >
-                  {{ connLabel(agent.agent_id) }}
-                </v-chip>
-              </v-card-title>
+      <!-- LLM config -->
+      <div class="panel card-hover">
+        <div class="panel__header">
+          <div class="d-flex align-center gap-2">
+            <v-icon size="15" color="#6366F1">mdi-brain</v-icon>
+            <span class="section-title">LLM Configuration</span>
+          </div>
+          <v-chip :color="connStatus(agent.agent_id)" size="x-small" variant="tonal">
+            {{ connLabel(agent.agent_id) }}
+          </v-chip>
+        </div>
+        <div class="panel__body">
 
-              <v-card-text>
-                <!-- Model selector with live LM Studio model list -->
-                <v-combobox
-                  v-model="forms[agent.agent_id].model_name"
-                  :items="availableModels[agent.agent_id] || []"
-                  label="Model Name"
-                  density="compact"
-                  variant="outlined"
-                  placeholder="Loading models from LM Studio..."
-                  :class="modelMismatch(agent.agent_id) ? 'mb-1' : 'mb-3'"
-                  prepend-inner-icon="mdi-chip"
-                  :loading="loadingModels[agent.agent_id]"
-                  clearable
-                  hide-details
-                >
-                  <template #append-inner>
-                    <v-btn
-                      icon="mdi-refresh"
-                      size="x-small"
-                      variant="text"
-                      :loading="loadingModels[agent.agent_id]"
-                      @click.stop="fetchModels(agent.agent_id)"
-                      title="Reload models from LM Studio"
-                    />
-                  </template>
-                  <template #no-data>
-                    <v-list-item>
-                      <v-list-item-title class="text-caption text-medium-emphasis">
-                        {{ modelLoadError[agent.agent_id] || 'Connecting to LM Studio...' }}
-                      </v-list-item-title>
-                    </v-list-item>
-                  </template>
-                </v-combobox>
+          <!-- Model picker -->
+          <v-combobox
+            v-model="forms[agent.agent_id].model_name"
+            :items="availableModels[agent.agent_id] || []"
+            label="Model Name" density="compact" variant="outlined"
+            placeholder="Loading models…"
+            :class="modelMismatch(agent.agent_id) ? 'mb-1' : 'mb-3'"
+            prepend-inner-icon="mdi-chip"
+            :loading="loadingModels[agent.agent_id]"
+            clearable hide-details
+          >
+            <template #append-inner>
+              <v-btn icon="mdi-refresh" size="x-small" variant="text"
+                :loading="loadingModels[agent.agent_id]"
+                @click.stop="fetchModels(agent.agent_id)" />
+            </template>
+            <template #no-data>
+              <v-list-item>
+                <v-list-item-title style="font-size:12px;color:rgba(226,232,240,0.4)">
+                  {{ modelLoadError[agent.agent_id] || 'Connecting to LM Studio…' }}
+                </v-list-item-title>
+              </v-list-item>
+            </template>
+          </v-combobox>
 
-                <!-- Mismatch warning -->
-                <v-alert
-                  v-if="modelMismatch(agent.agent_id)"
-                  type="warning"
-                  density="compact"
-                  variant="tonal"
-                  class="mb-3"
-                  icon="mdi-alert"
-                  closable
-                >
-                  <div class="text-caption">
-                    <strong>{{ forms[agent.agent_id].model_name }}</strong> is not in your LM Studio.
-                  </div>
-                  <div v-if="suggestModel(agent.agent_id)" class="mt-2 d-flex align-center gap-2 flex-wrap">
-                    <span class="text-caption text-medium-emphasis">Suggested:</span>
-                    <v-chip
-                      size="small"
-                      color="warning"
-                      variant="tonal"
-                      class="font-mono"
-                      prepend-icon="mdi-auto-fix"
-                      @click="applyModel(agent.agent_id, suggestModel(agent.agent_id))"
-                      style="cursor:pointer"
-                    >
-                      {{ suggestModel(agent.agent_id) }}
-                    </v-chip>
-                    <span class="text-caption text-medium-emphasis">— click to apply &amp; save</span>
-                  </div>
-                </v-alert>
-                <v-text-field
-                  v-model="forms[agent.agent_id].base_url"
-                  label="LM Studio Base URL"
-                  density="compact"
-                  variant="outlined"
-                  placeholder="http://localhost:1234/v1"
-                  hide-details
-                  class="mb-3"
-                  prepend-inner-icon="mdi-server"
-                />
-                <v-text-field
-                  v-model="forms[agent.agent_id].api_key"
-                  label="API Key"
-                  density="compact"
-                  variant="outlined"
-                  placeholder="lm-studio"
-                  hide-details
-                  class="mb-3"
-                  prepend-inner-icon="mdi-key"
-                  :type="showKey[agent.agent_id] ? 'text' : 'password'"
-                  :append-inner-icon="showKey[agent.agent_id] ? 'mdi-eye-off' : 'mdi-eye'"
-                  @click:append-inner="showKey[agent.agent_id] = !showKey[agent.agent_id]"
-                />
-                <div class="text-caption text-medium-emphasis mb-1">
-                  Temperature: {{ forms[agent.agent_id].temperature }}
+          <!-- Mismatch -->
+          <v-alert v-if="modelMismatch(agent.agent_id)" type="warning" density="compact"
+            variant="tonal" class="mb-3" icon="mdi-alert" closable>
+            <div style="font-size:12px">
+              <strong>{{ forms[agent.agent_id].model_name }}</strong> not found in LM Studio.
+            </div>
+            <div v-if="suggestModel(agent.agent_id)" class="mt-2 d-flex align-center gap-2 flex-wrap">
+              <span style="font-size:11px;color:rgba(226,232,240,0.5)">Suggested:</span>
+              <v-chip size="small" color="warning" variant="tonal" class="font-mono"
+                prepend-icon="mdi-auto-fix" style="cursor:pointer"
+                @click="applyModel(agent.agent_id, suggestModel(agent.agent_id))">
+                {{ suggestModel(agent.agent_id) }}
+              </v-chip>
+              <span style="font-size:11px;color:rgba(226,232,240,0.4)">— click to apply</span>
+            </div>
+          </v-alert>
+
+          <v-text-field v-model="forms[agent.agent_id].base_url" label="LM Studio Base URL"
+            density="compact" variant="outlined" placeholder="http://localhost:1234/v1"
+            hide-details class="mb-3" prepend-inner-icon="mdi-server-outline" />
+
+          <v-text-field v-model="forms[agent.agent_id].api_key" label="API Key"
+            density="compact" variant="outlined" placeholder="lm-studio"
+            hide-details class="mb-3" prepend-inner-icon="mdi-key-outline"
+            :type="showKey[agent.agent_id] ? 'text' : 'password'"
+            :append-inner-icon="showKey[agent.agent_id] ? 'mdi-eye-off' : 'mdi-eye'"
+            @click:append-inner="showKey[agent.agent_id] = !showKey[agent.agent_id]" />
+
+          <div class="field-label">Temperature: {{ forms[agent.agent_id].temperature }}</div>
+          <v-slider v-model="forms[agent.agent_id].temperature" min="0" max="2" step="0.05"
+            thumb-label color="primary" class="mb-2" hide-details />
+
+          <v-text-field v-model.number="forms[agent.agent_id].max_tokens" label="Max Tokens"
+            density="compact" variant="outlined" type="number"
+            hide-details class="mb-3" prepend-inner-icon="mdi-counter" />
+
+          <v-textarea v-model="forms[agent.agent_id].system_prompt" label="System Prompt Override"
+            density="compact" variant="outlined" rows="2" hide-details class="mb-3"
+            placeholder="Leave empty to use default" />
+
+          <v-switch v-model="forms[agent.agent_id].compression_enabled"
+            label="Prompt Compression" color="primary" hide-details density="compact" inset />
+        </div>
+        <div class="panel__footer">
+          <v-btn color="secondary" variant="tonal" size="small"
+            prepend-icon="mdi-connection" :loading="testing[agent.agent_id]"
+            @click="testConnection(agent.agent_id)">Test</v-btn>
+          <v-btn color="primary" size="small"
+            prepend-icon="mdi-content-save" :loading="saving[agent.agent_id]"
+            @click="saveSettings(agent.agent_id)">Save</v-btn>
+        </div>
+      </div>
+
+      <!-- Tools -->
+      <div class="panel card-hover">
+        <div class="panel__header">
+          <div class="d-flex align-center gap-2">
+            <v-icon size="15" color="#6366F1">mdi-tools</v-icon>
+            <span class="section-title">Allowed Tools</span>
+          </div>
+          <v-chip size="x-small" color="primary" variant="tonal">
+            {{ enabledCount(agent.agent_id) }} / {{ totalTools }} enabled
+          </v-chip>
+        </div>
+
+        <!-- Presets -->
+        <div class="preset-bar">
+          <button class="preset-btn preset-btn--green"  @click="applyPreset(agent.agent_id, 'all')">All</button>
+          <button class="preset-btn preset-btn--blue"   @click="applyPreset(agent.agent_id, 'safe')">Safe Only</button>
+          <button class="preset-btn preset-btn--yellow" @click="applyPreset(agent.agent_id, 'readonly')">Read Only</button>
+          <button class="preset-btn preset-btn--red"    @click="applyPreset(agent.agent_id, 'none')">None</button>
+        </div>
+
+        <div class="tool-groups">
+          <div v-for="(group, category) in groupedTools" :key="category">
+            <div class="tool-category-header">
+              <v-icon size="12" class="mr-1" color="rgba(226,232,240,0.3)">{{ categoryIcon(category) }}</v-icon>
+              {{ category }}
+            </div>
+            <div v-for="tool in group" :key="tool.name" class="tool-row">
+              <v-switch
+                :model-value="isToolEnabled(agent.agent_id, tool.name)"
+                @update:model-value="toggleTool(agent.agent_id, tool.name, $event)"
+                :color="tool.safe ? 'success' : 'warning'"
+                hide-details density="compact" inset class="tool-switch"
+              />
+              <div class="tool-info">
+                <div class="tool-name">
+                  <v-icon size="13" :color="tool.safe ? '#10B981' : '#F59E0B'" class="mr-1">{{ tool.icon }}</v-icon>
+                  <span class="font-mono">{{ tool.name }}</span>
+                  <span class="tool-badge" :style="tool.safe ? 'background:rgba(16,185,129,0.1);color:#10B981' : 'background:rgba(245,158,11,0.1);color:#F59E0B'">
+                    {{ tool.safe ? 'read' : 'write' }}
+                  </span>
                 </div>
-                <v-slider
-                  v-model="forms[agent.agent_id].temperature"
-                  min="0"
-                  max="2"
-                  step="0.05"
-                  thumb-label
-                  color="primary"
-                  class="mb-3"
-                  hide-details
-                />
-                <v-text-field
-                  v-model.number="forms[agent.agent_id].max_tokens"
-                  label="Max Tokens"
-                  density="compact"
-                  variant="outlined"
-                  type="number"
-                  hide-details
-                  class="mb-3"
-                  prepend-inner-icon="mdi-counter"
-                />
-                <v-textarea
-                  v-model="forms[agent.agent_id].system_prompt"
-                  label="System Prompt Override"
-                  density="compact"
-                  variant="outlined"
-                  rows="2"
-                  hide-details
-                  class="mb-3"
-                  placeholder="Leave empty to use default"
-                />
-                <v-switch
-                  v-model="forms[agent.agent_id].compression_enabled"
-                  label="Prompt Compression"
-                  color="primary"
-                  hide-details
-                  density="compact"
-                  inset
-                />
-              </v-card-text>
-
-              <v-card-actions class="px-4 pb-4">
-                <v-btn
-                  color="secondary"
-                  variant="tonal"
-                  size="small"
-                  @click="testConnection(agent.agent_id)"
-                  :loading="testing[agent.agent_id]"
-                  prepend-icon="mdi-connection"
-                >Test</v-btn>
-                <v-spacer />
-                <v-btn
-                  color="primary"
-                  size="small"
-                  @click="saveSettings(agent.agent_id)"
-                  :loading="saving[agent.agent_id]"
-                  prepend-icon="mdi-content-save"
-                >Save</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-col>
-
-          <!-- ── Tools card ──────────────────────────────────────────────── -->
-          <v-col cols="12" md="7">
-            <v-card color="surface-variant" rounded="lg">
-              <v-card-title class="d-flex align-center pb-1">
-                <v-icon class="mr-2" size="18">mdi-tools</v-icon>
-                Allowed Tools
-                <v-spacer />
-                <v-chip size="x-small" color="primary" variant="tonal">
-                  {{ enabledCount(agent.agent_id) }} / {{ totalTools }} enabled
-                </v-chip>
-              </v-card-title>
-              <v-card-subtitle class="pb-2">
-                Control which tools this agent can invoke during execution
-              </v-card-subtitle>
-
-              <!-- Quick presets -->
-              <div class="px-4 pb-2 d-flex gap-2 flex-wrap">
-                <v-btn
-                  size="x-small"
-                  variant="tonal"
-                  color="success"
-                  @click="applyPreset(agent.agent_id, 'all')"
-                  prepend-icon="mdi-check-all"
-                >All</v-btn>
-                <v-btn
-                  size="x-small"
-                  variant="tonal"
-                  color="info"
-                  @click="applyPreset(agent.agent_id, 'safe')"
-                  prepend-icon="mdi-shield-check"
-                >Safe Only</v-btn>
-                <v-btn
-                  size="x-small"
-                  variant="tonal"
-                  color="warning"
-                  @click="applyPreset(agent.agent_id, 'readonly')"
-                  prepend-icon="mdi-eye"
-                >Read Only</v-btn>
-                <v-btn
-                  size="x-small"
-                  variant="tonal"
-                  color="error"
-                  @click="applyPreset(agent.agent_id, 'none')"
-                  prepend-icon="mdi-cancel"
-                >None</v-btn>
+                <div class="tool-desc">{{ tool.description }}
+                  <span class="tool-params font-mono">{{ tool.params }}</span>
+                </div>
               </div>
+            </div>
+          </div>
+        </div>
 
-              <v-divider />
+        <div class="panel__footer">
+          <div style="font-size:11px;color:rgba(226,232,240,0.35)">
+            <v-icon size="12" color="#10B981">mdi-shield-check</v-icon> read = read-only &nbsp;
+            <v-icon size="12" color="#F59E0B">mdi-pencil</v-icon> write = modifies files
+          </div>
+          <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
+            :loading="savingTools[agent.agent_id]" @click="saveTools(agent.agent_id)">
+            Save Tools
+          </v-btn>
+        </div>
+      </div>
 
-              <!-- Tool list grouped by category -->
-              <v-card-text class="pa-0">
-                <div
-                  v-for="(group, category) in groupedTools"
-                  :key="category"
-                >
-                  <div class="px-4 py-2 text-caption text-medium-emphasis text-uppercase font-weight-bold d-flex align-center">
-                    <v-icon size="14" class="mr-1">{{ categoryIcon(category) }}</v-icon>
-                    {{ category }}
-                  </div>
-                  <v-list density="compact" bg-color="transparent" class="pt-0">
-                    <v-list-item
-                      v-for="tool in group"
-                      :key="tool.name"
-                      class="py-1"
-                    >
-                      <template #prepend>
-                        <v-switch
-                          :model-value="isToolEnabled(agent.agent_id, tool.name)"
-                          @update:model-value="toggleTool(agent.agent_id, tool.name, $event)"
-                          :color="tool.safe ? 'success' : 'warning'"
-                          hide-details
-                          density="compact"
-                          inset
-                          class="mr-2"
-                        />
-                      </template>
-                      <template #title>
-                        <div class="d-flex align-center gap-2">
-                          <v-icon size="16" :color="tool.safe ? 'success' : 'warning'" class="mr-1">
-                            {{ tool.icon }}
-                          </v-icon>
-                          <span class="font-mono text-body-2 font-weight-medium">{{ tool.name }}</span>
-                          <v-chip
-                            :color="tool.safe ? 'success' : 'warning'"
-                            size="x-small"
-                            variant="tonal"
-                          >
-                            {{ tool.safe ? 'read' : 'write' }}
-                          </v-chip>
-                        </div>
-                      </template>
-                      <template #subtitle>
-                        <div class="text-caption text-medium-emphasis">
-                          {{ tool.description }}
-                          <span class="font-mono ml-1" style="color:#7c8cf8">{{ tool.params }}</span>
-                        </div>
-                      </template>
-                    </v-list-item>
-                  </v-list>
-                  <v-divider />
-                </div>
-              </v-card-text>
-
-              <v-card-actions class="px-4 pb-4">
-                <span class="text-caption text-medium-emphasis">
-                  <v-icon size="14" color="success">mdi-shield-check</v-icon> read = read-only
-                  &nbsp;&nbsp;
-                  <v-icon size="14" color="warning">mdi-pencil</v-icon> write = modifies files
-                </span>
-                <v-spacer />
-                <v-btn
-                  color="primary"
-                  size="small"
-                  @click="saveTools(agent.agent_id)"
-                  :loading="savingTools[agent.agent_id]"
-                  prepend-icon="mdi-content-save"
-                >Save Tools</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-col>
-        </v-row>
-      </v-window-item>
-    </v-window>
+    </div>
 
     <!-- Snackbar -->
-    <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000" location="bottom right">
+    <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000" location="bottom right" rounded="lg">
       {{ snack.message }}
     </v-snackbar>
-  </v-container>
+  </div>
 </template>
 
 <script setup>
@@ -356,9 +266,14 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 const agentSettings = ref([]);
-const activeAgent = ref('developer');
+const AGENT_ORDER = ['researcher', 'planner', 'developer', 'reviewer'];
+const activeAgent = ref('researcher');
 const workspacePath = ref('./workspace');
 const savingWorkspace = ref(false);
+const loopEnabled = ref(false);
+const maxLoops = ref(3);
+const recursionLimit = ref(200);
+const savingLoop = ref(false);
 const forms = reactive({});
 const saving = reactive({});
 const savingTools = reactive({});
@@ -367,18 +282,13 @@ const connectionStatus = reactive({});
 const showKey = reactive({});
 const snack = reactive({ show: false, message: '', color: 'success' });
 
-// Model loader
-const availableModels = reactive({});   // agentId -> string[]
-const loadingModels = reactive({});     // agentId -> bool
-const modelLoadError = reactive({});    // agentId -> string
-
-// toolState[agentId][toolName] = boolean
+const availableModels = reactive({});
+const loadingModels = reactive({});
+const modelLoadError = reactive({});
 const toolState = reactive({});
-// allTools = array from server (with meta)
 const allToolsMeta = ref([]);
 
 const totalTools = computed(() => allToolsMeta.value.length);
-
 const groupedTools = computed(() => {
   const groups = {};
   for (const t of allToolsMeta.value) {
@@ -393,15 +303,12 @@ function modelMismatch(agentId) {
   const current = forms[agentId]?.model_name;
   return models && models.length > 0 && current && !models.includes(current);
 }
-
 function suggestModel(agentId) {
   const models = availableModels[agentId] || [];
   if (!models.length) return null;
   const current = (forms[agentId]?.model_name || '').toLowerCase();
-  // Score each available model by how many keywords from the current name it shares
   const keywords = current.split(/[-\/.:@]/).filter(k => k.length > 2);
-  let best = null;
-  let bestScore = -1;
+  let best = null, bestScore = -1;
   for (const m of models) {
     const ml = m.toLowerCase();
     const score = keywords.reduce((acc, k) => acc + (ml.includes(k) ? 1 : 0), 0);
@@ -409,54 +316,41 @@ function suggestModel(agentId) {
   }
   return best || models[0];
 }
-
 async function applyModel(agentId, modelName) {
   forms[agentId].model_name = modelName;
   await saveSettings(agentId);
 }
-
 function categoryIcon(cat) {
-  return { filesystem: 'mdi-folder', scaffold: 'mdi-rocket-launch', workflow: 'mdi-sitemap' }[cat] || 'mdi-wrench';
+  return { filesystem: 'mdi-folder-outline', scaffold: 'mdi-rocket-launch-outline', workflow: 'mdi-sitemap' }[cat] || 'mdi-wrench';
 }
-function agentColor(id) {
-  return { planner: 'blue', developer: 'green', reviewer: 'orange' }[id] || 'primary';
+function agentAccent(id) {
+  return { researcher: '#22D3EE', planner: '#6366F1', developer: '#10B981', reviewer: '#F59E0B' }[id] || '#6366F1';
 }
 function connStatus(id) {
   return connectionStatus[id] === true ? 'success' : connectionStatus[id] === false ? 'error' : 'grey';
 }
 function connLabel(id) {
-  return connectionStatus[id] === true ? 'Online' : connectionStatus[id] === false ? 'Offline' : '...';
+  return connectionStatus[id] === true ? 'Online' : connectionStatus[id] === false ? 'Offline' : '…';
 }
-
 function enabledCount(agentId) {
   if (!toolState[agentId]) return 0;
   return Object.values(toolState[agentId]).filter(Boolean).length;
 }
-
-function isToolEnabled(agentId, toolName) {
-  return Boolean(toolState[agentId]?.[toolName]);
-}
-
+function isToolEnabled(agentId, toolName) { return Boolean(toolState[agentId]?.[toolName]); }
 function toggleTool(agentId, toolName, value) {
   if (!toolState[agentId]) toolState[agentId] = {};
   toolState[agentId][toolName] = value;
 }
-
 function applyPreset(agentId, preset) {
   if (!toolState[agentId]) toolState[agentId] = {};
   for (const tool of allToolsMeta.value) {
-    if (preset === 'all') toolState[agentId][tool.name] = true;
-    else if (preset === 'none') toolState[agentId][tool.name] = false;
-    else if (preset === 'safe') toolState[agentId][tool.name] = tool.safe;
+    if (preset === 'all')      toolState[agentId][tool.name] = true;
+    else if (preset === 'none')     toolState[agentId][tool.name] = false;
+    else if (preset === 'safe')     toolState[agentId][tool.name] = tool.safe;
     else if (preset === 'readonly') toolState[agentId][tool.name] = ['read_file', 'list_files', 'bulk_read'].includes(tool.name);
   }
 }
-
-function showSnack(message, color = 'success') {
-  snack.message = message;
-  snack.color = color;
-  snack.show = true;
-}
+function showSnack(message, color = 'success') { Object.assign(snack, { show: true, message, color }); }
 
 async function fetchModels(agentId) {
   loadingModels[agentId] = true;
@@ -464,43 +358,46 @@ async function fetchModels(agentId) {
   try {
     const baseUrl = forms[agentId]?.base_url || 'http://localhost:1234/v1';
     const apiKey  = forms[agentId]?.api_key  || 'lm-studio';
-    const { data } = await axios.get('/api/agents/models/list', {
-      params: { baseUrl, apiKey },
-    });
+    const { data } = await axios.get('/api/agents/models/list', { params: { baseUrl, apiKey } });
     availableModels[agentId] = data.models.map(m => m.id);
-    if (!availableModels[agentId].length) {
-      modelLoadError[agentId] = 'No models found — make sure LM Studio is running';
-    }
+    if (!availableModels[agentId].length) modelLoadError[agentId] = 'No models found — is LM Studio running?';
     showSnack(`Loaded ${availableModels[agentId].length} model(s) for ${agentId}`);
   } catch (e) {
     modelLoadError[agentId] = e.response?.data?.error || e.message;
     showSnack(`Cannot reach LM Studio: ${modelLoadError[agentId]}`, 'error');
-  } finally {
-    loadingModels[agentId] = false;
-  }
+  } finally { loadingModels[agentId] = false; }
 }
-
 async function fetchGlobal() {
   try {
     const { data } = await axios.get('/api/settings/global');
     workspacePath.value = data.workspace_path || './workspace';
+    loopEnabled.value = data.workflow_loop_enabled === '1';
+    maxLoops.value = parseInt(data.workflow_max_loops || '3', 10);
+    recursionLimit.value = parseInt(data.workflow_recursion_limit || '200', 10);
   } catch { /* use default */ }
 }
-
 async function saveWorkspace() {
   savingWorkspace.value = true;
   try {
     await axios.put('/api/settings/global', { workspace_path: workspacePath.value });
     showSnack('Workspace path saved');
-  } catch (e) {
-    showSnack(`Error: ${e.message}`, 'error');
-  } finally { savingWorkspace.value = false; }
+  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
+  finally { savingWorkspace.value = false; }
 }
-
+async function saveLoopSettings() {
+  savingLoop.value = true;
+  try {
+    await axios.put('/api/settings/global', {
+      workflow_loop_enabled:    loopEnabled.value ? '1' : '0',
+      workflow_max_loops:       String(maxLoops.value),
+      workflow_recursion_limit: String(recursionLimit.value ?? 0),
+    });
+    showSnack('Workflow loop settings saved');
+  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
+  finally { savingLoop.value = false; }
+}
 async function fetchSettings() {
   const { data } = await axios.get('/api/settings');
-  // Populate all forms synchronously before any awaits so the template
-  // never sees forms[agentId] === undefined when agentSettings is non-empty
   for (const s of data) {
     forms[s.agent_id] = {
       model_name: s.model_name,
@@ -513,50 +410,40 @@ async function fetchSettings() {
     };
     showKey[s.agent_id] = false;
   }
-  agentSettings.value = data;
-  for (const s of data) {
-    await fetchAgentTools(s.agent_id);
-  }
+  agentSettings.value = [...data].sort((a, b) => {
+    const ai = AGENT_ORDER.indexOf(a.agent_id);
+    const bi = AGENT_ORDER.indexOf(b.agent_id);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  for (const s of data) await fetchAgentTools(s.agent_id);
 }
-
 async function fetchAgentTools(agentId) {
   try {
     const { data } = await axios.get(`/api/settings/${agentId}/tools`);
     if (allToolsMeta.value.length === 0) {
-      allToolsMeta.value = data.map(({ name, params, safe, category, description, icon }) => ({
-        name, params, safe, category, description, icon,
-      }));
+      allToolsMeta.value = data.map(({ name, params, safe, category, description, icon }) => ({ name, params, safe, category, description, icon }));
     }
     if (!toolState[agentId]) toolState[agentId] = {};
-    for (const t of data) {
-      toolState[agentId][t.name] = Boolean(t.enabled);
-    }
+    for (const t of data) toolState[agentId][t.name] = Boolean(t.enabled);
   } catch { /* ignore */ }
 }
-
 async function saveSettings(agentId) {
   saving[agentId] = true;
   try {
     await axios.put(`/api/settings/${agentId}`, forms[agentId]);
     showSnack(`${agentId} settings saved`);
-  } catch (e) {
-    showSnack(`Error: ${e.message}`, 'error');
-  } finally { saving[agentId] = false; }
+  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
+  finally { saving[agentId] = false; }
 }
-
 async function saveTools(agentId) {
   savingTools[agentId] = true;
   try {
-    const enabledTools = Object.entries(toolState[agentId] || {})
-      .filter(([, v]) => v)
-      .map(([k]) => k);
+    const enabledTools = Object.entries(toolState[agentId] || {}).filter(([, v]) => v).map(([k]) => k);
     await axios.put(`/api/settings/${agentId}/tools`, { enabledTools });
     showSnack(`${agentId} tools saved (${enabledTools.length} enabled)`);
-  } catch (e) {
-    showSnack(`Error: ${e.message}`, 'error');
-  } finally { savingTools[agentId] = false; }
+  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
+  finally { savingTools[agentId] = false; }
 }
-
 async function testConnection(agentId) {
   testing[agentId] = true;
   connectionStatus[agentId] = null;
@@ -575,14 +462,113 @@ async function testConnection(agentId) {
 
 onMounted(async () => {
   await Promise.all([fetchGlobal(), fetchSettings()]);
-  // Auto-load models for all agents after settings are loaded
-  for (const s of agentSettings.value) {
-    fetchModels(s.agent_id);   // fire-and-forget, non-blocking
-  }
+  for (const s of agentSettings.value) fetchModels(s.agent_id);
 });
 </script>
 
 <style scoped>
-.font-mono { font-family: monospace; }
+.page-root { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
+
+/* Agent tabs */
+.agent-tabs { display: flex; gap: 4px; }
+.agent-tab {
+  padding: 6px 18px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  color: rgba(226,232,240,0.5); background: transparent;
+  transition: all 0.15s; text-transform: capitalize;
+}
+.agent-tab:hover { background: rgba(255,255,255,0.04); color: #E2E8F0; }
+.agent-tab--active {
+  background: rgba(99,102,241,0.1) !important;
+  border-color: rgba(99,102,241,0.3) !important;
+  color: #A78BFA !important;
+}
+
+/* Panel */
+.panel {
+  background: #12121E;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; overflow: hidden;
+}
+.panel__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.panel__body { padding: 14px; }
+.panel__footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Workspace row */
+.row-layout { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hint { font-size: 11px; color: rgba(226,232,240,0.3) !important; }
+
+/* Workflow loop panel */
+.loop-grid { display: flex; flex-direction: column; gap: 16px; }
+.loop-toggle-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.loop-toggle-info { flex: 1; }
+.loop-toggle-label { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.9); margin-bottom: 4px; }
+.loop-toggle-hint  { font-size: 11px; color: rgba(226,232,240,0.35); line-height: 1.5; }
+.loop-max-row { transition: opacity .2s; }
+.loop-max-row--disabled { opacity: .35; pointer-events: none; }
+.loop-divider { border-top: 1px solid rgba(255,255,255,0.06); margin: 4px 0; }
+.muted-label { font-weight: 400; color: rgba(226,232,240,0.35); }
+.recursion-input-wrap { display: flex; align-items: center; flex-shrink: 0; }
+
+/* Agent grid */
+.agent-grid { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
+@media (max-width: 900px) { .agent-grid { grid-template-columns: 1fr; } }
+
+.field-label { font-size: 12px; color: rgba(226,232,240,0.45) !important; margin-bottom: 2px; }
+
+/* Preset bar */
+.preset-bar { display: flex; gap: 6px; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.preset-btn {
+  padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: 1px solid transparent; transition: opacity 0.15s;
+}
+.preset-btn:hover { opacity: 0.8; }
+.preset-btn--green  { background: rgba(16,185,129,0.1);  color: #10B981 !important; border-color: rgba(16,185,129,0.2); }
+.preset-btn--blue   { background: rgba(56,189,248,0.1);  color: #38BDF8 !important; border-color: rgba(56,189,248,0.2); }
+.preset-btn--yellow { background: rgba(245,158,11,0.1);  color: #F59E0B !important; border-color: rgba(245,158,11,0.2); }
+.preset-btn--red    { background: rgba(239,68,68,0.1);   color: #EF4444 !important; border-color: rgba(239,68,68,0.2); }
+
+/* Tool groups */
+.tool-groups { max-height: 480px; overflow-y: auto; }
+.tool-category-header {
+  padding: 8px 14px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+  color: rgba(226,232,240,0.3) !important;
+  background: rgba(255,255,255,0.015);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  display: flex; align-items: center;
+}
+.tool-row {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 7px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: background 0.15s;
+}
+.tool-row:hover { background: rgba(255,255,255,0.02); }
+.tool-switch { flex-shrink: 0; margin-top: 2px; }
+.tool-info { flex: 1; min-width: 0; }
+.tool-name {
+  font-size: 13px; font-weight: 500;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.tool-badge {
+  font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px;
+}
+.tool-desc {
+  font-size: 11px; color: rgba(226,232,240,0.4) !important; margin-top: 2px;
+}
+.tool-params { color: #A78BFA !important; margin-left: 4px; }
+
+.font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace !important; }
 .gap-2 { gap: 8px; }
 </style>

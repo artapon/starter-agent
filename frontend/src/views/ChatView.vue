@@ -1,113 +1,112 @@
 <template>
-  <v-container fluid class="pa-0" style="height: calc(100vh - 64px); display: flex; flex-direction: column;">
-    <!-- Header -->
-    <v-toolbar color="surface" density="compact" class="flex-grow-0" border="b">
-      <v-toolbar-title class="text-subtitle-1">
-        <v-icon class="mr-2">mdi-chat</v-icon>Realtime Chat
-      </v-toolbar-title>
-      <v-spacer />
-      <v-select
-        v-model="sessionId"
-        :items="sessionItems"
-        item-title="label"
-        item-value="id"
-        density="compact"
-        hide-details
-        style="max-width:200px"
-        label="Session"
-        class="mr-2"
-      />
-      <v-btn size="small" variant="text" icon="mdi-plus" @click="newSession" />
-      <v-btn size="small" variant="text" icon="mdi-delete" @click="clearSession" />
-      <v-divider vertical class="mx-2" />
-      <v-btn
-        size="small" variant="text"
-        :icon="showWorkspace ? 'mdi-folder-open' : 'mdi-folder'"
-        :color="showWorkspace ? 'primary' : undefined"
-        @click="showWorkspace = !showWorkspace"
-        title="Toggle workspace"
-      />
-    </v-toolbar>
+  <div class="chat-root">
+
+    <!-- Toolbar -->
+    <div class="chat-toolbar">
+      <div class="d-flex align-center gap-2">
+        <v-icon size="16" color="#6366F1">mdi-chat-outline</v-icon>
+        <span class="chat-toolbar__title">Realtime Chat</span>
+      </div>
+      <div class="d-flex align-center gap-2">
+        <v-select
+          v-model="sessionId"
+          :items="sessionItems"
+          item-title="label"
+          item-value="id"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width:200px;font-size:12px"
+          label="Session"
+        />
+        <v-btn size="small" variant="text" icon="mdi-plus" @click="newSession"
+          style="color:rgba(226,232,240,0.5)" />
+        <v-btn size="small" variant="text" icon="mdi-delete-outline" @click="clearSession"
+          style="color:rgba(226,232,240,0.5)" />
+        <div style="width:1px;height:20px;background:rgba(255,255,255,0.08)" />
+        <v-btn size="small" variant="text"
+          :icon="showWorkspace ? 'mdi-folder-open-outline' : 'mdi-folder-outline'"
+          :color="showWorkspace ? '#6366F1' : undefined"
+          @click="showWorkspace = !showWorkspace" title="Toggle workspace"
+        />
+      </div>
+    </div>
 
     <!-- Body -->
-    <div class="flex-grow-1 d-flex overflow-hidden">
+    <div class="chat-body">
 
-      <!-- ── Messages ──────────────────────────────────────────────── -->
-      <div ref="messagesEl" class="flex-grow-1 overflow-y-auto pa-4" style="background:#0A0A0F;">
+      <!-- Messages -->
+      <div ref="messagesEl" class="messages-pane">
 
-        <!-- History messages -->
-        <div v-for="msg in messages" :key="msg.id || msg.ts" class="mb-3">
-          <div :class="['d-flex', msg.role === 'user' ? 'justify-end' : 'justify-start']">
-            <div style="max-width:75%">
-              <v-chip v-if="msg.role !== 'user'" size="x-small" :color="agentColor(msg.agent_id)"
-                variant="tonal" class="mb-1" prepend-icon="mdi-robot">
-                {{ msg.agent_id || 'agent' }}
-              </v-chip>
-              <v-card :color="msg.role === 'user' ? 'primary' : 'surface-variant'"
-                rounded="lg" class="pa-3 msg-card">
-                <!-- eslint-disable-next-line vue/no-v-html -->
-                <span v-html="renderMarkdown(msg.content)" />
-              </v-card>
-              <div class="text-caption text-medium-emphasis mt-1 px-1">{{ formatTime(msg.ts) }}</div>
+        <div v-for="msg in messages" :key="msg.id || msg.ts" class="msg-wrap"
+          :class="msg.role === 'user' ? 'msg-wrap--user' : 'msg-wrap--agent'">
+          <div class="msg-inner">
+            <v-chip v-if="msg.role !== 'user'" size="x-small"
+              :color="agentColor(msg.agent_id)" variant="tonal" class="mb-1"
+              prepend-icon="mdi-robot">
+              {{ msg.agent_id || 'agent' }}
+            </v-chip>
+            <div :class="['msg-bubble', msg.role === 'user' ? 'msg-bubble--user' : 'msg-bubble--agent']">
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <span v-html="renderMarkdown(msg.content)" />
             </div>
+            <div class="msg-time">{{ formatTime(msg.ts) }}</div>
           </div>
         </div>
 
-        <!-- Live streaming bubble — renders markdown word-by-word as tokens arrive -->
-        <div v-if="isStreaming" class="d-flex justify-start mb-3">
-          <div style="max-width:75%">
+        <!-- Live streaming bubble -->
+        <div v-if="isStreaming" class="msg-wrap msg-wrap--agent">
+          <div class="msg-inner">
             <v-chip size="x-small" :color="agentColor(streamingAgentId)" variant="tonal"
               class="mb-1" prepend-icon="mdi-robot">
               {{ streamingAgentId || 'agent' }}
             </v-chip>
-            <v-card color="surface-variant" rounded="lg" class="pa-3 msg-card streaming-card">
+            <div class="msg-bubble msg-bubble--agent msg-bubble--streaming">
               <!-- eslint-disable-next-line vue/no-v-html -->
               <span v-html="renderMarkdown(streamingContent)" /><span class="cursor">▍</span>
-            </v-card>
+            </div>
           </div>
         </div>
 
-        <!-- Thinking indicator (before first token) -->
-        <div v-if="(typing || sending) && !isStreaming" class="d-flex justify-start mb-3">
-          <v-card color="surface-variant" rounded="lg" class="pa-3 d-flex align-center">
-            <v-progress-circular size="16" width="2" indeterminate color="primary" class="flex-shrink-0" />
-            <span class="ml-2 text-medium-emphasis text-caption d-flex align-center gap-1">
-              <template v-if="activeAgent">
-                <v-chip size="x-small" :color="agentColor(activeAgent)" variant="tonal" class="mr-1">{{ activeAgent }}</v-chip>
-                thinking…
-              </template>
-              <template v-else>Agent thinking…</template>
+        <!-- Thinking indicator -->
+        <div v-if="(typing || sending) && !isStreaming" class="msg-wrap msg-wrap--agent">
+          <div class="thinking-bubble">
+            <span class="thinking-dot" /><span class="thinking-dot" /><span class="thinking-dot" />
+            <span v-if="activeAgent" class="thinking-agent">
+              <v-chip size="x-small" :color="agentColor(activeAgent)" variant="tonal" class="ml-2">{{ activeAgent }}</v-chip>
+              thinking…
             </span>
-          </v-card>
+            <span v-else class="thinking-agent ml-2">Agent thinking…</span>
+          </div>
         </div>
 
         <div ref="bottomAnchor" />
       </div>
 
-      <!-- ── Workspace Panel ───────────────────────────────────────── -->
+      <!-- Workspace panel -->
       <transition name="slide-panel">
-        <div v-if="showWorkspace"
-          style="width:300px;min-width:260px;border-left:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;background:#0d0d14;">
-          <div class="d-flex align-center px-2 py-2" style="border-bottom:1px solid rgba(255,255,255,0.08)">
-            <v-icon size="15" color="primary" class="mr-1">mdi-folder-cog</v-icon>
-            <span class="text-caption font-weight-bold">Workspace</span>
-            <v-tooltip :text="workspacePath" location="bottom">
-              <template #activator="{ props }">
-                <v-chip v-bind="props" size="x-small" color="primary" variant="tonal" class="ml-1"
-                  style="max-width:110px;overflow:hidden;text-overflow:ellipsis">
-                  {{ workspacePath }}
-                </v-chip>
-              </template>
-            </v-tooltip>
-            <v-spacer />
-            <v-btn size="x-small" icon="mdi-refresh" variant="text" @click="loadWorkspace" :loading="loadingWorkspace" />
+        <div v-if="showWorkspace" class="workspace-panel">
+          <div class="workspace-panel__header">
+            <div class="d-flex align-center gap-1">
+              <v-icon size="13" color="#6366F1">mdi-folder-cog</v-icon>
+              <span style="font-size:12px;font-weight:600">Workspace</span>
+              <v-tooltip :text="workspacePath" location="bottom">
+                <template #activator="{ props }">
+                  <v-chip v-bind="props" size="x-small" color="primary" variant="tonal"
+                    style="max-width:100px;overflow:hidden;text-overflow:ellipsis">
+                    {{ workspacePath }}
+                  </v-chip>
+                </template>
+              </v-tooltip>
+            </div>
+            <v-btn size="x-small" icon="mdi-refresh" variant="text" @click="loadWorkspace"
+              :loading="loadingWorkspace" />
           </div>
-
-          <div class="overflow-y-auto flex-grow-1 py-1">
+          <div class="workspace-panel__body">
             <template v-if="!workspaceTree.length">
-              <div class="text-center pa-4 text-medium-emphasis">
-                <v-icon size="36" class="mb-2 d-block">mdi-folder-open-outline</v-icon>
-                <div class="text-caption">Workspace is empty</div>
+              <div class="workspace-empty">
+                <v-icon size="32" style="color:rgba(226,232,240,0.2)">mdi-folder-open-outline</v-icon>
+                <div style="font-size:12px;color:rgba(226,232,240,0.3);margin-top:6px">Workspace is empty</div>
               </div>
             </template>
             <workspace-node v-for="node in workspaceTree" :key="node.path"
@@ -117,8 +116,8 @@
       </transition>
     </div>
 
-    <!-- Input -->
-    <v-toolbar color="surface" border="t" class="flex-grow-0 pa-2">
+    <!-- Input bar -->
+    <div class="chat-input-bar">
       <v-textarea
         v-model="input"
         placeholder="Describe your goal… (Enter to send, Shift+Enter for newline)"
@@ -126,36 +125,28 @@
         :disabled="sending"
         @keydown.enter.exact.prevent="sendMessage"
         @keydown.shift.enter.exact="insertNewline"
-        class="mr-2"
+        style="font-size:14px"
       />
-      <!-- Stop button — shown while processing -->
-      <v-btn
-        v-if="sending || isStreaming || typing"
-        color="error"
-        variant="tonal"
-        icon="mdi-stop"
-        class="mr-2"
-        title="Stop"
-        @click="stopChat"
-      />
-      <v-btn color="primary" :loading="sending" :disabled="!input.trim() || sending" @click="sendMessage" icon="mdi-send" />
-    </v-toolbar>
+      <v-btn v-if="sending || isStreaming || typing" color="error" variant="tonal"
+        icon="mdi-stop-circle-outline" size="40" @click="stopChat" title="Stop" />
+      <v-btn color="primary" :loading="sending" :disabled="!input.trim() || sending"
+        @click="sendMessage" icon="mdi-send" size="40" />
+    </div>
 
     <!-- File viewer dialog -->
-    <v-dialog v-model="fileDialog.show" max-width="900">
-      <v-card>
-        <v-card-title class="d-flex align-center">
-          <v-icon class="mr-2" size="18">mdi-file-code</v-icon>
-          {{ fileDialog.path }}
-          <v-spacer />
+    <v-dialog v-model="fileDialog.show" max-width="860">
+      <v-card rounded="lg">
+        <div class="file-dialog-title">
+          <div class="d-flex align-center gap-2">
+            <v-icon size="16" color="#6366F1">mdi-file-code-outline</v-icon>
+            <span style="font-size:13px;font-weight:600">{{ fileDialog.path }}</span>
+          </div>
           <v-btn icon="mdi-close" variant="text" size="small" @click="fileDialog.show = false" />
-        </v-card-title>
-        <v-card-text class="pa-0">
-          <pre style="overflow:auto;max-height:70vh;padding:16px;font-size:13px;background:#0a0a0f;margin:0">{{ fileDialog.content }}</pre>
-        </v-card-text>
+        </div>
+        <pre class="file-dialog-content">{{ fileDialog.content }}</pre>
       </v-card>
     </v-dialog>
-  </v-container>
+  </div>
 </template>
 
 <script setup>
@@ -182,18 +173,18 @@ const WorkspaceNode = defineComponent({
     function fmtSize(b) {
       return b < 1024 ? `${b}B` : b < 1048576 ? `${(b/1024).toFixed(1)}K` : `${(b/1048576).toFixed(1)}M`;
     }
-    return () => h('div', { style: `padding-left:${props.depth * 14}px` }, [
+    return () => h('div', { style: `padding-left:${props.depth * 12}px` }, [
       h('div', {
-        style: 'display:flex;align-items:center;gap:5px;padding:3px 8px;cursor:pointer;border-radius:4px',
+        style: 'display:flex;align-items:center;gap:5px;padding:4px 8px;cursor:pointer;border-radius:6px',
         class: 'ws-row',
         onClick: () => props.node.type === 'dir' ? (expanded.value = !expanded.value) : emit('open', props.node),
       }, [
-        h('v-icon', { size: 13, color: props.node.type === 'dir' ? 'primary' : 'grey-lighten-1' },
+        h('v-icon', { size: 12, color: props.node.type === 'dir' ? '#6366F1' : 'rgba(226,232,240,0.4)' },
           () => props.node.type === 'dir' ? (expanded.value ? 'mdi-folder-open' : 'mdi-folder') : fileIcon(props.node.name)),
-        h('span', { style: 'flex:1;font-family:monospace;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' },
+        h('span', { style: 'flex:1;font-family:monospace;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#CBD5E1' },
           props.node.name),
         props.node.type === 'file'
-          ? h('span', { style: 'font-size:11px;color:#666;flex-shrink:0' }, fmtSize(props.node.size))
+          ? h('span', { style: 'font-size:10px;color:rgba(226,232,240,0.3);flex-shrink:0' }, fmtSize(props.node.size))
           : null,
       ]),
       expanded.value && props.node.children?.map(child =>
@@ -214,15 +205,11 @@ const sessions = ref([]);
 const messagesEl = ref(null);
 const bottomAnchor = ref(null);
 
-// Dedicated streaming state — plain refs, always reactive
 const isStreaming = ref(false);
 const streamingContent = ref('');
 const streamingAgentId = ref('developer');
-
-// Per-agent status from agent:status socket events
 const activeAgent = ref(null);
 
-// Workspace
 const showWorkspace = ref(false);
 const workspaceTree = ref([]);
 const workspacePath = ref('./workspace');
@@ -230,19 +217,17 @@ const loadingWorkspace = ref(false);
 const fileDialog = ref({ show: false, path: '', content: '' });
 
 const sessionItems = computed(() =>
-  sessions.value.map(s => ({ id: s.id, label: `${s.id.slice(0, 8)} (${s.message_count} msgs)` }))
+  sessions.value.map(s => ({ id: s.id, label: `${s.id.slice(0, 8)} (${s.message_count})` }))
 );
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function agentColor(id) {
-  return { planner: 'blue', developer: 'green', reviewer: 'orange', workflow: 'purple', system: 'red' }[id] || 'primary';
+  return { researcher: 'info', planner: 'primary', developer: 'success', reviewer: 'warning', workflow: 'secondary', system: 'error' }[id] || 'primary';
 }
 function renderMarkdown(text) {
   try { return marked.parse(text || ''); } catch { return text || ''; }
 }
-function formatTime(ts) {
-  return ts ? new Date(Number(ts)).toLocaleTimeString() : '';
-}
+function formatTime(ts) { return ts ? new Date(Number(ts)).toLocaleTimeString() : ''; }
 async function scrollBottom() {
   await nextTick();
   bottomAnchor.value?.scrollIntoView({ behavior: 'smooth' });
@@ -294,10 +279,7 @@ async function clearSession() {
 function insertNewline() { input.value += '\n'; }
 
 async function stopChat() {
-  try {
-    await axios.post(`/api/chat/stop/${sessionId.value}`);
-  } catch { /* best-effort */ }
-  // Reset UI state immediately
+  try { await axios.post(`/api/chat/stop/${sessionId.value}`); } catch { /* best-effort */ }
   sending.value = false;
   typing.value = false;
   isStreaming.value = false;
@@ -315,21 +297,12 @@ async function sendMessage() {
     const { data } = await axios.post('/api/chat/message', { content, sessionId: sessionId.value });
     localStorage.setItem('chatSessionId', sessionId.value);
     loadSessions();
-    // Commit final message from HTTP response — more reliable than socket event
     if (data?.content) {
-      const streamed = streamingContent.value;
       isStreaming.value = false;
       streamingContent.value = '';
       activeAgent.value = null;
-      const combined = streamed
-        ? `${streamed}\n\n---\n\n${data.content}`
-        : data.content;
-      messages.value.push({
-        role: 'assistant',
-        content: combined,
-        ts: Date.now(),
-        agent_id: data.agentId || 'workflow',
-      });
+      // Backend already combines streamBuffer + finalAnswer into data.content
+      messages.value.push({ role: 'assistant', content: data.content, ts: Date.now(), agent_id: data.agentId || 'workflow' });
       await scrollBottom();
     }
   } catch (err) {
@@ -356,16 +329,11 @@ onMounted(() => {
   loadHistory();
   loadSessions();
 
-  // Per-agent status — shows which agent is currently working
   socket.on('agent:status', (data) => {
-    if (data.status === 'working') {
-      activeAgent.value = data.agentId;
-    } else if (data.status === 'idle') {
-      if (activeAgent.value === data.agentId) activeAgent.value = null;
-    }
+    if (data.status === 'working') activeAgent.value = data.agentId;
+    else if (data.status === 'idle' && activeAgent.value === data.agentId) activeAgent.value = null;
   });
 
-  // Token-by-token streaming chunk
   socket.on('chat:response_chunk', (data) => {
     if (data.sessionId !== sessionId.value) return;
     if (!isStreaming.value) {
@@ -378,11 +346,12 @@ onMounted(() => {
     scrollBottom();
   });
 
-  // Final response — clear streaming state only (message committed via HTTP response)
+  // Only hide the streaming bubble — do NOT clear streamingContent here.
+  // sendMessage reads it after the HTTP response resolves; clearing it early
+  // would cause the socket event (which fires before HTTP) to wipe the content.
   socket.on('chat:response', (data) => {
     if (data.sessionId !== sessionId.value) return;
     isStreaming.value = false;
-    streamingContent.value = '';
     activeAgent.value = null;
   });
 
@@ -393,7 +362,6 @@ onMounted(() => {
     }
   });
 
-  // Stopped by user
   socket.on('chat:stopped', (data) => {
     if (data.sessionId !== sessionId.value) return;
     isStreaming.value = false;
@@ -419,29 +387,155 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.msg-card { white-space: pre-wrap; word-break: break-word; font-size: 14px; }
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+.chat-root {
+  height: calc(100vh - 56px);
+  display: flex; flex-direction: column;
+  background: #08080F;
+}
 
-/* Streaming card — let markdown p/pre elements flow naturally */
-.streaming-card :deep(p) { margin-bottom: 4px; }
-.streaming-card :deep(pre) { white-space: pre-wrap; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; margin: 4px 0; }
-.streaming-card :deep(code) { font-family: monospace; font-size: 13px; }
-.streaming-card :deep(ul), .streaming-card :deep(ol) { padding-left: 20px; margin: 4px 0; }
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+.chat-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  height: 48px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: #0D0D1A;
+}
+.chat-toolbar__title { font-size: 13px; font-weight: 600; }
 
-/* Blinking cursor */
+/* ── Body ─────────────────────────────────────────────────────────────────── */
+.chat-body { flex: 1; display: flex; overflow: hidden; }
+
+/* ── Messages pane ───────────────────────────────────────────────────────── */
+.messages-pane {
+  flex: 1; overflow-y: auto;
+  padding: 20px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+/* ── Message wrapper ─────────────────────────────────────────────────────── */
+.msg-wrap { display: flex; }
+.msg-wrap--user  { justify-content: flex-end; }
+.msg-wrap--agent { justify-content: flex-start; }
+
+.msg-inner { max-width: 72%; display: flex; flex-direction: column; }
+.msg-wrap--user .msg-inner { align-items: flex-end; }
+
+/* ── Bubbles ─────────────────────────────────────────────────────────────── */
+.msg-bubble {
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.msg-bubble--user {
+  background: #6366F1;
+  border-bottom-right-radius: 4px;
+  color: #fff !important;
+}
+.msg-bubble--agent {
+  background: #12121E;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-bottom-left-radius: 4px;
+}
+.msg-bubble--streaming {
+  border-color: rgba(99,102,241,0.2) !important;
+}
+
+/* Markdown inside bubbles */
+.msg-bubble :deep(p)    { margin: 0 0 6px; }
+.msg-bubble :deep(p:last-child) { margin-bottom: 0; }
+.msg-bubble :deep(pre)  { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; margin: 6px 0; overflow-x:auto; }
+.msg-bubble :deep(code) { font-family: monospace; font-size: 13px; }
+.msg-bubble :deep(ul), .msg-bubble :deep(ol) { padding-left: 20px; margin: 4px 0; }
+.msg-bubble :deep(hr)   { border-color: rgba(255,255,255,0.08); margin: 10px 0; }
+
+.msg-time {
+  font-size: 10px;
+  color: rgba(226,232,240,0.3) !important;
+  margin-top: 4px;
+  padding: 0 2px;
+}
+
+/* ── Cursor ──────────────────────────────────────────────────────────────── */
 .cursor {
   display: inline-block;
-  color: rgb(var(--v-theme-primary));
-  animation: blink 0.6s step-end infinite;
+  color: #6366F1 !important;
+  animation: blink 0.55s step-end infinite;
   font-weight: bold;
+  margin-left: 1px;
 }
 @keyframes blink { 50% { opacity: 0; } }
 
-/* Workspace row hover */
-.ws-row:hover { background: rgba(255,255,255,0.06); }
+/* ── Thinking ────────────────────────────────────────────────────────────── */
+.thinking-bubble {
+  display: flex; align-items: center;
+  padding: 10px 14px;
+  background: #12121E;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px; border-bottom-left-radius: 4px;
+}
+.thinking-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(226,232,240,0.4);
+  margin: 0 2px;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.thinking-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-5px); }
+}
+.thinking-agent { font-size: 12px; color: rgba(226,232,240,0.45) !important; }
 
-/* Workspace panel slide transition */
-.slide-panel-enter-active,
-.slide-panel-leave-active { transition: width 0.22s ease, opacity 0.22s ease; overflow: hidden; }
-.slide-panel-enter-from,
-.slide-panel-leave-to   { width: 0 !important; opacity: 0; }
+/* ── Input bar ───────────────────────────────────────────────────────────── */
+.chat-input-bar {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 12px 16px;
+  background: #0D0D1A;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+/* ── Workspace panel ─────────────────────────────────────────────────────── */
+.workspace-panel {
+  width: 280px; min-width: 240px; flex-shrink: 0;
+  border-left: 1px solid rgba(255,255,255,0.05);
+  display: flex; flex-direction: column;
+  background: #0D0D1A;
+}
+.workspace-panel__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.workspace-panel__body { flex: 1; overflow-y: auto; padding: 6px 0; }
+.workspace-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 120px; padding: 16px;
+}
+.ws-row:hover { background: rgba(255,255,255,0.04) !important; }
+
+/* ── File dialog ─────────────────────────────────────────────────────────── */
+.file-dialog-title {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.file-dialog-content {
+  overflow: auto; max-height: 70vh;
+  padding: 16px; font-size: 13px;
+  background: #08080F !important;
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ── Panel slide transition ─────────────────────────────────────────────── */
+.slide-panel-enter-active, .slide-panel-leave-active { transition: width 0.2s ease, opacity 0.2s ease; overflow: hidden; }
+.slide-panel-enter-from, .slide-panel-leave-to { width: 0 !important; opacity: 0; }
+
+.gap-2 { gap: 8px; }
 </style>

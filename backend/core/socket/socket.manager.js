@@ -21,6 +21,10 @@ export function createSocketManager(httpServer) {
   _io.on('connection', (socket) => {
     logger.info('Client connected', { socketId: socket.id });
 
+    // Suppress async write errors from clients that disconnect mid-stream
+    socket.on('error', () => {});
+    socket.conn?.on('error', () => {});
+
     socket.on('disconnect', () => {
       logger.info('Client disconnected', { socketId: socket.id });
     });
@@ -78,15 +82,15 @@ export function createSocketManager(httpServer) {
           ts: Date.now(),
         });
       } catch (_) {}
-      _io.emit(SocketEvents.LOG_ENTRY, logEntry);
+      try { _io.emit(SocketEvents.LOG_ENTRY, logEntry); } catch { /* ignore disconnected client */ }
     },
 
     emitAgentStatus(agentId, status, currentTask = null) {
-      _io.emit(SocketEvents.AGENT_STATUS_UPDATE, { agentId, status, currentTask, ts: Date.now() });
+      try { _io.emit(SocketEvents.AGENT_STATUS_UPDATE, { agentId, status, currentTask, ts: Date.now() }); } catch { /* ignore */ }
     },
 
     emitWorkflowNode(runId, node, state) {
-      _io.emit(SocketEvents.WORKFLOW_NODE_COMPLETE, { runId, node, state, ts: Date.now() });
+      try { _io.emit(SocketEvents.WORKFLOW_NODE_COMPLETE, { runId, node, state, ts: Date.now() }); } catch { /* ignore */ }
     },
 
     emitChatChunk(sessionId, chunk, agentId) {

@@ -3,6 +3,7 @@ import { getDb } from '../../../core/database/db.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { SocketEvents } from '../../../core/socket/socket.events.js';
 import { createAbortController, abortById, clearAbortController } from '../../../core/abort/abort.registry.js';
+import { generateReport } from '../../../core/reports/report.generator.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('workflow');
@@ -22,14 +23,6 @@ export class WorkflowRunner {
   constructor(socketManager) {
     this.socketManager = socketManager;
     this.db = getDb();
-    this._graph = null;
-  }
-
-  getGraph() {
-    if (!this._graph) {
-      this._graph = buildWorkflowGraph(this.socketManager);
-    }
-    return this._graph;
   }
 
   async run(goal, sessionId, onRunId = null, presetRunId = null) {
@@ -54,7 +47,35 @@ export class WorkflowRunner {
     const runCtx = { aborted: false };
     _activeRuns.set(runId, runCtx);
 
-    const graph = this.getGraph();
+    // Wrap socketManager to buffer every chat chunk for this session so we can
+    // save the full streamed content (step-by-step work) alongside the final answer.
+    let streamBuffer = '';
+    const sm = this.socketManager;
+    const bufferingSocketManager = sm ? {
+      // Forward all methods unchanged
+      emit:              (...a) => sm.emit(...a),
+      emitToSession:     (...a) => sm.emitToSession(...a),
+      emitLog:           (...a) => sm.emitLog(...a),
+      emitAgentStatus:   (...a) => sm.emitAgentStatus(...a),
+      emitWorkflowNode:  (...a) => sm.emitWorkflowNode(...a),
+      emitChatResponse:  (...a) => sm.emitChatResponse(...a),
+      // Intercept chat chunks — buffer them, then forward
+      emitChatChunk(sid, chunk, agentId) {
+        if (sid === sessionId) streamBuffer += chunk;
+        sm.emitChatChunk(sid, chunk, agentId);
+      },
+    } : null;
+
+    // Read workflow loop settings from global_settings
+    const globalRows = this.db.table('global_settings').all();
+    const globalMap  = Object.fromEntries(globalRows.map(r => [r.key, r.value]));
+    const loopEnabled = globalMap.workflow_loop_enabled === '1';
+    const maxLoops    = Math.max(1, parseInt(globalMap.workflow_max_loops || '3', 10));
+    const rawLimit    = parseInt(globalMap.workflow_recursion_limit || '200', 10);
+    const recursionLimit = (!rawLimit || rawLimit <= 0) ? 99999 : rawLimit;
+
+    // Rebuild graph with buffering socket manager so agents use it for this run
+    const graph = buildWorkflowGraph(bufferingSocketManager);
     let finalState = null;
 
     try {
@@ -66,7 +87,12 @@ export class WorkflowRunner {
         currentStepIdx: 0,
         subtaskResults: [],
         retryCount: 0,
-      });
+        loopEnabled,
+        maxLoops,
+        loopCount: 0,
+      }, { recursionLimit });
+
+      const loopIterations = []; // snapshots of each cycle before loop_reset clears state
 
       for await (const chunk of stream) {
         // Check abort between nodes
@@ -77,6 +103,16 @@ export class WorkflowRunner {
         const [nodeName, partialState] = Object.entries(chunk)[0] || [];
         if (nodeName) {
           logger.info(`Workflow node complete: ${nodeName}`, { runId });
+        }
+        // Capture current iteration state BEFORE loop_reset overwrites it
+        if (nodeName === 'loop_reset' && finalState) {
+          loopIterations.push({
+            loopIdx:          finalState.loopCount ?? 0,
+            researchFindings: finalState.researchFindings,
+            plan:             finalState.plan,
+            subtaskResults:   Array.isArray(finalState.subtaskResults) ? [...finalState.subtaskResults] : [],
+            reviewFeedback:   finalState.reviewFeedback,
+          });
         }
         finalState = { ...finalState, ...partialState };
       }
@@ -90,11 +126,16 @@ export class WorkflowRunner {
         ended_at: Math.floor(Date.now() / 1000),
       });
 
+      const runRow = this.db.table('workflow_runs').first({ id: runId });
+
       if (wasAborted) {
+        generateReport({ state: finalState, runId, sessionId, startedAt: runRow?.started_at, endedAt: runRow?.ended_at, status: 'stopped', loopIterations });
         this.socketManager?.emit(SocketEvents.WORKFLOW_STOPPED, { runId, sessionId });
         logger.info(`Workflow ${runId} stopped by user`);
-        return { runId, finalAnswer: null, state: finalState, stopped: true };
+        return { runId, finalAnswer: null, streamBuffer, state: finalState, stopped: true };
       }
+
+      generateReport({ state: finalState, runId, sessionId, startedAt: runRow?.started_at, endedAt: runRow?.ended_at, status: 'complete', loopIterations });
 
       this.socketManager?.emit(SocketEvents.WORKFLOW_COMPLETE, {
         runId,
@@ -103,7 +144,7 @@ export class WorkflowRunner {
       });
 
       logger.info(`Workflow ${runId} complete`, { runId });
-      return { runId, finalAnswer: finalState?.finalAnswer, state: finalState };
+      return { runId, finalAnswer: finalState?.finalAnswer, streamBuffer, state: finalState };
 
     } catch (err) {
       const wasAborted = runCtx.aborted || controller.signal.aborted || err.name === 'AbortError';
@@ -118,6 +159,8 @@ export class WorkflowRunner {
         status: 'error',
         ended_at: Math.floor(Date.now() / 1000),
       });
+      const errRow = this.db.table('workflow_runs').first({ id: runId });
+      generateReport({ state: finalState, runId, sessionId, startedAt: errRow?.started_at, endedAt: errRow?.ended_at, status: 'error', loopIterations });
       this.socketManager?.emit(SocketEvents.WORKFLOW_ERROR, { runId, error: err.message });
       throw err;
     } finally {

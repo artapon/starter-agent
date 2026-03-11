@@ -9,13 +9,17 @@ const DEFAULT_WORKSPACE = path.join(PROJECT_ROOT, 'workspace');
 export function runMigrations(db) {
   // Seed / enforce absolute workspace path (upsert so stale relative paths get corrected)
   const globalTable = db.table('global_settings');
-  globalTable.upsert(['key'], { key: 'workspace_path', value: DEFAULT_WORKSPACE });
+  globalTable.upsert(['key'], { key: 'workspace_path',        value: DEFAULT_WORKSPACE });
+  globalTable.insertOrIgnore(['key'], { key: 'workflow_loop_enabled',    value: '0' });
+  globalTable.insertOrIgnore(['key'], { key: 'workflow_max_loops',       value: '3' });
+  globalTable.insertOrIgnore(['key'], { key: 'workflow_recursion_limit', value: '200' });
 
   // Seed default agent settings if not present
   const agents = [
-    { agent_id: 'planner',   model_name: 'qwen2.5-7b-instruct',        temperature: 0.3, max_tokens: 4096 },
-    { agent_id: 'developer', model_name: 'qwen2.5-coder-7b-instruct',  temperature: 0.2, max_tokens: 8192 },
-    { agent_id: 'reviewer',  model_name: 'qwen2.5-7b-instruct',        temperature: 0.1, max_tokens: 4096 },
+    { agent_id: 'researcher', model_name: 'qwen2.5-7b-instruct',       temperature: 0.4, max_tokens: 4096 },
+    { agent_id: 'planner',    model_name: 'qwen2.5-7b-instruct',       temperature: 0.3, max_tokens: 4096 },
+    { agent_id: 'developer',  model_name: 'qwen2.5-coder-7b-instruct', temperature: 0.2, max_tokens: 8192 },
+    { agent_id: 'reviewer',   model_name: 'qwen2.5-7b-instruct',       temperature: 0.1, max_tokens: 4096 },
   ];
 
   const agentSettingsTable = db.table('agent_settings');

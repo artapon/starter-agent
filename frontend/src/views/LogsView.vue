@@ -1,96 +1,79 @@
 <template>
-  <v-container fluid class="pa-4">
-    <v-row class="mb-2 align-center">
-      <v-col>
-        <h1 class="text-h5 font-weight-bold">
-          <v-icon color="primary" class="mr-2">mdi-text-box-multiple</v-icon>Logs
-        </h1>
-      </v-col>
-      <v-col cols="auto" class="d-flex gap-2">
+  <div class="page-root">
+
+    <!-- Header -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">Logs</div>
+        <div class="page-subtitle">System and agent activity log</div>
+      </div>
+      <div class="d-flex align-center gap-2">
+        <v-switch v-model="liveMode" label="Live" color="success" hide-details density="compact" inset
+          style="font-size:12px" />
         <v-select
           v-model="filters.level"
           :items="['', 'info', 'warn', 'error', 'debug']"
-          label="Level"
-          density="compact"
-          hide-details
-          style="width:120px"
-          clearable
+          label="Level" density="compact" hide-details variant="outlined"
+          style="width:110px" clearable
         />
         <v-select
           v-model="filters.agentId"
           :items="['', 'planner', 'developer', 'reviewer', 'chat', 'workflow', 'http']"
-          label="Agent"
-          density="compact"
-          hide-details
-          style="width:140px"
-          clearable
+          label="Agent" density="compact" hide-details variant="outlined"
+          style="width:130px" clearable
         />
-        <v-btn icon="mdi-refresh" variant="text" @click="fetchLogs" :loading="loading" />
-        <v-btn icon="mdi-delete" variant="text" color="error" @click="clearLogs" />
-      </v-col>
-    </v-row>
-
-    <!-- Live toggle -->
-    <v-row class="mb-2">
-      <v-col>
-        <v-switch
-          v-model="liveMode"
-          label="Live Mode"
-          color="success"
-          hide-details
-          density="compact"
-          inset
-        />
-      </v-col>
-    </v-row>
+        <v-btn icon="mdi-refresh" variant="text" size="small" :loading="loading" @click="fetchLogs"
+          style="color:rgba(226,232,240,0.5)" />
+        <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" @click="clearLogs" />
+      </div>
+    </div>
 
     <!-- Log table -->
-    <v-card color="surface-variant" rounded="lg">
-      <v-card-text class="pa-0">
-        <v-data-table
-          :headers="headers"
-          :items="displayLogs"
-          density="compact"
-          class="bg-transparent"
-          :items-per-page="50"
-        >
-          <template #item.level="{ item }">
-            <v-chip :color="levelColor(item.level)" size="x-small" variant="tonal">
-              {{ item.level }}
-            </v-chip>
-          </template>
-          <template #item.ts="{ item }">
-            <span class="text-caption">{{ formatTime(item.ts) }}</span>
-          </template>
-          <template #item.message="{ item }">
-            <span style="font-family:monospace;font-size:12px">{{ item.message }}</span>
-          </template>
-          <template #item.meta_json="{ item }">
-            <v-btn
-              v-if="item.meta_json"
-              size="x-small"
-              variant="text"
-              @click="showMeta(item)"
-            >View</v-btn>
-          </template>
-        </v-data-table>
-      </v-card-text>
-    </v-card>
+    <div class="panel card-hover">
+      <v-data-table
+        :headers="headers"
+        :items="displayLogs"
+        density="compact"
+        class="bg-transparent log-table"
+        :items-per-page="50"
+      >
+        <template #item.level="{ item }">
+          <span class="level-badge"
+            :style="`background:${levelBg(item.level)};color:${levelFg(item.level)}`">
+            {{ item.level }}
+          </span>
+        </template>
+        <template #item.ts="{ item }">
+          <span class="log-time">{{ formatTime(item.ts) }}</span>
+        </template>
+        <template #item.agent_id="{ item }">
+          <v-chip v-if="item.agent_id" size="x-small" color="secondary" variant="tonal">
+            {{ item.agent_id }}
+          </v-chip>
+        </template>
+        <template #item.message="{ item }">
+          <span class="log-msg">{{ item.message }}</span>
+        </template>
+        <template #item.meta_json="{ item }">
+          <v-btn v-if="item.meta_json" size="x-small" variant="text" @click="showMeta(item)"
+            style="color:#6366F1;font-size:11px">
+            View
+          </v-btn>
+        </template>
+      </v-data-table>
+    </div>
 
     <!-- Meta dialog -->
-    <v-dialog v-model="metaDialog" max-width="600">
-      <v-card color="surface-variant" rounded="lg">
-        <v-card-title>Log Metadata</v-card-title>
-        <v-card-text>
-          <pre style="font-size:12px;white-space:pre-wrap">{{ selectedMeta }}</pre>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn @click="metaDialog = false">Close</v-btn>
-        </v-card-actions>
+    <v-dialog v-model="metaDialog" max-width="580">
+      <v-card rounded="lg">
+        <div class="dialog-header">
+          <span style="font-size:13px;font-weight:600">Log Metadata</span>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="metaDialog = false" />
+        </div>
+        <pre class="dialog-body">{{ selectedMeta }}</pre>
       </v-card>
     </v-dialog>
-  </v-container>
+  </div>
 </template>
 
 <script setup>
@@ -108,21 +91,22 @@ const metaDialog = ref(false);
 const selectedMeta = ref('');
 
 const headers = [
-  { title: 'Time', key: 'ts', width: 120 },
-  { title: 'Level', key: 'level', width: 80 },
-  { title: 'Agent', key: 'agent_id', width: 100 },
+  { title: 'Time',    key: 'ts',       width: 110 },
+  { title: 'Level',   key: 'level',    width: 80 },
+  { title: 'Agent',   key: 'agent_id', width: 110 },
   { title: 'Message', key: 'message' },
-  { title: 'Meta', key: 'meta_json', width: 60 },
+  { title: 'Meta',    key: 'meta_json', width: 60 },
 ];
 
 const displayLogs = computed(() => liveMode.value ? liveLogs.value : logs.value);
 
-function levelColor(l) {
-  return { error: 'error', warn: 'warning', info: 'info', debug: 'grey' }[l] || 'grey';
+function levelBg(l) {
+  return { error: 'rgba(239,68,68,0.12)', warn: 'rgba(245,158,11,0.12)', info: 'rgba(56,189,248,0.1)', debug: 'rgba(255,255,255,0.06)' }[l] || 'rgba(255,255,255,0.06)';
 }
-function formatTime(ts) {
-  return ts ? new Date(Number(ts)).toLocaleTimeString() : '';
+function levelFg(l) {
+  return { error: '#EF4444', warn: '#F59E0B', info: '#38BDF8', debug: 'rgba(226,232,240,0.45)' }[l] || '#E2E8F0';
 }
+function formatTime(ts) { return ts ? new Date(Number(ts)).toLocaleTimeString() : ''; }
 function showMeta(item) {
   try { selectedMeta.value = JSON.stringify(JSON.parse(item.meta_json), null, 2); }
   catch { selectedMeta.value = item.meta_json; }
@@ -157,3 +141,43 @@ onMounted(() => {
   onUnmounted(() => socket.off('log:entry'));
 });
 </script>
+
+<style scoped>
+.page-root { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+
+.panel {
+  background: #12121E;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; overflow: hidden;
+}
+
+.level-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 6px;
+  border-radius: 4px; text-transform: uppercase; letter-spacing: 0.4px;
+}
+
+.log-time { font-size: 11px; color: rgba(226,232,240,0.4) !important; font-family: monospace; }
+.log-msg  { font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+
+.log-table :deep(.v-data-table__td) { border-bottom: 1px solid rgba(255,255,255,0.03) !important; }
+.log-table :deep(.v-data-table__th) {
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  font-size: 11px !important; text-transform: uppercase; letter-spacing: 0.5px;
+  color: rgba(226,232,240,0.35) !important;
+}
+
+.dialog-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.dialog-body {
+  padding: 14px 16px; font-size: 12px; font-family: monospace;
+  white-space: pre-wrap; max-height: 60vh; overflow-y: auto;
+  background: #08080F !important; margin: 0;
+  color: #CBD5E1 !important;
+}
+
+.gap-2 { gap: 8px; }
+</style>

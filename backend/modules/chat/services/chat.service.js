@@ -76,16 +76,22 @@ export class ChatService {
         return { sessionId, content: stoppedMsg, stopped: true };
       }
 
-      const answer = result.finalAnswer || 'Task completed.';
+      const finalAnswer = result.finalAnswer || 'Task completed.';
+      const streamBuffer = result.streamBuffer || '';
+
+      // Combine streamed work content with the assembled final answer
+      const fullContent = streamBuffer
+        ? `${streamBuffer}\n\n---\n\n${finalAnswer}`
+        : finalAnswer;
 
       // Save assistant response
-      this.saveMessage(sessionId, 'assistant', answer, 'workflow');
+      this.saveMessage(sessionId, 'assistant', fullContent, 'workflow');
 
       // Emit response
-      this.socketManager?.emitChatResponse(sessionId, answer, 'workflow');
+      this.socketManager?.emitChatResponse(sessionId, finalAnswer, 'workflow');
       this.socketManager?.emit(SocketEvents.CHAT_AGENT_TYPING, { agentId: 'planner', typing: false, sessionId });
 
-      return { sessionId, content: answer, runId: result.runId };
+      return { sessionId, content: fullContent, agentId: 'workflow', runId: result.runId };
     } catch (err) {
       this._activeRunIds.delete(sessionId);
       const detail = err.error?.message || err.message || 'Unknown error';

@@ -11,10 +11,11 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..'
 const SKILLS_DIR = join(PROJECT_ROOT, 'skills');
 
 const SKILL_FILES = {
-  global:    'SKILL.md',
-  planner:   'PLANNER.md',
-  developer: 'DEVELOPER.md',
-  reviewer:  'REVIEWER.md',
+  global:     'SKILL.md',
+  researcher: 'RESEARCHER.md',
+  planner:    'PLANNER.md',
+  developer:  'DEVELOPER.md',
+  reviewer:   'REVIEWER.md',
 };
 
 // In-memory cache — invalidated when files change on disk
@@ -51,7 +52,7 @@ for (const [key, filename] of Object.entries(SKILL_FILES)) {
  */
 export function getSkillPrompt(agentId) {
   if (!(agentId in cache)) {
-    cache[agentId] = readSkill(SKILL_FILES[agentId]);
+    cache[agentId] = SKILL_FILES[agentId] ? readSkill(SKILL_FILES[agentId]) : '';
   }
   if (!('global' in cache)) {
     cache.global = readSkill(SKILL_FILES.global);

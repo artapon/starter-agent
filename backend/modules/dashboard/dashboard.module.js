@@ -14,7 +14,7 @@ router.get('/stats', async (req, res, next) => {
     const settings = db.table('agent_settings').all();
 
     const agentStatuses = await Promise.all(
-      ['planner', 'developer', 'reviewer'].map(async (id) => {
+      ['researcher', 'planner', 'developer', 'reviewer'].map(async (id) => {
         try {
           const adapter = getAdapter(id);
           const available = await adapter.isAvailable();
