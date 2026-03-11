@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(timeout 8 node:*)",
+      "Bash(timeout 6 node:*)",
+      "Bash(netstat:*)",
+      "Bash(node:*)",
+      "Bash(cd D:/Projects/starter-agent && grep -n \"handleLLMNewToken\" backend/modules/*/services/*.js)"
+    ]
+  }
+}
