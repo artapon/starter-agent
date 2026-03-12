@@ -37,6 +37,26 @@ router.get('/stats', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/tokens', (req, res, next) => {
+  try {
+    const now      = Date.now();
+    const DAY      = 24 * 60 * 60 * 1000;
+    const all      = db.table('token_usage').all();
+    const sum      = rows => rows.reduce((acc, r) => acc + (r.total_tokens || 0), 0);
+    const byAgent  = {};
+    for (const r of all) {
+      byAgent[r.agent_id] = (byAgent[r.agent_id] || 0) + (r.total_tokens || 0);
+    }
+    res.json({
+      today:   sum(all.filter(r => now - r.ts < DAY)),
+      weekly:  sum(all.filter(r => now - r.ts < 7 * DAY)),
+      monthly: sum(all.filter(r => now - r.ts < 30 * DAY)),
+      total:   sum(all),
+      byAgent,
+    });
+  } catch (e) { next(e); }
+});
+
 router.get('/recent-runs', (req, res, next) => {
   try {
     const runs = db.table('workflow_runs').all({}, { orderBy: 'started_at', order: 'desc', limit: 20 });

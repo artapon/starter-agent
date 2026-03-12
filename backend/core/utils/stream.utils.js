@@ -1,4 +1,4 @@
-import { SocketEvents } from '../socket/socket.events.js';
+import { getDb } from '../database/db.js';
 
 /**
  * Convert LangChain BaseMessage objects → OpenAI {role, content} format.
@@ -17,14 +17,27 @@ export function toLMStudioMessages(messages) {
   });
 }
 
+/** Estimate token count from text (4 chars ≈ 1 token). */
+function estimateTokens(text) {
+  return Math.ceil((text || '').length / 4);
+}
+
+/** Persist token usage to the token_usage table. */
+function recordTokenUsage(agentId, promptTokens, completionTokens) {
+  try {
+    getDb().table('token_usage').insert({
+      agent_id:          agentId,
+      prompt_tokens:     promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens:      promptTokens + completionTokens,
+      ts:                Date.now(),
+    });
+  } catch { /* never crash the agent over analytics */ }
+}
+
 /**
  * Direct SSE stream from LM Studio — bypasses LangChain's internal buffering.
  * Yields each text token as soon as LM Studio sends it.
- *
- * @param {object} settings  - agent_settings row ({ base_url, api_key, model_name, temperature, max_tokens })
- * @param {Array}  messages  - OpenAI-format messages [{ role, content }]
- * @param {AbortSignal} [signal]
- * @yields {string} token text
  */
 export async function* rawLMStream(settings, messages, signal) {
   const url = `${settings.base_url || 'http://localhost:1234/v1'}/chat/completions`;
@@ -38,11 +51,11 @@ export async function* rawLMStream(settings, messages, signal) {
         Authorization: `Bearer ${settings.api_key || 'lm-studio'}`,
       },
       body: JSON.stringify({
-        model: settings.model_name,
+        model:       settings.model_name,
         messages,
-        stream: true,
+        stream:      true,
         temperature: settings.temperature ?? 0.2,
-        max_tokens: settings.max_tokens ?? 8192,
+        max_tokens:  settings.max_tokens  ?? 8192,
       }),
       signal,
     });
@@ -69,14 +82,14 @@ export async function* rawLMStream(settings, messages, signal) {
         ({ done, value } = await reader.read());
       } catch (err) {
         if (err.name === 'AbortError') throw err;
-        if (RECOVERABLE.has(err.code)) break; // treat as end-of-stream
+        if (RECOVERABLE.has(err.code)) break;
         throw err;
       }
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep incomplete last line
+      buffer = lines.pop();
 
       for (const line of lines) {
         const trimmed = line.trim();
@@ -96,14 +109,19 @@ export async function* rawLMStream(settings, messages, signal) {
 }
 
 /**
- * Run rawLMStream and emit each token via socketManager.
+ * Run rawLMStream, emit each token via socketManager, and record token usage.
  * Returns the full accumulated output string.
  */
 export async function streamAndEmit(settings, messages, signal, socketManager, sessionId, agentId) {
+  const inputText = messages.map(m => m.content).join(' ');
   let output = '';
+
   for await (const token of rawLMStream(settings, messages, signal)) {
     output += token;
     socketManager?.emitChatChunk(sessionId, token, agentId);
   }
+
+  recordTokenUsage(agentId, estimateTokens(inputText), estimateTokens(output));
+
   return output;
 }

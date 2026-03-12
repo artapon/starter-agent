@@ -1,6 +1,7 @@
 import { getDb } from '../../../core/database/db.js';
 import { refreshAdapter } from '../../../core/adapters/llm/adapter.registry.js';
 import { getAgentToolConfig, updateAgentTools } from '../../../core/tools/tool.registry.js';
+import { listSubskills, getActiveSubskill, setActiveSubskill } from '../../../core/skills/skill.loader.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 
 const logger = createLogger('settings');
@@ -51,6 +52,27 @@ export class SettingsService {
       this.db.table('global_settings').upsert(['key'], { key, value: String(value) });
     }
     return this.getGlobal();
+  }
+
+  // ── Subskills ──────────────────────────────────────────────────────────────
+
+  getSubskills() {
+    return {
+      available: listSubskills(),
+      active: getActiveSubskill(),
+    };
+  }
+
+  setSubskill(name) {
+    const available = listSubskills();
+    if (!available.includes(name)) {
+      throw new Error(`Unknown subskill: "${name}". Available: ${available.join(', ')}`);
+    }
+    this.db.table('global_settings').upsert(['key'], { key: 'active_subskill', value: name });
+    setActiveSubskill(name);
+    this.socketManager?.emit('settings:subskill_changed', { active: name });
+    logger.info(`Subskill profile changed to: ${name}`);
+    return { available, active: name };
   }
 
   // ── Tools ──────────────────────────────────────────────────────────────────

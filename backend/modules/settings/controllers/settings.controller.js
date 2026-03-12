@@ -36,6 +36,20 @@ export class SettingsController {
     try { res.json(this.service.updateGlobal(req.body)); } catch (e) { next(e); }
   };
 
+  // ── Subskills ──────────────────────────────────────────────────────────────
+
+  getSubskills = (req, res, next) => {
+    try { res.json(this.service.getSubskills()); } catch (e) { next(e); }
+  };
+
+  setSubskill = (req, res, next) => {
+    try {
+      const { name } = req.body;
+      if (!name) return res.status(400).json({ error: 'name is required' });
+      res.json(this.service.setSubskill(name));
+    } catch (e) { next(e); }
+  };
+
   // ── Tools ──────────────────────────────────────────────────────────────────
 
   getTools = (req, res, next) => {

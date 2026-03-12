@@ -37,6 +37,48 @@
       </div>
     </div>
 
+    <!-- Token Usage -->
+    <div class="panel card-hover">
+      <div class="panel__header">
+        <v-icon size="15" color="#6366F1">mdi-counter</v-icon>
+        <span class="section-title">Token Usage</span>
+        <span class="token-total-badge">{{ fmtTokens(tokenUsage.total) }} total</span>
+      </div>
+      <div class="token-grid">
+        <div class="token-card">
+          <div class="token-card__label">Today</div>
+          <div class="token-card__value">{{ fmtTokens(tokenUsage.today) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.today)}%;background:#6366F1`" /></div>
+        </div>
+        <div class="token-card">
+          <div class="token-card__label">This Week</div>
+          <div class="token-card__value">{{ fmtTokens(tokenUsage.weekly) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.weekly)}%;background:#22D3EE`" /></div>
+        </div>
+        <div class="token-card">
+          <div class="token-card__label">This Month</div>
+          <div class="token-card__value">{{ fmtTokens(tokenUsage.monthly) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.monthly)}%;background:#10B981`" /></div>
+        </div>
+        <div class="token-card">
+          <div class="token-card__label">All Time</div>
+          <div class="token-card__value token-card__value--accent">{{ fmtTokens(tokenUsage.total) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" style="width:100%;background:#F59E0B" /></div>
+        </div>
+      </div>
+      <div v-if="Object.keys(tokenUsage.byAgent || {}).length" class="token-agents">
+        <div v-for="(t, agent) in tokenUsage.byAgent" :key="agent" class="token-agent-row">
+          <span class="token-agent-row__name">{{ agent }}</span>
+          <div class="token-agent-row__bar-wrap">
+            <div class="token-agent-row__bar">
+              <div class="token-agent-row__fill" :style="`width:${tokenUsage.total ? Math.round(t/tokenUsage.total*100) : 0}%;background:${agentTokenColor(agent)}`" />
+            </div>
+          </div>
+          <span class="token-agent-row__val">{{ fmtTokens(t) }}</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Workflow Graph — full width -->
     <div class="panel card-hover" style="margin-bottom:12px">
       <div class="panel__header">
@@ -239,6 +281,7 @@ const stats = ref({});
 const agentStatuses = ref([]);
 const recentRuns = ref([]);
 const logs = ref([]);
+const tokenUsage = ref({ today: 0, weekly: 0, monthly: 0, total: 0, byAgent: {} });
 const agentLiveStatus = ref({});
 const agentCurrentTask = ref({});
 const logContainer = ref(null);
@@ -325,18 +368,42 @@ const workingAgents = computed(() =>
     .map(a => ({ ...a, currentTask: agentCurrentTask.value[a.agentId] }))
 );
 
+function fmtTokens(n) {
+  if (!n) return '0';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return (n / 1_000).toFixed(1) + 'k';
+  return String(n);
+}
+function tokenPct(n) {
+  const max = tokenUsage.value.total || 1;
+  return Math.min(100, Math.round(n / max * 100));
+}
+function agentTokenColor(id) {
+  return { researcher: '#22D3EE', planner: '#6366F1', worker: '#10B981', reviewer: '#F59E0B' }[id] || '#A78BFA';
+}
+
+async function fetchTokenUsage() {
+  try {
+    const { data } = await axios.get('/api/dashboard/tokens');
+    tokenUsage.value = data;
+  } catch { /* keep zeros */ }
+}
+
 async function fetchStats() {
   loading.value = true;
   try {
-    const { data } = await axios.get('/api/dashboard/stats');
+    const [{ data }, { data: runs }] = await Promise.all([
+      axios.get('/api/dashboard/stats'),
+      axios.get('/api/workflow/runs'),
+    ]);
     stats.value = data;
     const order = ['researcher', 'planner', 'worker', 'reviewer'];
     agentStatuses.value = (data.agents || []).sort((a, b) => {
       const ai = order.indexOf(a.agentId), bi = order.indexOf(b.agentId);
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
-    const { data: runs } = await axios.get('/api/workflow/runs');
     recentRuns.value = runs.slice(0, 10);
+    await fetchTokenUsage();
   } finally { loading.value = false; }
 }
 
@@ -498,6 +565,7 @@ onMounted(() => {
     graphNodeStatus['assembler'] = 'complete';
     graphNodeStatus['done']      = 'complete';
     graphCurrentNode.value = null;
+    fetchTokenUsage();
   });
 
   socket.on('workflow:stopped', (data) => {
@@ -730,4 +798,38 @@ onMounted(() => {
 .graph-status-dot--stopped  { background:#6B7280; }
 .graph-status-dot--error    { background:#EF4444; }
 .graph-overall-label { font-size:11px; color:rgba(226,232,240,0.4); text-transform:capitalize; }
+
+/* Token Usage */
+.token-total-badge {
+  font-size: 11px; color: rgba(226,232,240,0.35);
+  background: rgba(255,255,255,0.04); padding: 2px 8px; border-radius: 4px;
+  margin-left: auto;
+}
+.token-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+@media (max-width: 700px) { .token-grid { grid-template-columns: repeat(2, 1fr); } }
+.token-card {
+  padding: 14px 16px;
+  border-right: 1px solid rgba(255,255,255,0.04);
+}
+.token-card:last-child { border-right: none; }
+.token-card__label { font-size: 11px; color: rgba(226,232,240,0.4); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.token-card__value { font-size: 22px; font-weight: 700; color: rgba(226,232,240,0.9); margin-bottom: 8px; font-family: 'JetBrains Mono','Fira Code',monospace; }
+.token-card__value--accent { color: #F59E0B; }
+.token-card__bar  { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.token-card__fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+
+.token-agents {
+  padding: 10px 16px 12px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  display: flex; flex-direction: column; gap: 7px;
+}
+.token-agent-row { display: flex; align-items: center; gap: 10px; }
+.token-agent-row__name { font-size: 11px; color: rgba(226,232,240,0.45); width: 70px; flex-shrink: 0; text-transform: capitalize; }
+.token-agent-row__bar-wrap { flex: 1; }
+.token-agent-row__bar  { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.token-agent-row__fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.token-agent-row__val  { font-size: 11px; color: rgba(226,232,240,0.5); width: 48px; text-align: right; flex-shrink: 0; font-family: 'JetBrains Mono','Fira Code',monospace; }
 </style>
