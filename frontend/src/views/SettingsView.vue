@@ -244,6 +244,35 @@
         </div>
       </div>
 
+      <!-- MCP — researcher only -->
+      <div v-if="agent.agent_id === 'researcher'" class="panel card-hover mcp-panel">
+        <div class="panel__header">
+          <div class="d-flex align-center gap-2">
+            <v-icon size="15" color="#22D3EE">mdi-web</v-icon>
+            <span class="section-title">MCP — Web Browser</span>
+          </div>
+          <v-chip size="x-small" :color="researcherMCPEnabled ? 'cyan' : 'default'" variant="tonal">
+            {{ researcherMCPEnabled ? 'Enabled' : 'Disabled' }}
+          </v-chip>
+        </div>
+        <div class="panel__body">
+          <div class="loop-toggle-row">
+            <div class="loop-toggle-info">
+              <div class="loop-toggle-label">Enable Puppeteer MCP</div>
+              <div class="loop-toggle-hint">
+                When enabled, the Researcher agent launches a Puppeteer browser (via <code class="font-mono" style="font-size:10px;color:#A78BFA">@modelcontextprotocol/server-puppeteer</code>) to browse the web for up-to-date information before analyzing the goal. Falls back to plain research if MCP fails.
+              </div>
+            </div>
+            <v-switch v-model="researcherMCPEnabled" color="cyan" hide-details density="compact" inset />
+          </div>
+        </div>
+        <div class="panel__footer">
+          <span class="hint">Requires npx access to <code class="font-mono" style="font-size:10px">@modelcontextprotocol/server-puppeteer</code></span>
+          <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
+            :loading="savingMCP" @click="saveMCPSettings">Save</v-btn>
+        </div>
+      </div>
+
       <!-- Tools -->
       <div class="panel card-hover">
         <div class="panel__header">
@@ -355,6 +384,8 @@ const loopEnabled = ref(false);
 const maxLoops = ref(3);
 const recursionLimit = ref(200);
 const savingLoop = ref(false);
+const researcherMCPEnabled = ref(false);
+const savingMCP = ref(false);
 const forms = reactive({});
 const saving = reactive({});
 const savingTools = reactive({});
@@ -491,6 +522,7 @@ async function fetchGlobal() {
     loopEnabled.value = data.workflow_loop_enabled === '1';
     maxLoops.value = parseInt(data.workflow_max_loops || '3', 10);
     recursionLimit.value = parseInt(data.workflow_recursion_limit || '200', 10);
+    researcherMCPEnabled.value = data.researcher_mcp_enabled === '1';
   } catch { /* use default */ }
 }
 async function saveWorkspace() {
@@ -575,6 +607,15 @@ async function testConnection(agentId) {
   } finally { testing[agentId] = false; }
 }
 
+async function saveMCPSettings() {
+  savingMCP.value = true;
+  try {
+    await axios.put('/api/settings/global', { researcher_mcp_enabled: researcherMCPEnabled.value ? '1' : '0' });
+    showSnack(`Researcher MCP ${researcherMCPEnabled.value ? 'enabled' : 'disabled'}`);
+  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
+  finally { savingMCP.value = false; }
+}
+
 onMounted(async () => {
   await Promise.all([fetchGlobal(), fetchSettings(), fetchSubskills()]);
   for (const s of agentSettings.value) fetchModels(s.agent_id);
@@ -638,6 +679,7 @@ onMounted(async () => {
 /* Agent grid */
 .agent-grid { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
 @media (max-width: 900px) { .agent-grid { grid-template-columns: 1fr; } }
+.mcp-panel { grid-column: 1 / -1; }
 
 .field-label { font-size: 12px; color: rgba(226,232,240,0.45) !important; margin-bottom: 2px; }
 

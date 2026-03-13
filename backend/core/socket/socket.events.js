@@ -26,4 +26,7 @@ export const SocketEvents = {
   // Server → Client (stop acks)
   WORKFLOW_STOPPED:         'workflow:stopped',
   CHAT_STOPPED:             'chat:stopped',
+
+  // Researcher MCP
+  RESEARCHER_WEB_SOURCES:   'researcher:web_sources',
 };

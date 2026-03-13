@@ -6,7 +6,9 @@
       "Bash(timeout 6 node:*)",
       "Bash(netstat:*)",
       "Bash(node:*)",
-      "Bash(cd D:/Projects/starter-agent && grep -n \"handleLLMNewToken\" backend/modules/*/services/*.js)"
+      "Bash(cd D:/Projects/starter-agent && grep -n \"handleLLMNewToken\" backend/modules/*/services/*.js)",
+      "Bash(start D:/Projects/starter-agent/walkthrough.html)",
+      "Bash(cd D:/Projects/starter-agent/backend && npx -y @modelcontextprotocol/server-puppeteer --version 2>&1 | head -20)"
     ]
   }
 }
