@@ -740,53 +740,89 @@ function showOutput(findings) {
     recommendedApproach: 'var(--green)',
   };
 
-  let html = `<div style="display:flex;flex-direction:column;gap:10px">`;
+  let html = `<div style="display:flex;flex-direction:column;gap:24px">`;
 
   if (findings.topic) html += field('Topic', findings.topic, 'var(--cyan)');
-  if (findings.summary) html += field('Summary', findings.summary, 'var(--text)');
-  if (findings.recommendedApproach) html += field('Recommended Approach', findings.recommendedApproach, 'var(--green)');
-
+  if (findings.summary) html += field('Technical Summary', findings.summary, 'var(--text)');
+  
   if (findings.approaches?.length) {
-    html += `<div><h3 style="margin-bottom:6px">Approaches</h3><div style="display:flex;flex-direction:column;gap:6px">`;
+    html += `<div style="padding-top:10px;border-top:1px solid var(--border)">
+      <h3 style="margin-bottom:12px;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">Architectural Approaches</h3>
+      <div style="display:flex;flex-direction:column;gap:12px">`;
     for (const a of findings.approaches) {
-      html += `<div style="background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:7px;padding:10px">
-        <div style="font-weight:700;font-size:12px;margin-bottom:4px;color:var(--purple)">${escHtml(a.name)}</div>
-        <div style="font-size:11px;color:var(--muted)">
-          <span style="color:var(--green)">+ ${(a.pros||[]).join(' · ')}</span><br>
-          <span style="color:var(--red)">− ${(a.cons||[]).join(' · ')}</span>
-        </div></div>`;
+      html += `<div style="background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:16px">
+        <div style="font-weight:800;font-size:14px;margin-bottom:8px;color:var(--purple);display:flex;align-items:center;gap:8px">
+          <span style="font-size:16px">🚀</span> ${escHtml(a.name)}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:var(--green);margin-bottom:4px;text-transform:uppercase">Strengths</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.7);line-height:1.6">${(a.pros||[]).map(p => `• ${escHtml(p)}`).join('<br>')}</div>
+          </div>
+          <div>
+            <div style="font-size:10px;font-weight:800;color:var(--red);margin-bottom:4px;text-transform:uppercase">Weaknesses</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.7);line-height:1.6">${(a.cons||[]).map(c => `• ${escHtml(c)}`).join('<br>')}</div>
+          </div>
+        </div>
+      </div>`;
     }
     html += `</div></div>`;
   }
 
-  if (findings.techStack?.length) {
-    html += `<div><h3 style="margin-bottom:6px">Tech Stack</h3><div class="pill-list">`;
-    html += findings.techStack.map(t => `<span class="pill">${escHtml(t)}</span>`).join('');
-    html += `</div></div>`;
+  if (findings.recommendedApproach) {
+    html += `<div style="padding-top:10px;border-top:1px solid var(--border)">
+      <h3 style="margin-bottom:8px;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">Recommended Strategy</h3>
+      <div style="background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:16px;display:flex;gap:12px;align-items:flex-start">
+        <span style="font-size:20px">⭐</span>
+        <div style="font-size:13px;color:var(--green);font-weight:500;line-height:1.6">${escHtml(findings.recommendedApproach)}</div>
+      </div>
+    </div>`;
   }
 
-  if (findings.keyConsiderations?.length) {
-    html += `<div><h3 style="margin-bottom:6px">Key Considerations</h3>`;
-    html += findings.keyConsiderations.map(c => `<div class="diag-row"><div class="diag-icon">•</div><div class="diag-text">${escHtml(c)}</div></div>`).join('');
+  if (findings.techStack?.length || findings.keyConsiderations?.length) {
+    html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-top:10px;border-top:1px solid var(--border)">`;
+    
+    html += `<div>`;
+    if (findings.keyConsiderations?.length) {
+      html += `<h3 style="margin-bottom:12px;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">Key Considerations</h3>`;
+      html += findings.keyConsiderations.map(c => `<div class="diag-row"><div class="diag-icon" style="color:var(--cyan)">•</div><div class="diag-text">${escHtml(c)}</div></div>`).join('');
+    }
+    html += `</div>`;
+
+    html += `<div>`;
+    if (findings.techStack?.length) {
+      html += `<h3 style="margin-bottom:12px;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">Tech Stack</h3><div class="pill-list">`;
+      html += findings.techStack.map(t => `<span class="pill">${escHtml(t)}</span>`).join('');
+      html += `</div>`;
+    }
+    html += `</div>`;
+
     html += `</div>`;
   }
 
   if (findings.potentialChallenges?.length) {
-    html += `<div><h3 style="margin-bottom:6px">Potential Challenges</h3>`;
-    html += findings.potentialChallenges.map(c => `<div class="diag-row"><div class="diag-icon">⚠</div><div class="diag-text">${escHtml(c)}</div></div>`).join('');
-    html += `</div>`;
+    html += `<div style="padding-top:10px;border-top:1px solid var(--border)">
+      <h3 style="margin-bottom:12px;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">Potential Challenges</h3>`;
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:10px">`;
+    html += findings.potentialChallenges.map(c => `<div class="diag-row" style="background:rgba(239,68,68,0.03);border-radius:6px;padding:8px 12px"><div class="diag-icon" style="color:var(--red)">⚠</div><div class="diag-text" style="font-size:11px">${escHtml(c)}</div></div>`).join('');
+    html += `</div></div>`;
   }
 
   if (findings.sources?.length) {
-    html += `<div><h3 style="margin-bottom:6px">Sources Used</h3><div style="display:flex;flex-direction:column;gap:4px">`;
+    html += `<div style="padding-top:10px;border-top:1px solid var(--border)">
+      <h3 style="margin-bottom:12px;font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">Sources Used</h3>
+      <div style="display:flex;flex-direction:column;gap:8px">`;
     html += findings.sources.map(url => {
+      let domain = 'web';
+      try { domain = new URL(url).hostname.replace('www.', ''); } catch(e){}
       const isGoogle = url.includes('google.com');
       const isGitHub = url.includes('github.com');
-      const icon  = isGoogle ? '🔍' : isGitHub ? '🐙' : '🌐';
       const color = isGoogle ? 'var(--yellow)' : isGitHub ? 'var(--purple)' : 'var(--cyan)';
       return `<a href="${escHtml(url)}" target="_blank" rel="noopener"
-        style="font-size:11px;font-family:var(--font-mono);color:${color};
-               text-decoration:none;word-break:break-all">${icon} ${escHtml(url)}</a>`;
+        style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;text-decoration:none;transition:all 0.2s">
+        <span style="font-size:9px;font-weight:800;text-transform:uppercase;padding:2px 6px;background:rgba(255,255,255,0.05);border-radius:4px;color:var(--muted);flex-shrink:0">${escHtml(domain)}</span>
+        <span style="font-size:11px;font-family:var(--font-mono);color:${color};word-break:break-all;opacity:0.8">${escHtml(url)}</span>
+      </a>`;
     }).join('');
     html += `</div></div>`;
   }
@@ -807,6 +843,8 @@ function showWebSources(sources) {
   document.getElementById('sources-empty').style.display = 'none';
   const grid = document.getElementById('sources-grid');
   grid.style.display = 'flex';
+  grid.style.flexDirection = 'column';
+  grid.style.gap = '12px';
 
   const badge = document.getElementById('sources-badge');
   const googleCount = sources.filter(s => s.type === 'google').length;
@@ -870,12 +908,52 @@ socket && socket.on('agent:status', (data) => {}); // handled above
 // Watch chat buffer for JSON completion when workflow:node_complete may not fire
 function tryParseFromChat() {
   if (!chatBuffer) return;
+  
+  // Try to find all JSON-like blocks
+  const blocks = [];
+  let braceCount = 0;
+  let startIdx = -1;
+
+  for (let i = 0; i < chatBuffer.length; i++) {
+    if (chatBuffer[i] === '{') {
+      if (braceCount === 0) startIdx = i;
+      braceCount++;
+    } else if (chatBuffer[i] === '}') {
+      braceCount--;
+      if (braceCount === 0 && startIdx !== -1) {
+        blocks.push(chatBuffer.slice(startIdx, i + 1));
+        startIdx = -1;
+      }
+    }
+  }
+
+  // Iterate backwards to find the last valid JSON
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    try {
+      const findings = JSON.parse(blocks[i]);
+      if (findings.topic || findings.summary) {
+        showOutput(findings);
+        return;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // Fallback to original regex but check for first/last
   const match = chatBuffer.match(/\{[\s\S]*\}/);
   if (!match) return;
   try {
     const findings = JSON.parse(match[0]);
     if (findings.topic || findings.summary) showOutput(findings);
-  } catch {}
+  } catch (e) {
+    // Try first match only
+    try {
+      const firstMatch = chatBuffer.match(/\{[\s\S]*?\}/);
+      if (firstMatch) {
+        const findings = JSON.parse(firstMatch[0]);
+        if (findings.topic || findings.summary) showOutput(findings);
+      }
+    } catch (e2) {}
+  }
 }
 
 // ─── Init ─────────────────────────────────────────────────────

@@ -13,40 +13,75 @@ const logger = createLogger('researcher');
 
 // ─── Prompts ─────────────────────────────────────────────────────────────────
 
-const BASE_PROMPT = `You are a Research Agent. Your job is to deeply analyze a goal before any code is written.
+const BASE_PROMPT = `You are an Expert Research Agent. Your task is to provide a deep architectural and technical analysis of a goal before any implementation begins.
 
-Output ONLY a valid JSON object — no markdown, no explanation:
-{{"topic":"<goal summary>","summary":"<2-3 sentence analysis>","approaches":[{{"name":"<approach>","pros":["<pro>"],"cons":["<con>"]}}],"keyConsiderations":["<consideration>"],"recommendedApproach":"<which approach and why>","techStack":["<tech>"],"potentialChallenges":["<challenge>"]}}
+CRITICAL: Your entire response MUST be exactly one valid JSON object. Do not include any introductory text, markdown code blocks, or follow-up explanations.
 
-Rules:
-- Identify the best architectural patterns and frameworks for the goal
-- List 2-3 concrete approaches with trade-offs
-- Flag security, performance, and scalability concerns
-- Return raw JSON only`;
+Format your response as follows:
+{{
+  "topic": "Concise summary of the goal",
+  "summary": "2-3 sentences of deep technical analysis, focusing on architecture and feasibility.",
+  "approaches": [
+    {{
+      "name": "Approach Name",
+      "pros": ["Pro 1", "Pro 2"],
+      "cons": ["Con 1", "Con 2"]
+    }}
+  ],
+  "keyConsiderations": ["Consideration 1", "Consideration 2"],
+  "recommendedApproach": "A detailed recommendation of which approach to take and why.",
+  "techStack": ["Technology 1", "Technology 2"],
+  "potentialChallenges": ["Challenge 1", "Challenge 2"]
+}}
+
+Guidelines:
+- Identify industry-standard architectural patterns (e.g., Microservices, Event-Driven, Serverless).
+- For each approach, provide concrete technical pros and cons.
+- Highlight security, performance, and scalability as core considerations.`;
 
 // Used when MCP is enabled — context is injected before the goal
-const MCP_ANALYSIS_PROMPT = `You are a Research Agent. The following web search results and page content were gathered automatically from Google, GitHub, and relevant pages. Use this real-world information to produce accurate, up-to-date findings.
+const MCP_ANALYSIS_PROMPT = `You are an Expert Research Agent. Use the following web search results and site content to provide a data-driven technical analysis.
 
+=== WEB CONTEXT START ===
 {webContext}
+=== WEB CONTEXT END ===
 
-Based on the above research, analyze the goal and output ONLY a valid JSON object — no markdown, no explanation:
-{{"topic":"<goal summary>","summary":"<2-3 sentence analysis citing the sources above>","approaches":[{{"name":"<approach>","pros":["<pro>"],"cons":["<con>"]}}],"keyConsiderations":["<consideration>"],"recommendedApproach":"<which approach and why, referencing what you found>","techStack":["<tech>"],"potentialChallenges":["<challenge>"],"sources":[{sources}]}}
+CRITICAL: Your entire response MUST be exactly one valid JSON object. Do not include any introductory text, markdown code blocks, or follow-up explanations.
 
-Rules:
-- Base your findings on the actual search results and page content above
-- Cite specific repos, articles, or docs you found
-- Return raw JSON only`;
+Format your response as follows:
+{{
+  "topic": "Concise summary of the goal",
+  "summary": "2-3 sentences of analysis incorporating specific findings from the sources above.",
+  "approaches": [
+    {{
+      "name": "Approach Name",
+      "pros": ["Pro 1 (citing source if relevant)", "Pro 2"],
+      "cons": ["Con 1", "Con 2"]
+    }}
+  ],
+  "keyConsiderations": ["Consideration 1", "Consideration 2"],
+  "recommendedApproach": "Recommendation based on search results and best practices.",
+  "techStack": ["Technology 1", "Technology 2"],
+  "potentialChallenges": ["Challenge 1", "Challenge 2"],
+  "sources": {sourcesJson}
+}}
 
-function getSystemPrompt() {
-  return BASE_PROMPT + getSkillPrompt('researcher');
+Guidelines:
+- Cite specific repositories, documentation, or articles found in the context.
+- Prioritize modern, well-supported technologies found during research.
+- Ensure the recommended approach is backed by the evidence in the web context.`;
+
+function escapePromptBraces(s) {
+  if (!s) return '';
+  return s.replace(/\{/g, '{{').replace(/\}/g, '}}');
 }
 
-function buildMCPSystemPrompt(webContext, sourceUrls) {
-  const sourcesJson = sourceUrls.map(u => `"${u}"`).join(',');
-  return MCP_ANALYSIS_PROMPT
-    .replace('{webContext}', webContext)
-    .replace('{sources}', sourcesJson)
-    + getSkillPrompt('researcher');
+function getSystemPrompt() {
+  return BASE_PROMPT + escapePromptBraces(getSkillPrompt('researcher'));
+}
+
+function getMCPSystemPrompt() {
+  return MCP_ANALYSIS_PROMPT + escapePromptBraces(getSkillPrompt('researcher'));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -59,9 +94,55 @@ function classifyUrl(url) {
 }
 
 function parseFindings(rawOutput, goal) {
+  if (!rawOutput) return { topic: goal, summary: '', approaches: [] };
+
   try {
+    // Try to find all JSON-like blocks
+    // We look for balanced braces or just the last matching { ... }
+    const blocks = [];
+    let braceCount = 0;
+    let startIdx = -1;
+
+    for (let i = 0; i < rawOutput.length; i++) {
+      if (rawOutput[i] === '{') {
+        if (braceCount === 0) startIdx = i;
+        braceCount++;
+      } else if (rawOutput[i] === '}') {
+        braceCount--;
+        if (braceCount === 0 && startIdx !== -1) {
+          blocks.push(rawOutput.slice(startIdx, i + 1));
+          startIdx = -1;
+        }
+      }
+    }
+
+    // If we found multiple blocks, take the one that seems most complete (usually the first or last)
+    // Or just try JSON.parse on each until one works
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      try {
+        const parsed = JSON.parse(blocks[i]);
+        if (parsed.topic || parsed.summary || parsed.approaches) {
+          return parsed;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // Fallback to original regex if simple brace matching failed
     const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-    return JSON.parse(jsonMatch ? jsonMatch[0] : rawOutput);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        // If it still fails, it might be the "{} {}" case. Try to fix it.
+        try {
+          // Take only the first object if there are multiple
+          const firstObjMatch = rawOutput.match(/\{[\s\S]*?\}/);
+          if (firstObjMatch) return JSON.parse(firstObjMatch[0]);
+        } catch (e2) { /* ignore */ }
+      }
+    }
+
+    throw new Error('No valid JSON found');
   } catch {
     return {
       topic: goal,
@@ -279,13 +360,15 @@ export class ResearcherAgent {
       const compressedGoal = compressString(goal, 2048);
 
       const prompt = ChatPromptTemplate.fromMessages([
-        ['system', buildMCPSystemPrompt(webContext, sourceUrls)],
+        ['system', getMCPSystemPrompt()],
         new MessagesPlaceholder('chat_history'),
         ['human', 'Goal to research: {goal}'],
       ]);
       const messages = await prompt.formatMessages({
         goal: compressedGoal,
         chat_history: histVars.chat_history || [],
+        webContext: webContext,
+        sourcesJson: JSON.stringify(sourceUrls),
       });
 
       const rawOutput = await streamAndEmit(
