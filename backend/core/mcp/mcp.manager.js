@@ -9,13 +9,15 @@
  * Returns the same { tools, client } shape so the researcher agent is unchanged.
  */
 import { getWebSearchTools } from '../browser/web.search.tools.js';
+import { getSkillSources } from '../skills/skill.loader.js';
 import { createLogger } from '../logger/winston.logger.js';
 
 const logger = createLogger('mcp');
 
 export async function getPuppeteerMCPTools() {
-  const tools = getWebSearchTools();
-  logger.info(`Web search tools loaded: [${tools.map(t => t.name).join(', ')}]`);
+  const sources = getSkillSources('researcher');
+  const tools = getWebSearchTools(sources);
+  logger.info(`Web search tools loaded [sources: ${sources?.join(',') || 'all'}]: [${tools.map(t => t.name).join(', ')}]`);
   // client.close() is a no-op — no subprocess to clean up
   return { tools, client: { close: async () => {} } };
 }

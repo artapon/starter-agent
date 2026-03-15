@@ -76,21 +76,22 @@ export class WorkflowRunner {
 
     // Rebuild graph with buffering socket manager so agents use it for this run
     const graph = buildWorkflowGraph(bufferingSocketManager);
-    let finalState = null;
+    const initialState = {
+      sessionId,
+      userGoal: goal,
+      runId,
+      status: 'running',
+      currentStepIdx: 0,
+      subtaskResults: [],
+      retryCount: 0,
+      loopEnabled,
+      maxLoops,
+      loopCount: 0,
+    };
+    let finalState = initialState;
 
     try {
-      const stream = await graph.stream({
-        sessionId,
-        userGoal: goal,
-        runId,
-        status: 'running',
-        currentStepIdx: 0,
-        subtaskResults: [],
-        retryCount: 0,
-        loopEnabled,
-        maxLoops,
-        loopCount: 0,
-      }, { recursionLimit });
+      const stream = await graph.stream(initialState, { recursionLimit });
 
       const loopIterations = []; // snapshots of each cycle before loop_reset clears state
 

@@ -58,6 +58,19 @@ try {
   }
 } catch { /* skills dir may not exist yet */ }
 
+// ── Raw readers (no brace-escaping — for agents that build prompts manually) ──
+
+function readSkillRaw(subskill, filename) {
+  const filePath = join(SKILLS_ROOT, subskill, filename);
+  if (!existsSync(filePath)) return '';
+  try {
+    return readFileSync(filePath, 'utf8').trim();
+  } catch (err) {
+    logger.warn(`Could not read raw skill file ${subskill}/${filename}: ${err.message}`);
+    return '';
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -99,6 +112,45 @@ export function setActiveSubskill(name) {
   _activeSubskill = name;
   clearCache(); // clear every subskill's cache so the new one is freshly loaded
   logger.info(`Active subskill set to: ${name}`);
+}
+
+/**
+ * Get the raw (no brace-escaping) combined skill content for an agent.
+ * Safe to use as a plain string in manually-built message arrays.
+ * Combines global SKILL.md + agent-specific file.
+ *
+ * @param {'researcher'|'planner'|'worker'|'reviewer'} agentId
+ * @returns {string}
+ */
+export function getRawSkillPrompt(agentId) {
+  const subskill = getActiveSubskill();
+  if (!cache[subskill]) cache[subskill] = {};
+  const cacheKey = `raw_${agentId}`;
+
+  if (!(cacheKey in cache[subskill])) {
+    const global = readSkillRaw(subskill, SKILL_FILES.global);
+    const agent  = SKILL_FILES[agentId] ? readSkillRaw(subskill, SKILL_FILES[agentId]) : '';
+    cache[subskill][cacheKey] = [global, agent].filter(Boolean).join('\n\n---\n\n');
+  }
+  return cache[subskill][cacheKey];
+}
+
+/**
+ * Parse the `## Sources` line from an agent's skill file.
+ * Returns an array of source names, or null if the section is absent
+ * (meaning "use all available sources").
+ *
+ * Example line:  `web, github, npm, stackoverflow, hackernews`
+ *
+ * @param {'researcher'|'planner'|'worker'|'reviewer'} agentId
+ * @returns {string[]|null}
+ */
+export function getSkillSources(agentId) {
+  const subskill = getActiveSubskill();
+  const content  = readSkillRaw(subskill, SKILL_FILES[agentId] || '');
+  const match    = content.match(/^##\s+Sources\s*\r?\n([^\r\n]+)/mi);
+  if (!match) return null;
+  return match[1].split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 }
 
 /**

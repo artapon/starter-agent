@@ -42,27 +42,41 @@ function recordTokenUsage(agentId, promptTokens, completionTokens) {
 export async function* rawLMStream(settings, messages, signal) {
   const url = `${settings.base_url || 'http://localhost:1234/v1'}/chat/completions`;
 
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 2000;
+
   let response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${settings.api_key || 'lm-studio'}`,
-      },
-      body: JSON.stringify({
-        model:       settings.model_name,
-        messages,
-        stream:      true,
-        temperature: settings.temperature ?? 0.2,
-        max_tokens:  settings.max_tokens  ?? 8192,
-      }),
-      signal,
-    });
-  } catch (err) {
-    if (err.name === 'AbortError') throw err;
-    throw new Error(`LM Studio connection failed: ${err.message}`);
+  let lastErr;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${settings.api_key || 'lm-studio'}`,
+        },
+        body: JSON.stringify({
+          model:       settings.model_name,
+          messages,
+          stream:      true,
+          temperature: settings.temperature ?? 0.2,
+          max_tokens:  settings.max_tokens  ?? 8192,
+        }),
+        signal,
+      });
+      lastErr = null;
+      break;
+    } catch (err) {
+      if (err.name === 'AbortError') throw err;
+      lastErr = err;
+      if (attempt < MAX_RETRIES) {
+        const delay = RETRY_DELAY_MS * attempt;
+        console.warn(`LM Studio connection failed (attempt ${attempt}/${MAX_RETRIES}), retrying in ${delay}ms: ${err.message}`);
+        await new Promise(res => setTimeout(res, delay));
+      }
+    }
   }
+  if (lastErr) throw new Error(`LM Studio connection failed: ${lastErr.message}`);
 
   if (!response.ok) {
     const body = await response.text().catch(() => '');

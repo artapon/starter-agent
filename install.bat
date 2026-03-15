@@ -92,4 +92,4 @@ echo   Installation complete!
 echo   Run start.bat to launch the application.
 echo  =============================================
 echo.
-pause
+if /i not "%~1"=="nopause" pause

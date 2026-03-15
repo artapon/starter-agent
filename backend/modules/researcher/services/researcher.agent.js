@@ -1,4 +1,3 @@
-import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { getAdapter } from '../../../core/adapters/llm/adapter.registry.js';
 import { getPuppeteerMCPTools } from '../../../core/mcp/mcp.manager.js';
 import { memoryStore } from '../../memory/services/memory.store.js';
@@ -7,156 +6,82 @@ import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
-import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
+import { getRawSkillPrompt, getSkillSources } from '../../../core/skills/skill.loader.js';
+import { extractKeywords, SEARCH_ADAPTERS } from '../../../core/browser/web.search.tools.js';
 
 const logger = createLogger('researcher');
 
-// ─── Prompts ─────────────────────────────────────────────────────────────────
+// All expert persona, output schema, analysis guidelines, and source config
+// live in skills/*/RESEARCHER.md — nothing domain-specific is hardcoded here.
 
-const BASE_PROMPT = `You are an Expert Research Agent. Your task is to provide a deep architectural and technical analysis of a goal before any implementation begins.
+// ─── Message builder ─────────────────────────────────────────────────────────
 
-CRITICAL: Your entire response MUST be exactly one valid JSON object. Do not include any introductory text, markdown code blocks, or follow-up explanations.
+/**
+ * Build the OpenAI-format messages array for the LLM call.
+ * The system prompt comes entirely from RESEARCHER.md (via getRawSkillPrompt).
+ * When webContext is provided (MCP mode) it is injected before the skill content
+ * so the LLM reads concrete evidence first.
+ */
+function buildMessages(goal, histMessages = [], webContext = null) {
+  const skillContent = getRawSkillPrompt('researcher');
+  const systemContent = webContext
+    ? `=== WEB RESEARCH CONTEXT ===\n${webContext}\n=== END WEB RESEARCH CONTEXT ===\n\n${skillContent}`
+    : skillContent;
 
-Format your response as follows:
-{{
-  "topic": "Concise summary of the goal",
-  "summary": "2-3 sentences of deep technical analysis, focusing on architecture and feasibility.",
-  "approaches": [
-    {{
-      "name": "Approach Name",
-      "pros": ["Pro 1", "Pro 2"],
-      "cons": ["Con 1", "Con 2"]
-    }}
-  ],
-  "keyConsiderations": ["Consideration 1", "Consideration 2"],
-  "recommendedApproach": "A detailed recommendation of which approach to take and why.",
-  "techStack": ["Technology 1", "Technology 2"],
-  "potentialChallenges": ["Challenge 1", "Challenge 2"]
-}}
-
-Guidelines:
-- Identify industry-standard architectural patterns (e.g., Microservices, Event-Driven, Serverless).
-- For each approach, provide concrete technical pros and cons.
-- Highlight security, performance, and scalability as core considerations.`;
-
-// Used when MCP is enabled — context is injected before the goal
-const MCP_ANALYSIS_PROMPT = `You are an Expert Research Agent. Use the following web search results and site content to provide a data-driven technical analysis.
-
-=== WEB CONTEXT START ===
-{webContext}
-=== WEB CONTEXT END ===
-
-CRITICAL: Your entire response MUST be exactly one valid JSON object. Do not include any introductory text, markdown code blocks, or follow-up explanations.
-
-Format your response as follows:
-{{
-  "topic": "Concise summary of the goal",
-  "summary": "2-3 sentences of analysis incorporating specific findings from the sources above.",
-  "approaches": [
-    {{
-      "name": "Approach Name",
-      "pros": ["Pro 1 (citing source if relevant)", "Pro 2"],
-      "cons": ["Con 1", "Con 2"]
-    }}
-  ],
-  "keyConsiderations": ["Consideration 1", "Consideration 2"],
-  "recommendedApproach": "Recommendation based on search results and best practices.",
-  "techStack": ["Technology 1", "Technology 2"],
-  "potentialChallenges": ["Challenge 1", "Challenge 2"],
-  "sources": {sourcesJson}
-}}
-
-Guidelines:
-- Cite specific repositories, documentation, or articles found in the context.
-- Prioritize modern, well-supported technologies found during research.
-- Ensure the recommended approach is backed by the evidence in the web context.`;
-
-function escapePromptBraces(s) {
-  if (!s) return '';
-  return s.replace(/\{/g, '{{').replace(/\}/g, '}}');
+  return [
+    { role: 'system', content: systemContent },
+    ...histMessages,
+    { role: 'user', content: `Research this goal and provide your analysis:\n\n${goal}` },
+  ];
 }
 
-function getSystemPrompt() {
-  return BASE_PROMPT + escapePromptBraces(getSkillPrompt('researcher'));
-}
-
-function getMCPSystemPrompt() {
-  return MCP_ANALYSIS_PROMPT + escapePromptBraces(getSkillPrompt('researcher'));
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function classifyUrl(url) {
-  if (!url) return 'web';
-  if (url.includes('google.com/search')) return 'google';
-  if (url.includes('github.com')) return 'github';
-  return 'web';
-}
+// ─── JSON parser ─────────────────────────────────────────────────────────────
 
 function parseFindings(rawOutput, goal) {
-  if (!rawOutput) return { topic: goal, summary: '', approaches: [] };
-
+  if (!rawOutput) return _emptyFindings(goal);
   try {
-    // Try to find all JSON-like blocks
-    // We look for balanced braces or just the last matching { ... }
     const blocks = [];
-    let braceCount = 0;
-    let startIdx = -1;
-
+    let braceCount = 0, startIdx = -1;
     for (let i = 0; i < rawOutput.length; i++) {
-      if (rawOutput[i] === '{') {
-        if (braceCount === 0) startIdx = i;
-        braceCount++;
-      } else if (rawOutput[i] === '}') {
+      if (rawOutput[i] === '{') { if (braceCount === 0) startIdx = i; braceCount++; }
+      else if (rawOutput[i] === '}') {
         braceCount--;
-        if (braceCount === 0 && startIdx !== -1) {
-          blocks.push(rawOutput.slice(startIdx, i + 1));
-          startIdx = -1;
-        }
+        if (braceCount === 0 && startIdx !== -1) { blocks.push(rawOutput.slice(startIdx, i + 1)); startIdx = -1; }
       }
     }
-
-    // If we found multiple blocks, take the one that seems most complete (usually the first or last)
-    // Or just try JSON.parse on each until one works
     for (let i = blocks.length - 1; i >= 0; i--) {
       try {
         const parsed = JSON.parse(blocks[i]);
-        if (parsed.topic || parsed.summary || parsed.approaches) {
-          return parsed;
-        }
-      } catch (e) { /* ignore */ }
+        if (parsed.topic || parsed.summary || parsed.approaches) return _fillMissing(parsed, goal);
+      } catch { /* ignore */ }
     }
-
-    // Fallback to original regex if simple brace matching failed
     const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (e) {
-        // If it still fails, it might be the "{} {}" case. Try to fix it.
-        try {
-          // Take only the first object if there are multiple
-          const firstObjMatch = rawOutput.match(/\{[\s\S]*?\}/);
-          if (firstObjMatch) return JSON.parse(firstObjMatch[0]);
-        } catch (e2) { /* ignore */ }
-      }
-    }
-
+    if (jsonMatch) { try { return _fillMissing(JSON.parse(jsonMatch[0]), goal); } catch { /* ignore */ } }
     throw new Error('No valid JSON found');
   } catch {
-    return {
-      topic: goal,
-      summary: rawOutput,
-      approaches: [],
-      keyConsiderations: [],
-      recommendedApproach: '',
-      techStack: [],
-      potentialChallenges: [],
-    };
+    return _emptyFindings(goal, rawOutput);
   }
 }
 
-// ─── Agent ───────────────────────────────────────────────────────────────────
+function _emptyFindings(goal, summary = '') {
+  return { topic: goal, summary, approaches: [], keyConsiderations: [], recommendedApproach: '',
+    techStack: [], recommendedPackages: [], antiPatterns: [], productionConsiderations: [],
+    versioningNotes: '', potentialChallenges: [] };
+}
+
+function _fillMissing(parsed, goal) {
+  return {
+    topic: parsed.topic || goal, summary: parsed.summary || '',
+    approaches: parsed.approaches || [], keyConsiderations: parsed.keyConsiderations || [],
+    recommendedApproach: parsed.recommendedApproach || '', techStack: parsed.techStack || [],
+    recommendedPackages: parsed.recommendedPackages || [], antiPatterns: parsed.antiPatterns || [],
+    productionConsiderations: parsed.productionConsiderations || [],
+    versioningNotes: parsed.versioningNotes || '', potentialChallenges: parsed.potentialChallenges || [],
+    ...parsed,
+  };
+}
+
+// ─── Agent ────────────────────────────────────────────────────────────────────
 
 export class ResearcherAgent {
   constructor(socketManager) {
@@ -182,46 +107,27 @@ export class ResearcherAgent {
         this.socketManager?.emitAgentStatus('researcher', 'working', 'Web search unavailable, using plain research...');
       }
     }
-
     return this._researchPlain(goal, sessionId, runId);
   }
 
-  // ── Plain (no web search) ────────────────────────────────────────────────
+  // ── Plain research (no web search) ──────────────────────────────────────────
 
   async _researchPlain(goal, sessionId, runId) {
-    const compressedGoal = compressString(goal, 4096);
     const adapter = getAdapter('researcher');
-    const memory = memoryStore.getMemory('researcher', sessionId);
+    const memory  = memoryStore.getMemory('researcher', sessionId);
     let rawOutput = '';
-
     try {
-      const prompt = ChatPromptTemplate.fromMessages([
-        ['system', getSystemPrompt()],
-        new MessagesPlaceholder('chat_history'),
-        ['human', 'Research this goal and provide findings: {goal}'],
-      ]);
-      const histVars = await memory.loadMemoryVariables({});
-      const messages = await prompt.formatMessages({
-        goal: compressedGoal,
-        chat_history: histVars.chat_history || [],
-      });
-
-      const signal = runId ? getAbortSignal(runId) : undefined;
-      rawOutput = await streamAndEmit(
-        adapter._settings,
-        toLMStudioMessages(messages),
-        signal,
-        this.socketManager,
-        sessionId,
-        'researcher'
-      );
+      const histVars    = await memory.loadMemoryVariables({});
+      const histMessages = toLMStudioMessages(histVars.chat_history || []);
+      const messages    = buildMessages(compressString(goal, 4096), histMessages);
+      const signal      = runId ? getAbortSignal(runId) : undefined;
+      rawOutput = await streamAndEmit(adapter._settings, messages, signal, this.socketManager, sessionId, 'researcher');
       await memory.saveContext({ input: goal }, { output: rawOutput });
     } catch (err) {
       if (err.name === 'AbortError') throw err;
       logger.error(`Researcher LLM unavailable: ${err.message}`, { agentId: 'researcher' });
       throw new Error(`Researcher failed — check model name in Settings. Detail: ${err.message}`);
     }
-
     const findings = parseFindings(rawOutput, goal);
     await memoryStore.snapshotMemory('researcher', sessionId);
     this.socketManager?.emitAgentStatus('researcher', 'idle');
@@ -230,26 +136,31 @@ export class ResearcherAgent {
     return findings;
   }
 
-  // ── MCP (web search → compile → LLM analysis) ───────────────────────────
+  // ── MCP research (multi-source web search + LLM analysis) ───────────────────
   //
-  // Calls search_google, search_github, and browse_url directly —
-  // NO createToolCallingAgent / AgentExecutor / Zod schema binding.
-  // The compiled web content is injected into the system prompt, then
-  // the existing streamAndEmit path handles the LLM call.
+  // Which sources to search is read from `## Sources` in RESEARCHER.md.
+  // All expert analysis guidelines, output schema, and grounding rules
+  // come from the skill file — nothing domain-specific is hardcoded here.
 
   async _researchWithMCP(goal, sessionId, runId) {
-    const sm = this.socketManager;
+    const sm     = this.socketManager;
     const signal = runId ? getAbortSignal(runId) : undefined;
 
     sm?.emitAgentStatus('researcher', 'working', 'Loading web search tools...');
     const { tools, client } = await getPuppeteerMCPTools();
-    const [googleTool, githubTool, browseTool] = tools;
+
+    // Lookup tools by name (safe against ordering changes)
+    const byName = Object.fromEntries(tools.map(t => [t.name, t]));
+
+    // Which sources to search — driven by `## Sources` in RESEARCHER.md
+    // Null means the skill file has no Sources section → use all available
+    const enabledSources = getSkillSources('researcher');
+    const useSource = (name) => !enabledSources || enabledSources.includes(name);
+
+    logger.info(`Enabled sources: ${enabledSources?.join(', ') || 'all'}`, { agentId: 'researcher' });
 
     const visitedSources = [];
-
-    const emitSources = () =>
-      sm?.emit('researcher:web_sources', { sessionId, sources: [...visitedSources] });
-
+    const emitSources = () => sm?.emit('researcher:web_sources', { sessionId, sources: [...visitedSources] });
     const addSource = (url, type, snippet = '') => {
       const existing = visitedSources.find(s => s.url === url);
       if (existing) { if (snippet) existing.snippet = snippet; return; }
@@ -258,62 +169,74 @@ export class ResearcherAgent {
     };
 
     try {
-      // ── Step 1: Google search ───────────────────────────────────────────
-      const keywords = compressString(goal, 200);
+      const webQuery    = compressString(goal, 200);
+      const techKeywords = extractKeywords(goal, 60);
+      logger.info(`Queries — web: "${webQuery.slice(0,60)}", tech: "${techKeywords}"`, { agentId: 'researcher' });
 
-      sm?.emitAgentStatus('researcher', 'working', `Searching Google: ${keywords}`);
-      addSource(`https://www.google.com/search?q=${encodeURIComponent(keywords)}`, 'google');
+      // ── Phase 1: Parallel searches (driven by SEARCH_ADAPTERS registry) ────
+      sm?.emitAgentStatus('researcher', 'working', 'Searching...');
 
-      let googleResults = [];
-      try {
-        const raw = await googleTool.invoke({ query: keywords }, { signal });
-        googleResults = JSON.parse(raw);
-        const source = visitedSources.find(s => s.type === 'google');
-        if (source) {
-          source.snippet = googleResults.map(r => `${r.title} — ${r.url}`).join('\n');
-          emitSources();
+      // Register placeholder source cards before results arrive
+      for (const [key, adapter] of Object.entries(SEARCH_ADAPTERS)) {
+        if (useSource(key)) {
+          const q = adapter.queryType === 'full' ? webQuery : techKeywords;
+          addSource(adapter.placeholderUrl(q), adapter.sourceType);
         }
-        logger.info(`Google: ${googleResults.length} results`, { agentId: 'researcher' });
-      } catch (err) {
-        logger.warn(`Google search error: ${err.message}`, { agentId: 'researcher' });
       }
 
-      // ── Step 2: GitHub search ───────────────────────────────────────────
-      sm?.emitAgentStatus('researcher', 'working', `Searching GitHub: ${keywords}`);
-      addSource(`https://github.com/search?q=${encodeURIComponent(keywords)}&type=repositories`, 'github');
+      // Build search task list dynamically from the registry
+      const activeTasks = Object.entries(SEARCH_ADAPTERS)
+        .filter(([key, adapter]) => useSource(key) && byName[adapter.toolName])
+        .map(([key, adapter]) => {
+          const q = adapter.queryType === 'full' ? webQuery : techKeywords;
+          return { key, adapter, promise: byName[adapter.toolName].invoke({ query: q }, { signal }) };
+        });
 
-      let githubResults = [];
-      try {
-        const raw = await githubTool.invoke({ query: keywords }, { signal });
-        githubResults = JSON.parse(raw);
-        const source = visitedSources.find(s => s.type === 'github');
-        if (source) {
-          source.snippet = githubResults.map(r => `${r.title} ★${r.stars} — ${r.description}`).join('\n');
-          emitSources();
+      const settled = await Promise.allSettled(activeTasks.map(t => t.promise));
+
+      // Map results back by adapter key
+      const searchResults = {};
+      activeTasks.forEach(({ key, adapter }, i) => {
+        searchResults[key] = _parseSearchResult(settled[i], adapter.label);
+      });
+
+      const counts = Object.entries(searchResults).map(([k, v]) => `${k}:${v.length}`).join(' ');
+      logger.info(`Search — ${counts}`, { agentId: 'researcher' });
+
+      // Update source snippet cards using each adapter's formatSnippet
+      for (const [key, adapter] of Object.entries(SEARCH_ADAPTERS)) {
+        const results = searchResults[key];
+        if (results?.length) {
+          _updateSourceSnippet(visitedSources, adapter.sourceType, adapter.formatSnippet(results), emitSources);
         }
-        logger.info(`GitHub: ${githubResults.length} repos`, { agentId: 'researcher' });
-      } catch (err) {
-        logger.warn(`GitHub search error: ${err.message}`, { agentId: 'researcher' });
       }
 
-      // ── Step 3: Browse top pages ────────────────────────────────────────
-      // Try top 3 Google results + top 2 GitHub repos; skip failures, target 3 successful reads
-      const urlsToBrowse = [
-        ...googleResults.slice(0, 3).map(r => r.url),
-        ...githubResults.slice(0, 2).map(r => r.url),
-      ].filter(Boolean);
+      // ── Phase 2: Selective browsing (browseCount from adapter) ────────────
+      const urlsToBrowse = [];
+      for (const [key, adapter] of Object.entries(SEARCH_ADAPTERS)) {
+        const results = searchResults[key] || [];
+        const count   = adapter.browseCount ?? 1;
+        results.slice(0, count).forEach(r => {
+          const url = adapter.getBrowseUrl ? adapter.getBrowseUrl(r) : r.url;
+          if (url) urlsToBrowse.push({ url, type: adapter.sourceType });
+        });
+      }
 
       const pageContents = [];
-      for (const url of urlsToBrowse) {
+      let successfulBrowses = 0;
+
+      for (const { url, type } of urlsToBrowse) {
+        if (successfulBrowses >= 7) break;
         sm?.emitAgentStatus('researcher', 'working', `Reading: ${url}`);
-        addSource(url, classifyUrl(url));
+        addSource(url, type);
         try {
-          const text = await browseTool.invoke({ url }, { signal });
+          const text = await byName['browse_url'].invoke({ url }, { signal });
           if (text.startsWith('Failed to read') || text.startsWith('[binary')) {
             logger.warn(`Browse skipped: ${text.slice(0, 80)}`, { agentId: 'researcher' });
           } else {
-            addSource(url, classifyUrl(url), text.slice(0, 300));
-            pageContents.push({ url, text });
+            addSource(url, type, text.slice(0, 300));
+            pageContents.push({ url, text, type });
+            successfulBrowses++;
             logger.info(`Read ${url} (${text.length} chars)`, { agentId: 'researcher' });
           }
         } catch (err) {
@@ -321,75 +244,40 @@ export class ResearcherAgent {
         }
       }
 
-      // ── Step 4: Compile web context ─────────────────────────────────────
-      const sections = [];
-
-      if (googleResults.length) {
-        sections.push(
-          '=== GOOGLE SEARCH RESULTS ===\n' +
-          googleResults.map((r, i) =>
-            `[${i + 1}] ${r.title}\nURL: ${r.url}\nSnippet: ${r.snippet}`
-          ).join('\n\n')
-        );
-      }
-
-      if (githubResults.length) {
-        sections.push(
-          '=== GITHUB REPOSITORIES ===\n' +
-          githubResults.map(r =>
-            `Repo: ${r.title} (★${r.stars}, ${r.language})\nURL: ${r.url}\nDescription: ${r.description}\nTopics: ${r.topics?.join(', ') || 'n/a'}`
-          ).join('\n\n')
-        );
-      }
-
-      for (const { url, text } of pageContents) {
-        sections.push(`=== PAGE CONTENT: ${url} ===\n${text.slice(0, 2000)}`);
-      }
-
-      const webContext = sections.join('\n\n---\n\n') ||
-        '(No web results retrieved — analyze from knowledge only)';
-
-      const sourceUrls = visitedSources.map(s => s.url);
-
-      // ── Step 5: LLM analysis using compiled context ─────────────────────
-      sm?.emitAgentStatus('researcher', 'working', 'Analyzing search results...');
-
-      const adapter = getAdapter('researcher');
-      const memory = memoryStore.getMemory('researcher', sessionId);
-      const histVars = await memory.loadMemoryVariables({});
-      const compressedGoal = compressString(goal, 2048);
-
-      const prompt = ChatPromptTemplate.fromMessages([
-        ['system', getMCPSystemPrompt()],
-        new MessagesPlaceholder('chat_history'),
-        ['human', 'Goal to research: {goal}'],
-      ]);
-      const messages = await prompt.formatMessages({
-        goal: compressedGoal,
-        chat_history: histVars.chat_history || [],
-        webContext: webContext,
-        sourcesJson: JSON.stringify(sourceUrls),
-      });
-
-      const rawOutput = await streamAndEmit(
-        adapter._settings,
-        toLMStudioMessages(messages),
-        signal,
-        sm,
-        sessionId,
-        'researcher'
+      // ── Phase 3: Compile context (contextLabel + formatContext from adapter) ─
+      const sourceTypeToAdapter = Object.fromEntries(
+        Object.values(SEARCH_ADAPTERS).map(a => [a.sourceType, a])
       );
+      const sections = [];
+      for (const [key, adapter] of Object.entries(SEARCH_ADAPTERS)) {
+        const results = searchResults[key];
+        if (results?.length) {
+          sections.push(`=== ${adapter.contextLabel} ===\n${adapter.formatContext(results)}`);
+        }
+      }
+      for (const { url, text, type } of pageContents) {
+        const label = sourceTypeToAdapter[type]?.label?.toUpperCase() || 'PAGE';
+        sections.push(`=== ${label}: ${url} ===\n${text.slice(0, 3000)}`);
+      }
 
+      const webContext = sections.join('\n\n---\n\n') || '(No web results — analyse from knowledge only)';
+
+      // ── Phase 4: LLM expert analysis (all instructions from RESEARCHER.md) ──
+      sm?.emitAgentStatus('researcher', 'working', 'Analysing...');
+      const adapter  = getAdapter('researcher');
+      const memory   = memoryStore.getMemory('researcher', sessionId);
+      const histVars = await memory.loadMemoryVariables({});
+      const histMessages = toLMStudioMessages(histVars.chat_history || []);
+      const messages = buildMessages(compressString(goal, 2048), histMessages, webContext);
+
+      const rawOutput = await streamAndEmit(adapter._settings, messages, signal, sm, sessionId, 'researcher');
       await memory.saveContext({ input: goal }, { output: rawOutput });
 
-      // ── Step 6: Parse and return ────────────────────────────────────────
       const findings = parseFindings(rawOutput, goal);
-      if (!findings.sources && sourceUrls.length) findings.sources = sourceUrls;
+      findings.sources = visitedSources; // always use full visited list
 
-      // Final sources emit with full snippets
       emitSources();
-      logger.info(`MCP research complete — ${visitedSources.length} sources`, { agentId: 'researcher' });
-
+      logger.info(`MCP research complete — ${visitedSources.length} sources, ${pageContents.length} pages read`, { agentId: 'researcher' });
       await memoryStore.snapshotMemory('researcher', sessionId);
       sm?.emitAgentStatus('researcher', 'idle');
       sm?.emit('memory:updated', { agentId: 'researcher', sessionId });
@@ -399,4 +287,29 @@ export class ResearcherAgent {
       try { await client.close(); } catch {}
     }
   }
+}
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+
+function _parseSearchResult(settled, label) {
+  if (settled.status === 'rejected') {
+    if (settled.reason !== 'source disabled') {
+      logger.warn(`${label} search failed: ${settled.reason}`, { agentId: 'researcher' });
+    }
+    return [];
+  }
+  try {
+    const val = settled.value;
+    if (typeof val === 'string' && val.startsWith('Search failed:')) {
+      logger.warn(`${label} search error: ${val}`, { agentId: 'researcher' });
+      return [];
+    }
+    const parsed = JSON.parse(val);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function _updateSourceSnippet(sources, type, snippet, emitSources) {
+  const source = sources.find(s => s.type === type);
+  if (source && snippet) { source.snippet = snippet; emitSources(); }
 }
