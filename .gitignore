@@ -16,7 +16,7 @@ backend/logs/
 *.log
 
 # Workspace (AI-generated files)
-workspace/
+/workspace/
 
 # Reports (AI-generated per session)
 /reports/
