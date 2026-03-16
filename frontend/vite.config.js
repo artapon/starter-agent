@@ -12,7 +12,17 @@ export default defineConfig({
     proxy: {
       '/api':      { target: 'http://localhost:3000', changeOrigin: true },
       '/reports':  { target: 'http://localhost:3000', changeOrigin: true },
-      '/socket.io':{ target: 'http://localhost:3000', ws: true, changeOrigin: true },
+      '/socket.io':{
+        target: 'http://localhost:3000',
+        ws: true,
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            if (err.code === 'ECONNABORTED' || err.code === 'ECONNRESET' || err.code === 'EPIPE') return;
+            console.error('[proxy]', err.message);
+          });
+        },
+      },
     },
   },
   build: {

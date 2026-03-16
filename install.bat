@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
     color 0C
     echo  [ERROR] Node.js is not installed or not in PATH.
     echo          Download it from: https://nodejs.org
-    echo          Minimum required version: v22.5
+    echo          Minimum required version: v18  ^(v22+ recommended^)
     echo.
     pause
     exit /b 1
@@ -24,30 +24,16 @@ if %errorlevel% neq 0 (
 for /f "tokens=*" %%i in ('node --version') do set NODE_VER=%%i
 echo  [OK] Node.js %NODE_VER%
 
-:: Parse major version number (strip leading 'v')
-set "VER_DIGITS=%NODE_VER:v=%"
-for /f "tokens=1 delims=." %%a in ("%VER_DIGITS%") do set "NODE_MAJOR=%%a"
-for /f "tokens=2 delims=." %%a in ("%VER_DIGITS%") do set "NODE_MINOR=%%a"
-
-if %NODE_MAJOR% LSS 22 (
+:: Check minimum version (v18+) — let Node do the comparison to avoid batch string-parsing issues
+node -e "var p=process.versions.node.split('.').map(Number);process.exit(p[0]>=18?0:1);" >nul 2>&1
+if %errorlevel% neq 0 (
     color 0C
-    echo  [ERROR] Node.js v22.5 or later is required (found %NODE_VER%).
-    echo          The built-in node:sqlite module requires Node 22.5+.
+    echo  [ERROR] Node.js v18 or later is required ^(found %NODE_VER%^).
+    echo          v22+ is recommended for best performance.
     echo          Download from: https://nodejs.org
     echo.
     pause
     exit /b 1
-)
-if %NODE_MAJOR% EQU 22 (
-    if %NODE_MINOR% LSS 5 (
-        color 0C
-        echo  [ERROR] Node.js v22.5 or later is required (found %NODE_VER%).
-        echo          The built-in node:sqlite module requires Node 22.5+.
-        echo          Download from: https://nodejs.org
-        echo.
-        pause
-        exit /b 1
-    )
 )
 
 for /f "tokens=*" %%i in ('npm --version') do set NPM_VER=%%i
@@ -134,9 +120,9 @@ echo  =============================================
 echo   Installation complete!
 echo.
 echo   Next steps:
-echo    1. Start LM Studio and load a model
-echo    2. Enable the Local Server in LM Studio
-echo    3. Edit backend\.env if needed
+echo    1. Start LM Studio and load your models
+echo    2. Enable the Local Server ^(port 1234^) in LM Studio
+echo    3. Edit backend\.env — set model names to match LM Studio
 echo    4. Run start.bat to launch the application
 echo  =============================================
 echo.

@@ -80,7 +80,7 @@
             </option>
           </select>
           <router-link v-if="selectedSession[activeAgent] && reportSessions.has(selectedSession[activeAgent])"
-            :to="`/debug?session=${selectedSession[activeAgent]}`"
+            :to="`/report/${selectedSession[activeAgent]}`"
             class="report-btn" title="Open walkthrough report">
             <v-icon size="13">mdi-file-chart-outline</v-icon>
           </router-link>

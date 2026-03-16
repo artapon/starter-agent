@@ -106,8 +106,8 @@ export class WorkflowRunner {
         if (nodeName) {
           logger.info(`Workflow node complete: ${nodeName}`, { runId });
         }
-        // Capture current iteration state BEFORE loop_reset overwrites it
-        if (nodeName === 'loop_reset' && finalState) {
+        // Capture current iteration state when reviewer triggers an improvement loop
+        if (nodeName === 'reviewer' && partialState?.loopCount > (finalState?.loopCount ?? 0)) {
           loopIterations.push({
             loopIdx:          finalState.loopCount ?? 0,
             researchFindings: finalState.researchFindings,

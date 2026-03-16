@@ -7,6 +7,7 @@ const routes = [
   { path: '/workflow',  component: () => import('../views/WorkflowView.vue'),  meta: { title: 'Workflow',  icon: 'mdi-graph' } },
   { path: '/memory',    component: () => import('../views/MemoryView.vue'),    meta: { title: 'Memory',    icon: 'mdi-brain' } },
   { path: '/debug',     component: () => import('../views/DebugView.vue'),     meta: { title: 'Debug',     icon: 'mdi-bug-outline' } },
+  { path: '/report/:sessionId', component: () => import('../views/WalkthroughView.vue'), meta: { nav: false } },
   { path: '/logs',      component: () => import('../views/LogsView.vue'),      meta: { title: 'Logs',      icon: 'mdi-text-box-multiple' } },
   { path: '/settings',  component: () => import('../views/SettingsView.vue'),  meta: { title: 'Settings',  icon: 'mdi-cog' } },
 ];

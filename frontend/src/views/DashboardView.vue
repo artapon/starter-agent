@@ -37,213 +37,215 @@
       </div>
     </div>
 
-    <!-- Token Usage -->
-    <div class="panel card-hover">
-      <div class="panel__header">
-        <v-icon size="15" color="#6366F1">mdi-counter</v-icon>
-        <span class="section-title">Token Usage</span>
-        <span class="token-total-badge">{{ fmtTokens(tokenUsage.total) }} total</span>
-      </div>
-      <div class="token-grid">
-        <div class="token-card">
-          <div class="token-card__label">Today</div>
-          <div class="token-card__value">{{ fmtTokens(tokenUsage.today) }}</div>
-          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.today)}%;background:#6366F1`" /></div>
+    <!-- Main 2-column grid -->
+    <div class="dash-main-grid">
+
+      <!-- ── Left column ───────────────────────────────────────── -->
+      <div class="dash-col">
+
+        <!-- Workflow Graph -->
+        <div class="panel card-hover">
+          <div class="panel__header">
+            <v-icon size="15" color="#6366F1">mdi-graph-outline</v-icon>
+            <span class="section-title">Workflow Graph</span>
+            <span v-if="graphRunId" class="run-id-badge font-mono">{{ graphRunId.slice(0,8) }}…</span>
+            <span v-if="graphLoopCount > 0" class="loop-count-badge">🔄 Loop {{ graphLoopCount }}/{{ graphMaxLoops }}</span>
+            <span :class="['graph-status-dot', `graph-status-dot--${graphOverallStatus}`]" />
+            <span class="graph-overall-label">{{ graphOverallStatus }}</span>
+          </div>
+          <div class="graph-active-bar" v-if="graphCurrentNode">
+            <span class="graph-active-bar__dot" />
+            <span class="graph-active-bar__label">Processing</span>
+            <span class="graph-active-bar__node">{{ graphCurrentNode.replace('_', ' ') }}</span>
+            <span v-if="graphDevStep && graphCurrentNode === 'worker'" class="graph-active-bar__step">
+              — Step {{ graphDevStep }}{{ graphTotalSteps ? ' of ' + graphTotalSteps : '' }}
+            </span>
+          </div>
+          <div class="graph-body">
+            <svg viewBox="0 0 640 235" class="graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <marker v-for="m in markerIds" :key="m.id"
+                  :id="m.id" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L7,3 z" :fill="m.color"/>
+                </marker>
+              </defs>
+              <!-- researcher → planner -->
+              <path d="M120,42 L153,42" :stroke="edgeColor('researcher','planner')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','planner')})`"/>
+              <!-- planner → worker -->
+              <path d="M263,42 L297,42" :stroke="edgeColor('planner','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','worker')})`"/>
+              <!-- worker → reviewer -->
+              <path d="M407,42 L441,42" :stroke="edgeColor('worker','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('worker','reviewer')})`"/>
+              <!-- reviewer → assembler -->
+              <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
+              <!-- reviewer → loop_reset -->
+              <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
+              <!-- loop_reset → worker -->
+              <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke="edgeColor('loop_reset','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','worker')})`"/>
+              <!-- assembler → done -->
+              <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
+              <!-- Edge labels -->
+              <text x="615" y="120" class="edge-label" text-anchor="middle" transform="rotate(-90,615,120)">score &lt; 10</text>
+              <text x="510" y="108" class="edge-label">10/10 ✓</text>
+              <!-- researcher -->
+              <g :class="['graph-node-g', nodeClass('researcher')]">
+                <rect x="10" y="20" width="110" height="44" rx="8" :fill="nodeFill('researcher')" :stroke="nodeStroke('researcher')" stroke-width="1.5"/>
+                <text x="65" y="38" class="node-icon" text-anchor="middle">🔬</text>
+                <text x="65" y="56" class="node-label" text-anchor="middle">Researcher</text>
+              </g>
+              <!-- planner -->
+              <g :class="['graph-node-g', nodeClass('planner')]">
+                <rect x="155" y="20" width="108" height="44" rx="8" :fill="nodeFill('planner')" :stroke="nodeStroke('planner')" stroke-width="1.5"/>
+                <text x="209" y="38" class="node-icon" text-anchor="middle">📋</text>
+                <text x="209" y="56" class="node-label" text-anchor="middle">Planner</text>
+              </g>
+              <!-- worker -->
+              <g :class="['graph-node-g', nodeClass('worker')]">
+                <rect x="297" y="20" width="110" height="44" rx="8" :fill="nodeFill('worker')" :stroke="nodeStroke('worker')" stroke-width="1.5"/>
+                <text x="352" y="36" class="node-icon" text-anchor="middle">💻</text>
+                <text x="352" y="51" class="node-label" text-anchor="middle">Worker</text>
+                <text v-if="graphNodeStatus['worker']==='running' && graphDevStep" x="352" y="62" class="node-step-label" text-anchor="middle">Step {{ graphDevStep }}{{ graphTotalSteps ? '/'+graphTotalSteps : '' }}</text>
+              </g>
+              <!-- reviewer -->
+              <g :class="['graph-node-g', nodeClass('reviewer')]">
+                <rect x="441" y="20" width="110" height="44" rx="8" :fill="nodeFill('reviewer')" :stroke="nodeStroke('reviewer')" stroke-width="1.5"/>
+                <text x="496" y="38" class="node-icon" text-anchor="middle">🔍</text>
+                <text x="496" y="56" class="node-label" text-anchor="middle">Reviewer</text>
+              </g>
+              <!-- loop_reset -->
+              <g :class="['graph-node-g', nodeClass('loop_reset')]">
+                <rect x="297" y="148" width="112" height="44" rx="8" :fill="nodeFill('loop_reset')" :stroke="nodeStroke('loop_reset')" stroke-width="1.5"/>
+                <text x="353" y="166" class="node-icon" text-anchor="middle">🔄</text>
+                <text x="353" y="184" class="node-label" text-anchor="middle">Loop Reset</text>
+              </g>
+              <!-- assembler -->
+              <g :class="['graph-node-g', nodeClass('assembler')]">
+                <rect x="441" y="148" width="110" height="44" rx="8" :fill="nodeFill('assembler')" :stroke="nodeStroke('assembler')" stroke-width="1.5"/>
+                <text x="496" y="166" class="node-icon" text-anchor="middle">✅</text>
+                <text x="496" y="184" class="node-label" text-anchor="middle">Assembler</text>
+              </g>
+              <!-- done -->
+              <g :class="['graph-node-g', nodeClass('done')]">
+                <circle cx="596" cy="172" r="14" :fill="nodeFill('done')" :stroke="nodeStroke('done')" stroke-width="1.5"/>
+                <text x="596" y="177" class="node-done-label" text-anchor="middle">✓</text>
+              </g>
+            </svg>
+          </div>
         </div>
-        <div class="token-card">
-          <div class="token-card__label">This Week</div>
-          <div class="token-card__value">{{ fmtTokens(tokenUsage.weekly) }}</div>
-          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.weekly)}%;background:#22D3EE`" /></div>
-        </div>
-        <div class="token-card">
-          <div class="token-card__label">This Month</div>
-          <div class="token-card__value">{{ fmtTokens(tokenUsage.monthly) }}</div>
-          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.monthly)}%;background:#10B981`" /></div>
-        </div>
-        <div class="token-card">
-          <div class="token-card__label">All Time</div>
-          <div class="token-card__value token-card__value--accent">{{ fmtTokens(tokenUsage.total) }}</div>
-          <div class="token-card__bar"><div class="token-card__fill" style="width:100%;background:#F59E0B" /></div>
-        </div>
-      </div>
-      <div v-if="Object.keys(tokenUsage.byAgent || {}).length" class="token-agents">
-        <div v-for="(t, agent) in tokenUsage.byAgent" :key="agent" class="token-agent-row">
-          <span class="token-agent-row__name">{{ agent }}</span>
-          <div class="token-agent-row__bar-wrap">
-            <div class="token-agent-row__bar">
-              <div class="token-agent-row__fill" :style="`width:${tokenUsage.total ? Math.round(t/tokenUsage.total*100) : 0}%;background:${agentTokenColor(agent)}`" />
+
+        <!-- Token Usage -->
+        <div class="panel card-hover token-panel">
+          <div class="panel__header">
+            <v-icon size="15" color="#6366F1">mdi-counter</v-icon>
+            <span class="section-title">Token Usage</span>
+            <span class="token-total-badge">{{ fmtTokens(tokenUsage.total) }} total</span>
+          </div>
+          <div class="token-grid">
+            <div class="token-card">
+              <div class="token-card__label">Today</div>
+              <div class="token-card__value">{{ fmtTokens(tokenUsage.today) }}</div>
+              <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.today)}%;background:#6366F1`" /></div>
+            </div>
+            <div class="token-card">
+              <div class="token-card__label">This Week</div>
+              <div class="token-card__value">{{ fmtTokens(tokenUsage.weekly) }}</div>
+              <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.weekly)}%;background:#22D3EE`" /></div>
+            </div>
+            <div class="token-card">
+              <div class="token-card__label">This Month</div>
+              <div class="token-card__value">{{ fmtTokens(tokenUsage.monthly) }}</div>
+              <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.monthly)}%;background:#10B981`" /></div>
+            </div>
+            <div class="token-card">
+              <div class="token-card__label">All Time</div>
+              <div class="token-card__value token-card__value--accent">{{ fmtTokens(tokenUsage.total) }}</div>
+              <div class="token-card__bar"><div class="token-card__fill" style="width:100%;background:#F59E0B" /></div>
             </div>
           </div>
-          <span class="token-agent-row__val">{{ fmtTokens(t) }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Workflow Graph — full width -->
-    <div class="panel card-hover" style="margin-bottom:12px">
-      <div class="panel__header">
-        <v-icon size="15" color="#6366F1">mdi-graph-outline</v-icon>
-        <span class="section-title">Workflow Graph</span>
-        <span v-if="graphRunId" class="run-id-badge font-mono">{{ graphRunId.slice(0,8) }}…</span>
-        <span v-if="graphLoopCount > 0" class="loop-count-badge">🔄 Loop {{ graphLoopCount }}/{{ graphMaxLoops }}</span>
-        <span :class="['graph-status-dot', `graph-status-dot--${graphOverallStatus}`]" />
-        <span class="graph-overall-label">{{ graphOverallStatus }}</span>
-      </div>
-      <!-- Active node status bar -->
-      <div class="graph-active-bar" v-if="graphCurrentNode">
-        <span class="graph-active-bar__dot" />
-        <span class="graph-active-bar__label">Processing</span>
-        <span class="graph-active-bar__node">{{ graphCurrentNode.replace('_', ' ') }}</span>
-        <span v-if="graphDevStep && graphCurrentNode === 'worker'" class="graph-active-bar__step">
-          — Step {{ graphDevStep }}{{ graphTotalSteps ? ' of ' + graphTotalSteps : '' }}
-        </span>
-      </div>
-      <div class="graph-body">
-        <svg viewBox="0 0 640 235" class="graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            <marker v-for="m in markerIds" :key="m.id"
-              :id="m.id" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L7,3 z" :fill="m.color"/>
-            </marker>
-          </defs>
-
-          <!-- ── Edges ─────────────────────────────────────── -->
-          <!-- researcher → planner -->
-          <path d="M120,42 L153,42" :stroke="edgeColor('researcher','planner')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','planner')})`"/>
-          <!-- planner → worker -->
-          <path d="M263,42 L297,42" :stroke="edgeColor('planner','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','worker')})`"/>
-          <!-- worker → reviewer -->
-          <path d="M407,42 L441,42" :stroke="edgeColor('worker','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('worker','reviewer')})`"/>
-          <!-- reviewer → assembler (straight down, score=10) -->
-          <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
-          <!-- reviewer → loop_reset: routes RIGHT then DOWN below all boxes then LEFT to loop_reset bottom -->
-          <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
-          <!-- loop_reset → worker (direct vertical) -->
-          <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke="edgeColor('loop_reset','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','worker')})`"/>
-          <!-- assembler → done -->
-          <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
-
-          <!-- Edge labels -->
-          <text x="615" y="120" class="edge-label" text-anchor="middle" transform="rotate(-90,615,120)">score &lt; 10</text>
-          <text x="510" y="108" class="edge-label">10/10 ✓</text>
-
-          <!-- ── Nodes ─────────────────────────────────────── -->
-          <!-- researcher -->
-          <g :class="['graph-node-g', nodeClass('researcher')]">
-            <rect x="10" y="20" width="110" height="44" rx="8" :fill="nodeFill('researcher')" :stroke="nodeStroke('researcher')" stroke-width="1.5"/>
-            <text x="65" y="38" class="node-icon" text-anchor="middle">🔬</text>
-            <text x="65" y="56" class="node-label" text-anchor="middle">Researcher</text>
-          </g>
-          <!-- planner -->
-          <g :class="['graph-node-g', nodeClass('planner')]">
-            <rect x="155" y="20" width="108" height="44" rx="8" :fill="nodeFill('planner')" :stroke="nodeStroke('planner')" stroke-width="1.5"/>
-            <text x="209" y="38" class="node-icon" text-anchor="middle">📋</text>
-            <text x="209" y="56" class="node-label" text-anchor="middle">Planner</text>
-          </g>
-          <!-- worker -->
-          <g :class="['graph-node-g', nodeClass('worker')]">
-            <rect x="297" y="20" width="110" height="44" rx="8" :fill="nodeFill('worker')" :stroke="nodeStroke('worker')" stroke-width="1.5"/>
-            <text x="352" y="36" class="node-icon" text-anchor="middle">💻</text>
-            <text x="352" y="51" class="node-label" text-anchor="middle">Worker</text>
-            <text v-if="graphNodeStatus['worker']==='running' && graphDevStep" x="352" y="62" class="node-step-label" text-anchor="middle">Step {{ graphDevStep }}{{ graphTotalSteps ? '/'+graphTotalSteps : '' }}</text>
-          </g>
-          <!-- reviewer -->
-          <g :class="['graph-node-g', nodeClass('reviewer')]">
-            <rect x="441" y="20" width="110" height="44" rx="8" :fill="nodeFill('reviewer')" :stroke="nodeStroke('reviewer')" stroke-width="1.5"/>
-            <text x="496" y="38" class="node-icon" text-anchor="middle">🔍</text>
-            <text x="496" y="56" class="node-label" text-anchor="middle">Reviewer</text>
-          </g>
-          <!-- loop_reset -->
-          <g :class="['graph-node-g', nodeClass('loop_reset')]">
-            <rect x="297" y="148" width="112" height="44" rx="8" :fill="nodeFill('loop_reset')" :stroke="nodeStroke('loop_reset')" stroke-width="1.5"/>
-            <text x="353" y="166" class="node-icon" text-anchor="middle">🔄</text>
-            <text x="353" y="184" class="node-label" text-anchor="middle">Loop Reset</text>
-          </g>
-          <!-- assembler -->
-          <g :class="['graph-node-g', nodeClass('assembler')]">
-            <rect x="441" y="148" width="110" height="44" rx="8" :fill="nodeFill('assembler')" :stroke="nodeStroke('assembler')" stroke-width="1.5"/>
-            <text x="496" y="166" class="node-icon" text-anchor="middle">✅</text>
-            <text x="496" y="184" class="node-label" text-anchor="middle">Assembler</text>
-          </g>
-          <!-- done circle -->
-          <g :class="['graph-node-g', nodeClass('done')]">
-            <circle cx="596" cy="172" r="14" :fill="nodeFill('done')" :stroke="nodeStroke('done')" stroke-width="1.5"/>
-            <text x="596" y="177" class="node-done-label" text-anchor="middle">✓</text>
-          </g>
-        </svg>
-      </div>
-    </div>
-
-    <!-- Middle row -->
-    <div class="mid-grid">
-
-      <!-- Agent Status -->
-      <div class="panel card-hover">
-        <div class="panel__header">
-          <v-icon size="15" color="#6366F1">mdi-robot-outline</v-icon>
-          <span class="section-title">Agent Status</span>
-        </div>
-        <div class="agent-list">
-          <div v-for="agent in agentStatuses" :key="agent.agentId"
-            class="agent-row"
-            :class="{ 'agent-row--working': agentLiveStatus[agent.agentId] === 'working' }">
-
-            <!-- Left: dot + name + model -->
-            <div class="agent-row__left">
-              <span :class="['status-dot',
-                agentLiveStatus[agent.agentId] === 'working' ? 'status-dot--working'
-                : agent.available ? 'status-dot--online' : 'status-dot--offline']" />
-              <div class="agent-row__info">
-                <div class="agent-row__name">{{ agent.agentId }}</div>
-                <div class="agent-row__model">{{ agent.model }}</div>
+          <div v-if="Object.keys(tokenUsage.byAgent || {}).length" class="token-agents">
+            <div v-for="(t, agent) in tokenUsage.byAgent" :key="agent" class="token-agent-row">
+              <span class="token-agent-row__name">{{ agent }}</span>
+              <div class="token-agent-row__bar-wrap">
+                <div class="token-agent-row__bar">
+                  <div class="token-agent-row__fill" :style="`width:${tokenUsage.total ? Math.round(t/tokenUsage.total*100) : 0}%;background:${agentTokenColor(agent)}`" />
+                </div>
               </div>
-            </div>
-
-            <!-- Right: status badge + online chip -->
-            <div class="agent-row__right">
-              <!-- Working badge with spinner -->
-              <div v-if="agentLiveStatus[agent.agentId] === 'working'" class="working-badge">
-                <svg class="working-spinner" viewBox="0 0 16 16">
-                  <circle cx="8" cy="8" r="6" fill="none" stroke="#F59E0B" stroke-width="2"
-                    stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"/>
-                </svg>
-                <span>Running</span>
-              </div>
-              <div v-else class="idle-badge">
-                {{ agentLiveStatus[agent.agentId] || 'idle' }}
-              </div>
-              <v-chip :color="agent.available ? 'success' : 'error'" size="x-small" variant="tonal">
-                {{ agent.available ? 'Online' : 'Offline' }}
-              </v-chip>
-            </div>
-
-            <!-- Current task — spans full width when working -->
-            <div v-if="agentCurrentTask[agent.agentId]" class="agent-row__task">
-              <v-icon size="11" color="#F59E0B" class="mr-1">mdi-chevron-right</v-icon>
-              {{ agentCurrentTask[agent.agentId] }}
+              <span class="token-agent-row__val">{{ fmtTokens(t) }}</span>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Recent Runs -->
-      <div class="panel card-hover">
-        <div class="panel__header">
-          <v-icon size="15" color="#6366F1">mdi-history</v-icon>
-          <span class="section-title">Recent Runs</span>
-        </div>
-        <div class="run-list">
-          <div v-for="run in recentRuns" :key="run.id" class="run-row">
-            <div class="run-row__id font-mono">{{ run.id.slice(0, 10) }}</div>
-            <div class="run-row__time">{{ new Date(run.started_at * 1000).toLocaleString() }}</div>
-            <v-chip :color="statusColor(run.status)" size="x-small" variant="tonal">{{ run.status }}</v-chip>
+      </div><!-- /dash-col left -->
+
+      <!-- ── Right column ──────────────────────────────────────── -->
+      <div class="dash-col">
+
+        <!-- Agent Status -->
+        <div class="panel card-hover">
+          <div class="panel__header">
+            <v-icon size="15" color="#6366F1">mdi-robot-outline</v-icon>
+            <span class="section-title">Agent Status</span>
           </div>
-          <div v-if="!recentRuns.length" class="empty-state">No runs yet</div>
+          <div class="agent-list">
+            <div v-for="agent in agentStatuses" :key="agent.agentId"
+              class="agent-row"
+              :class="{ 'agent-row--working': agentLiveStatus[agent.agentId] === 'working' }">
+              <div class="agent-row__left">
+                <span :class="['status-dot',
+                  agentLiveStatus[agent.agentId] === 'working' ? 'status-dot--working'
+                  : agent.available ? 'status-dot--online' : 'status-dot--offline']" />
+                <div class="agent-row__info">
+                  <div class="agent-row__name">{{ agent.agentId }}</div>
+                  <div class="agent-row__model">{{ agent.model }}</div>
+                </div>
+              </div>
+              <div class="agent-row__right">
+                <div v-if="agentLiveStatus[agent.agentId] === 'working'" class="working-badge">
+                  <svg class="working-spinner" viewBox="0 0 16 16">
+                    <circle cx="8" cy="8" r="6" fill="none" stroke="#F59E0B" stroke-width="2"
+                      stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"/>
+                  </svg>
+                  <span>Running</span>
+                </div>
+                <div v-else class="idle-badge">{{ agentLiveStatus[agent.agentId] || 'idle' }}</div>
+                <v-chip :color="agent.available ? 'success' : 'error'" size="x-small" variant="tonal">
+                  {{ agent.available ? 'Online' : 'Offline' }}
+                </v-chip>
+              </div>
+              <div v-if="agentCurrentTask[agent.agentId]" class="agent-row__task">
+                <v-icon size="11" color="#F59E0B" class="mr-1">mdi-chevron-right</v-icon>
+                {{ agentCurrentTask[agent.agentId] }}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Live logs -->
+        <!-- Recent Runs -->
+        <div class="panel card-hover">
+          <div class="panel__header">
+            <v-icon size="15" color="#6366F1">mdi-history</v-icon>
+            <span class="section-title">Recent Runs</span>
+          </div>
+          <div class="run-list">
+            <div v-for="run in recentRuns" :key="run.id" class="run-row">
+              <div class="run-row__id font-mono">{{ run.id.slice(0, 10) }}</div>
+              <div class="run-row__time">{{ new Date(run.started_at * 1000).toLocaleString() }}</div>
+              <v-chip :color="statusColor(run.status)" size="x-small" variant="tonal">{{ run.status }}</v-chip>
+              <router-link v-if="reportSessions.has(run.session_id)"
+                :to="`/report/${run.session_id}`"
+                class="report-btn">
+                <v-icon size="12">mdi-file-chart-outline</v-icon> Walkthrough
+              </router-link>
+              <span v-else style="font-size:11px;color:rgba(226,232,240,0.15);width:72px"></span>
+            </div>
+            <div v-if="!recentRuns.length" class="empty-state">No runs yet</div>
+          </div>
+        </div>
+
+      </div><!-- /dash-col right -->
+
+    </div><!-- /dash-main-grid -->
+
+    <!-- Live Logs — full width -->
     <div class="panel card-hover">
       <div class="panel__header">
         <div class="d-flex align-center gap-2">
@@ -280,6 +282,7 @@ const loading = ref(false);
 const stats = ref({});
 const agentStatuses = ref([]);
 const recentRuns = ref([]);
+const reportSessions = ref(new Set());
 const logs = ref([]);
 const tokenUsage = ref({ today: 0, weekly: 0, monthly: 0, total: 0, byAgent: {} });
 const agentLiveStatus = ref({});
@@ -392,9 +395,10 @@ async function fetchTokenUsage() {
 async function fetchStats() {
   loading.value = true;
   try {
-    const [{ data }, { data: runs }] = await Promise.all([
+    const [{ data }, { data: runs }, { data: rpt }] = await Promise.all([
       axios.get('/api/dashboard/stats'),
       axios.get('/api/workflow/runs'),
+      axios.get('/api/reports/sessions'),
     ]);
     stats.value = data;
     const order = ['researcher', 'planner', 'worker', 'reviewer'];
@@ -403,6 +407,7 @@ async function fetchStats() {
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
     recentRuns.value = runs.slice(0, 10);
+    reportSessions.value = new Set(rpt.sessions || []);
     await fetchTokenUsage();
   } finally { loading.value = false; }
 }
@@ -633,9 +638,15 @@ onMounted(() => {
 }
 .stat-card__label { font-size: 12px; color: rgba(226,232,240,0.45) !important; margin-top: 3px; }
 
-/* Mid grid */
-.mid-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 760px) { .mid-grid { grid-template-columns: 1fr; } }
+/* Main 2-column grid */
+.dash-main-grid {
+  display: grid;
+  grid-template-columns: 55fr 45fr;
+  gap: 12px;
+}
+.dash-col { display: flex; flex-direction: column; gap: 12px; }
+.dash-col .panel.token-panel { flex: 1; }
+@media (max-width: 900px) { .dash-main-grid { grid-template-columns: 1fr; } }
 
 /* Panel */
 .panel {
@@ -721,6 +732,17 @@ onMounted(() => {
 .run-row:hover { background: rgba(255,255,255,0.025); }
 .run-row__id   { font-size: 12px; font-weight: 500; flex: 1; }
 .run-row__time { font-size: 11px; color: rgba(226,232,240,0.35) !important; flex-shrink: 0; }
+
+.report-btn {
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+  font-size: 11px; font-weight: 600;
+  color: #22D3EE; text-decoration: none;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid rgba(34,211,238,0.25);
+  background: rgba(34,211,238,0.07);
+  transition: background 0.15s;
+}
+.report-btn:hover { background: rgba(34,211,238,0.15); }
 
 /* Log feed */
 .log-feed {

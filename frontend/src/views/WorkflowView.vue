@@ -104,7 +104,7 @@
         </template>
         <template #item.report="{ item }">
           <router-link v-if="reportSessions.has(item.session_id)"
-            :to="`/debug?session=${item.session_id}`"
+            :to="`/report/${item.session_id}`"
             class="report-btn">
             <v-icon size="13">mdi-file-chart-outline</v-icon> Walkthrough
           </router-link>

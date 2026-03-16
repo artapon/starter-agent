@@ -127,8 +127,10 @@
         @keydown.shift.enter.exact="insertNewline"
         style="font-size:14px"
       />
-      <v-btn v-if="sending || isStreaming || typing" color="error" variant="tonal"
-        icon="mdi-stop-circle-outline" size="40" @click="stopChat" title="Stop" />
+      <v-btn
+        color="error" variant="tonal" icon="mdi-stop-circle-outline" size="40"
+        :disabled="!sending && !isStreaming && !typing"
+        @click="stopChat" title="Stop" />
       <v-btn color="primary" :loading="sending" :disabled="!input.trim() || sending"
         @click="sendMessage" icon="mdi-send" size="40" />
     </div>
