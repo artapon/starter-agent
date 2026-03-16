@@ -19,7 +19,7 @@ backend/logs/
 workspace/
 
 # Reports (AI-generated per session)
-reports/
+/reports/
 
 # Environment & secrets
 .env
