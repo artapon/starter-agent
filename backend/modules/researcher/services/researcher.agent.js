@@ -18,15 +18,18 @@ const logger = createLogger('researcher');
 
 /**
  * Build the OpenAI-format messages array for the LLM call.
- * The system prompt comes entirely from RESEARCHER.md (via getRawSkillPrompt).
- * When webContext is provided (MCP mode) it is injected before the skill content
- * so the LLM reads concrete evidence first.
+ * Layer order (top of system prompt first):
+ *   1. LTM context  — relevant past research for this goal
+ *   2. Web context  — live search results (MCP mode only)
+ *   3. Skill content — RESEARCHER.md expert persona + instructions
  */
-function buildMessages(goal, histMessages = [], webContext = null) {
-  const skillContent = getRawSkillPrompt('researcher');
-  const systemContent = webContext
-    ? `=== WEB RESEARCH CONTEXT ===\n${webContext}\n=== END WEB RESEARCH CONTEXT ===\n\n${skillContent}`
-    : skillContent;
+function buildMessages(goal, histMessages = [], webContext = null, ltmContext = null) {
+  const skillContent  = getRawSkillPrompt('researcher');
+  const parts = [];
+  if (ltmContext) parts.push(ltmContext);
+  if (webContext) parts.push(`=== WEB RESEARCH CONTEXT ===\n${webContext}\n=== END WEB RESEARCH CONTEXT ===`);
+  parts.push(skillContent);
+  const systemContent = parts.join('\n\n');
 
   return [
     { role: 'system', content: systemContent },
@@ -117,9 +120,10 @@ export class ResearcherAgent {
     const memory  = memoryStore.getMemory('researcher', sessionId);
     let rawOutput = '';
     try {
-      const histVars    = await memory.loadMemoryVariables({});
+      const histVars     = await memory.loadMemoryVariables({});
       const histMessages = toLMStudioMessages(histVars.chat_history || []);
-      const messages    = buildMessages(compressString(goal, 4096), histMessages);
+      const ltmContext   = await memoryStore.getLTMContext('researcher', goal, 3);
+      const messages     = buildMessages(compressString(goal, 4096), histMessages, null, ltmContext || null);
       const signal      = runId ? getAbortSignal(runId) : undefined;
       rawOutput = await streamAndEmit(adapter._settings, messages, signal, this.socketManager, sessionId, 'researcher');
       await memory.saveContext({ input: goal }, { output: rawOutput });
@@ -264,11 +268,12 @@ export class ResearcherAgent {
 
       // ── Phase 4: LLM expert analysis (all instructions from RESEARCHER.md) ──
       sm?.emitAgentStatus('researcher', 'working', 'Analysing...');
-      const adapter  = getAdapter('researcher');
-      const memory   = memoryStore.getMemory('researcher', sessionId);
-      const histVars = await memory.loadMemoryVariables({});
+      const adapter      = getAdapter('researcher');
+      const memory       = memoryStore.getMemory('researcher', sessionId);
+      const histVars     = await memory.loadMemoryVariables({});
       const histMessages = toLMStudioMessages(histVars.chat_history || []);
-      const messages = buildMessages(compressString(goal, 2048), histMessages, webContext);
+      const ltmContext   = await memoryStore.getLTMContext('researcher', goal, 3);
+      const messages     = buildMessages(compressString(goal, 2048), histMessages, webContext, ltmContext || null);
 
       const rawOutput = await streamAndEmit(adapter._settings, messages, signal, sm, sessionId, 'researcher');
       await memory.saveContext({ input: goal }, { output: rawOutput });

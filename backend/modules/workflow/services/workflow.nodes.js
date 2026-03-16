@@ -1,7 +1,8 @@
 import { ResearcherAgent } from '../../researcher/services/researcher.agent.js';
-import { PlannerAgent } from '../../planner/services/planner.agent.js';
-import { WorkerAgent } from '../../worker/services/worker.agent.js';
-import { ReviewerAgent } from '../../reviewer/services/reviewer.agent.js';
+import { PlannerAgent }    from '../../planner/services/planner.agent.js';
+import { WorkerAgent }     from '../../worker/services/worker.agent.js';
+import { ReviewerAgent }   from '../../reviewer/services/reviewer.agent.js';
+import { memoryStore }     from '../../memory/services/memory.store.js';
 
 export function createNodes(socketManager) {
   const researcherAgent = new ResearcherAgent(socketManager);
@@ -15,6 +16,7 @@ export function createNodes(socketManager) {
   }
 
   async function researcherNode(state) {
+    memoryStore.setWorkingContext('researcher', state.runId, { goal: state.userGoal, sessionId: state.sessionId });
     socketManager?.emitWorkflowNode(state.runId, 'researcher', { status: 'running' });
     emitStatus(state.sessionId, 'researcher', `\n🔬 **Researching:** ${state.userGoal}\n\n`);
 
@@ -31,6 +33,11 @@ export function createNodes(socketManager) {
   }
 
   async function plannerNode(state) {
+    memoryStore.setWorkingContext('planner', state.runId, {
+      goal:               state.userGoal,
+      researchSummary:    state.researchFindings?.summary || '',
+      recommendedApproach: state.researchFindings?.recommendedApproach || '',
+    });
     socketManager?.emitWorkflowNode(state.runId, 'planner', { status: 'running' });
     emitStatus(state.sessionId, 'planner', `\n📋 **Planning:** ${state.userGoal}\n\n`);
 
@@ -56,6 +63,12 @@ export function createNodes(socketManager) {
     if (!step) return { status: 'review_ready' };
 
     const label = `Step ${state.currentStepIdx + 1}/${steps.length}`;
+    memoryStore.setWorkingContext('worker', state.runId, {
+      planId:      state.plan?.planId,
+      currentStep: step.description,
+      stepIdx:     state.currentStepIdx,
+      totalSteps:  steps.length,
+    });
     socketManager?.emitWorkflowNode(state.runId, 'worker', {
       status: 'running',
       step: step.description,
@@ -90,6 +103,10 @@ export function createNodes(socketManager) {
     const stepIdx = Math.max(0, state.currentStepIdx - 1);
     const step = steps[stepIdx];
 
+    memoryStore.setWorkingContext('reviewer', state.runId, {
+      stepDescription: step?.description || '',
+      loopCount:       state.loopCount,
+    });
     socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'running' });
     emitStatus(state.sessionId, 'reviewer', `\n---\n🔍 **Reviewing:** ${step?.description || 'output'}\n\n`);
 

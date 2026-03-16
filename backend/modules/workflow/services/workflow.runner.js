@@ -1,10 +1,11 @@
 import { buildWorkflowGraph } from './workflow.graph.js';
-import { getDb } from '../../../core/database/db.js';
-import { createLogger } from '../../../core/logger/winston.logger.js';
-import { SocketEvents } from '../../../core/socket/socket.events.js';
+import { getDb }              from '../../../core/database/db.js';
+import { createLogger }       from '../../../core/logger/winston.logger.js';
+import { SocketEvents }       from '../../../core/socket/socket.events.js';
 import { createAbortController, abortById, clearAbortController } from '../../../core/abort/abort.registry.js';
-import { generateReport } from '../../../core/reports/report.generator.js';
-import { v4 as uuidv4 } from 'uuid';
+import { generateReport }     from '../../../core/reports/report.generator.js';
+import { memoryStore }        from '../../memory/services/memory.store.js';
+import { v4 as uuidv4 }       from 'uuid';
 
 const logger = createLogger('workflow');
 
@@ -167,6 +168,7 @@ export class WorkflowRunner {
     } finally {
       _activeRuns.delete(runId);
       clearAbortController(runId);
+      memoryStore.clearWorkingMemory(runId);
     }
   }
 
