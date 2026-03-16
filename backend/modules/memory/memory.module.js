@@ -8,6 +8,7 @@ const router     = Router();
 router.get   ('/ltm/stats',              controller.getLTMStats);
 router.get   ('/ltm/:agentId/stats',     controller.getLTMStats);
 router.get   ('/ltm/:agentId/query',     controller.queryLTM);
+router.post  ('/ltm/:agentId/store',     controller.storeLTM);
 router.delete('/ltm/:agentId',           controller.clearLTM);
 
 // ── Working Memory ────────────────────────────────────────────────────────────

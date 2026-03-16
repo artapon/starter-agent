@@ -103,12 +103,11 @@
           </span>
         </template>
         <template #item.report="{ item }">
-          <a v-if="reportSessions.has(item.session_id)"
-            :href="`/reports/${item.session_id}/walkthrough.html`"
-            target="_blank" rel="noopener"
+          <router-link v-if="reportSessions.has(item.session_id)"
+            :to="`/report/${item.session_id}`"
             class="report-btn">
             <v-icon size="13">mdi-file-chart-outline</v-icon> Walkthrough
-          </a>
+          </router-link>
           <span v-else style="font-size:11px;color:rgba(226,232,240,0.2)">—</span>
         </template>
       </v-data-table>

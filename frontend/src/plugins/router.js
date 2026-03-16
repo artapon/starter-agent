@@ -8,6 +8,7 @@ const routes = [
   { path: '/memory', component: () => import('../views/MemoryView.vue'), meta: { title: 'Memory', icon: 'mdi-brain' } },
   { path: '/logs', component: () => import('../views/LogsView.vue'), meta: { title: 'Logs', icon: 'mdi-text-box-multiple' } },
   { path: '/settings', component: () => import('../views/SettingsView.vue'), meta: { title: 'Settings', icon: 'mdi-cog' } },
+  { path: '/report/:sessionId', component: () => import('../views/WalkthroughView.vue'), meta: { title: 'Walkthrough', icon: 'mdi-file-document-outline', nav: false } },
 ];
 
 export default createRouter({

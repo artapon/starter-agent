@@ -84,6 +84,21 @@ export function createApp() {
     } catch { res.json({ sessions: [] }); }
   });
 
+  // Reports — return <style> and <main> content for a session's walkthrough
+  app.get('/api/reports/:sessionId/content', (req, res) => {
+    try {
+      const file = path.join(REPORTS_DIR, req.params.sessionId, 'walkthrough.html');
+      if (!existsSync(file)) return res.status(404).json({ error: 'Report not found' });
+      import('node:fs').then(({ readFileSync }) => {
+        const html  = readFileSync(file, 'utf8');
+        const style = (html.match(/<style>([\s\S]*?)<\/style>/) || [])[1] || '';
+        const main  = (html.match(/<main[\s\S]*?>([\s\S]*?)<\/main>/) || [])[1] || '';
+        const title = (html.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || 'Walkthrough';
+        res.json({ style, main, title });
+      });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   // SPA fallback — serve Vue app or HBS shell
   app.get('*', (req, res) => {
     const dist = path.join(__dirname, '../frontend/dist/index.html');

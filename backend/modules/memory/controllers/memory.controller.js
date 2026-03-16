@@ -100,6 +100,16 @@ export class MemoryController {
     } catch (e) { next(e); }
   };
 
+  storeLTM = async (req, res, next) => {
+    try {
+      const { agentId } = req.params;
+      const { content, metadata } = req.body;
+      if (!content) return res.status(400).json({ error: 'content required' });
+      await memoryStore.storeToLTM(agentId, content, metadata || {});
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  };
+
   clearLTM = (req, res, next) => {
     try {
       const { agentId } = req.params;

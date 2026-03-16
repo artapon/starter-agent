@@ -38,334 +38,341 @@
     <!-- ── Content ───────────────────────────────────────────────────── -->
     <main class="settings-content">
 
-      <!-- Page title row -->
-      <div class="content-header">
-        <div>
-          <div class="page-title">
-            <template v-if="section === 'global'">Global Settings</template>
-            <template v-else>
-              <span :style="{ color: agentAccent(section) }" style="text-transform:capitalize">{{ section }}</span>
-              &nbsp;Agent
-            </template>
-          </div>
-          <div class="page-subtitle">
-            <template v-if="section === 'global'">Workspace, workflow loop and skill profiles</template>
-            <template v-else>LLM model, tools and capabilities</template>
-          </div>
-        </div>
-      </div>
+      <!-- Scrollable panels area -->
+      <div class="panels-scroll">
 
-      <!-- ── GLOBAL SECTION ────────────────────────────────────────── -->
-      <template v-if="section === 'global'">
-        <div class="global-grid">
-
-          <!-- Skill Profile -->
-          <div class="panel card-hover span-full">
-            <div class="panel__header">
-              <div class="d-flex align-center gap-2">
-                <v-icon size="15" color="#6366F1">mdi-book-cog-outline</v-icon>
-                <span class="section-title">Skill Profile</span>
-              </div>
-              <v-chip size="x-small" color="primary" variant="tonal">{{ activeSubskill }}</v-chip>
-            </div>
-            <div class="panel__body">
-              <div class="subskill-grid">
-                <button
-                  v-for="sk in subskillProfiles" :key="sk"
-                  class="subskill-card"
-                  :class="{ 'subskill-card--active': selectedSubskill === sk }"
-                  @click="selectedSubskill = sk"
-                >
-                  <v-icon size="20" class="subskill-card__icon">{{ subskillIcon(sk) }}</v-icon>
-                  <div class="subskill-card__name">{{ subskillLabel(sk) }}</div>
-                  <div class="subskill-card__desc">{{ subskillDesc(sk) }}</div>
-                </button>
-              </div>
-            </div>
-            <div class="panel__footer">
-              <span class="hint">Changes take effect on the next workflow run.</span>
-              <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
-                :loading="savingSubskill" :disabled="selectedSubskill === activeSubskill"
-                @click="saveSubskill">Apply Profile</v-btn>
-            </div>
+        <!-- ── GLOBAL SECTION ──────────────────────────────────────── -->
+        <template v-if="section === 'global'">
+          <div class="section-heading">
+            <div class="page-title">Global Settings</div>
+            <div class="page-subtitle">Workspace, workflow loop and skill profiles</div>
           </div>
 
-          <!-- Workspace -->
-          <div class="panel card-hover">
-            <div class="panel__header">
-              <div class="d-flex align-center gap-2">
-                <v-icon size="15" color="#6366F1">mdi-folder-cog-outline</v-icon>
-                <span class="section-title">Workspace</span>
-              </div>
-            </div>
-            <div class="panel__body">
-              <p class="panel-desc">Directory where agents read and write files. Relative to the project root, or use an absolute path.</p>
-              <v-text-field
-                v-model="workspacePath"
-                label="Workspace Path"
-                density="compact" variant="outlined" hide-details
-                prepend-inner-icon="mdi-folder-outline"
-                placeholder="./workspace"
-              />
-            </div>
-            <div class="panel__footer">
-              <span class="hint">Relative to project root or absolute</span>
-              <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
-                :loading="savingWorkspace" @click="saveWorkspace">Save</v-btn>
-            </div>
-          </div>
+          <div class="global-grid">
 
-          <!-- Workflow Loop -->
-          <div class="panel card-hover">
-            <div class="panel__header">
-              <div class="d-flex align-center gap-2">
-                <v-icon size="15" color="#6366F1">mdi-repeat</v-icon>
-                <span class="section-title">Workflow Loop</span>
-              </div>
-              <v-chip size="x-small" :color="loopEnabled ? 'primary' : 'default'" variant="tonal">
-                {{ loopEnabled ? 'Enabled' : 'Disabled' }}
-              </v-chip>
-            </div>
-            <div class="panel__body">
-              <div class="loop-grid">
-                <div class="loop-toggle-row">
-                  <div class="loop-toggle-info">
-                    <div class="loop-toggle-label">Auto-repeat if review score &lt; 10/10</div>
-                    <div class="loop-toggle-hint">Restarts the full pipeline until the reviewer scores 10/10 or the limit is reached.</div>
-                  </div>
-                  <v-switch v-model="loopEnabled" color="primary" hide-details density="compact" inset />
-                </div>
-
-                <div class="loop-max-row" :class="{ 'loop-max-row--disabled': !loopEnabled }">
-                  <div class="field-label">Max loops: <strong>{{ maxLoops }}</strong>
-                    <span class="muted-label">&nbsp;({{ maxLoops }} extra run{{ maxLoops !== 1 ? 's' : '' }})</span>
-                  </div>
-                  <v-slider v-model="maxLoops" :min="1" :max="10" :step="1"
-                    thumb-label color="primary" class="mt-1" hide-details :disabled="!loopEnabled" />
-                </div>
-
-                <div class="loop-divider" />
-
-                <div class="loop-toggle-row">
-                  <div class="loop-toggle-info">
-                    <div class="loop-toggle-label">Recursion limit</div>
-                    <div class="loop-toggle-hint">Max node executions per run. Set to 0 for unlimited.</div>
-                  </div>
-                  <div class="recursion-input-wrap">
-                    <v-text-field
-                      v-model.number="recursionLimit"
-                      type="number" min="0" step="50"
-                      density="compact" variant="outlined" hide-details
-                      style="width:110px" placeholder="200"
-                    />
-                    <span class="muted-label" style="font-size:11px;margin-left:6px">0 = ∞</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="panel__footer">
-              <span></span>
-              <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
-                :loading="savingLoop" @click="saveLoopSettings">Save</v-btn>
-            </div>
-          </div>
-
-        </div>
-      </template>
-
-      <!-- ── AGENT SECTION ─────────────────────────────────────────── -->
-      <template v-for="agent in agentSettings" :key="agent.agent_id">
-        <div v-if="section === agent.agent_id" class="agent-layout">
-
-          <!-- Left column: LLM config -->
-          <div class="agent-left">
-            <div class="panel card-hover">
+            <!-- Skill Profile -->
+            <div class="panel span-full">
               <div class="panel__header">
                 <div class="d-flex align-center gap-2">
-                  <v-icon size="15" :color="agentAccent(agent.agent_id)">mdi-brain</v-icon>
-                  <span class="section-title">LLM Configuration</span>
+                  <v-icon size="15" color="#6366F1">mdi-book-cog-outline</v-icon>
+                  <span class="section-title">Skill Profile</span>
                 </div>
-                <v-chip :color="connStatus(agent.agent_id)" size="x-small" variant="tonal">
-                  {{ connLabel(agent.agent_id) }}
+                <v-chip size="x-small" color="primary" variant="tonal">{{ activeSubskill }}</v-chip>
+              </div>
+              <div class="panel__body">
+                <div class="subskill-grid">
+                  <button
+                    v-for="sk in subskillProfiles" :key="sk"
+                    class="subskill-card"
+                    :class="{ 'subskill-card--active': selectedSubskill === sk }"
+                    @click="selectedSubskill = sk"
+                  >
+                    <v-icon size="20" class="subskill-card__icon">{{ subskillIcon(sk) }}</v-icon>
+                    <div class="subskill-card__name">{{ subskillLabel(sk) }}</div>
+                    <div class="subskill-card__desc">{{ subskillDesc(sk) }}</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Workspace -->
+            <div class="panel">
+              <div class="panel__header">
+                <div class="d-flex align-center gap-2">
+                  <v-icon size="15" color="#6366F1">mdi-folder-cog-outline</v-icon>
+                  <span class="section-title">Workspace</span>
+                </div>
+              </div>
+              <div class="panel__body">
+                <p class="panel-desc">Directory where agents read and write files. Relative to the project root, or use an absolute path.</p>
+                <v-text-field
+                  v-model="workspacePath"
+                  label="Workspace Path"
+                  density="compact" variant="outlined" hide-details
+                  prepend-inner-icon="mdi-folder-outline"
+                  placeholder="./workspace"
+                />
+              </div>
+            </div>
+
+            <!-- Workflow Loop -->
+            <div class="panel">
+              <div class="panel__header">
+                <div class="d-flex align-center gap-2">
+                  <v-icon size="15" color="#6366F1">mdi-repeat</v-icon>
+                  <span class="section-title">Workflow Loop</span>
+                </div>
+                <v-chip size="x-small" :color="loopEnabled ? 'primary' : 'default'" variant="tonal">
+                  {{ loopEnabled ? 'Enabled' : 'Disabled' }}
                 </v-chip>
               </div>
               <div class="panel__body">
-
-                <v-combobox
-                  v-model="forms[agent.agent_id].model_name"
-                  :items="availableModels[agent.agent_id] || []"
-                  label="Model Name" density="compact" variant="outlined"
-                  placeholder="Loading models…"
-                  :class="modelMismatch(agent.agent_id) ? 'mb-1' : 'mb-3'"
-                  prepend-inner-icon="mdi-chip"
-                  :loading="loadingModels[agent.agent_id]"
-                  clearable hide-details
-                >
-                  <template #append-inner>
-                    <v-btn icon="mdi-refresh" size="x-small" variant="text"
-                      :loading="loadingModels[agent.agent_id]"
-                      @click.stop="fetchModels(agent.agent_id)" />
-                  </template>
-                  <template #no-data>
-                    <v-list-item>
-                      <v-list-item-title style="font-size:12px;color:rgba(226,232,240,0.4)">
-                        {{ modelLoadError[agent.agent_id] || 'Connecting to LM Studio…' }}
-                      </v-list-item-title>
-                    </v-list-item>
-                  </template>
-                </v-combobox>
-
-                <v-alert v-if="modelMismatch(agent.agent_id)" type="warning" density="compact"
-                  variant="tonal" class="mb-3" icon="mdi-alert" closable>
-                  <div style="font-size:12px">
-                    <strong>{{ forms[agent.agent_id].model_name }}</strong> not found in LM Studio.
+                <div class="loop-grid">
+                  <div class="loop-toggle-row">
+                    <div class="loop-toggle-info">
+                      <div class="loop-toggle-label">Auto-repeat if review score &lt; 10/10</div>
+                      <div class="loop-toggle-hint">Restarts the full pipeline until the reviewer scores 10/10 or the limit is reached.</div>
+                    </div>
+                    <v-switch v-model="loopEnabled" color="primary" hide-details density="compact" inset />
                   </div>
-                  <div v-if="suggestModel(agent.agent_id)" class="mt-2 d-flex align-center gap-2 flex-wrap">
-                    <span style="font-size:11px;color:rgba(226,232,240,0.5)">Suggested:</span>
-                    <v-chip size="small" color="warning" variant="tonal" class="font-mono"
-                      prepend-icon="mdi-auto-fix" style="cursor:pointer"
-                      @click="applyModel(agent.agent_id, suggestModel(agent.agent_id))">
-                      {{ suggestModel(agent.agent_id) }}
+                  <div class="loop-max-row" :class="{ 'loop-max-row--disabled': !loopEnabled }">
+                    <div class="field-label">Max loops: <strong>{{ maxLoops }}</strong>
+                      <span class="muted-label">&nbsp;({{ maxLoops }} extra run{{ maxLoops !== 1 ? 's' : '' }})</span>
+                    </div>
+                    <v-slider v-model="maxLoops" :min="1" :max="10" :step="1"
+                      thumb-label color="primary" class="mt-1" hide-details :disabled="!loopEnabled" />
+                  </div>
+                  <div class="loop-divider" />
+                  <div class="loop-toggle-row">
+                    <div class="loop-toggle-info">
+                      <div class="loop-toggle-label">Recursion limit</div>
+                      <div class="loop-toggle-hint">Max node executions per run. Set to 0 for unlimited.</div>
+                    </div>
+                    <div class="recursion-input-wrap">
+                      <v-text-field
+                        v-model.number="recursionLimit"
+                        type="number" min="0" step="50"
+                        density="compact" variant="outlined" hide-details
+                        style="width:110px" placeholder="200"
+                      />
+                      <span class="muted-label" style="font-size:11px;margin-left:6px">0 = ∞</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </template>
+
+        <!-- ── AGENT SECTION ───────────────────────────────────────── -->
+        <template v-for="agent in agentSettings" :key="agent.agent_id">
+          <div v-if="section === agent.agent_id">
+            <div class="section-heading">
+              <div class="page-title">
+                <span :style="{ color: agentAccent(agent.agent_id) }" style="text-transform:capitalize">{{ agent.agent_id }}</span>
+                &nbsp;Agent
+              </div>
+              <div class="page-subtitle">LLM model, tools and capabilities</div>
+            </div>
+
+            <div class="agent-layout">
+
+              <!-- Left: LLM config -->
+              <div class="agent-left">
+                <div class="panel">
+                  <div class="panel__header">
+                    <div class="d-flex align-center gap-2">
+                      <v-icon size="15" :color="agentAccent(agent.agent_id)">mdi-brain</v-icon>
+                      <span class="section-title">LLM Configuration</span>
+                    </div>
+                    <v-chip :color="connStatus(agent.agent_id)" size="x-small" variant="tonal">
+                      {{ connLabel(agent.agent_id) }}
                     </v-chip>
                   </div>
-                </v-alert>
+                  <div class="panel__body">
 
-                <v-text-field v-model="forms[agent.agent_id].base_url" label="LM Studio Base URL"
-                  density="compact" variant="outlined" placeholder="http://localhost:1234/v1"
-                  hide-details class="mb-3" prepend-inner-icon="mdi-server-outline" />
+                    <v-combobox
+                      v-model="forms[agent.agent_id].model_name"
+                      :items="availableModels[agent.agent_id] || []"
+                      label="Model Name" density="compact" variant="outlined"
+                      placeholder="Loading models…"
+                      :class="modelMismatch(agent.agent_id) ? 'mb-1' : 'mb-3'"
+                      prepend-inner-icon="mdi-chip"
+                      :loading="loadingModels[agent.agent_id]"
+                      clearable hide-details
+                    >
+                      <template #append-inner>
+                        <v-btn icon="mdi-refresh" size="x-small" variant="text"
+                          :loading="loadingModels[agent.agent_id]"
+                          @click.stop="fetchModels(agent.agent_id)" />
+                      </template>
+                      <template #no-data>
+                        <v-list-item>
+                          <v-list-item-title style="font-size:12px;color:rgba(226,232,240,0.4)">
+                            {{ modelLoadError[agent.agent_id] || 'Connecting to LM Studio…' }}
+                          </v-list-item-title>
+                        </v-list-item>
+                      </template>
+                    </v-combobox>
 
-                <v-text-field v-model="forms[agent.agent_id].api_key" label="API Key"
-                  density="compact" variant="outlined" placeholder="lm-studio"
-                  hide-details class="mb-3" prepend-inner-icon="mdi-key-outline"
-                  :type="showKey[agent.agent_id] ? 'text' : 'password'"
-                  :append-inner-icon="showKey[agent.agent_id] ? 'mdi-eye-off' : 'mdi-eye'"
-                  @click:append-inner="showKey[agent.agent_id] = !showKey[agent.agent_id]" />
+                    <v-alert v-if="modelMismatch(agent.agent_id)" type="warning" density="compact"
+                      variant="tonal" class="mb-3" icon="mdi-alert" closable>
+                      <div style="font-size:12px">
+                        <strong>{{ forms[agent.agent_id].model_name }}</strong> not found in LM Studio.
+                      </div>
+                      <div v-if="suggestModel(agent.agent_id)" class="mt-2 d-flex align-center gap-2 flex-wrap">
+                        <span style="font-size:11px;color:rgba(226,232,240,0.5)">Suggested:</span>
+                        <v-chip size="small" color="warning" variant="tonal" class="font-mono"
+                          prepend-icon="mdi-auto-fix" style="cursor:pointer"
+                          @click="applyModel(agent.agent_id, suggestModel(agent.agent_id))">
+                          {{ suggestModel(agent.agent_id) }}
+                        </v-chip>
+                      </div>
+                    </v-alert>
 
-                <div class="field-label">Temperature: {{ forms[agent.agent_id].temperature }}</div>
-                <v-slider v-model="forms[agent.agent_id].temperature" min="0" max="2" step="0.05"
-                  thumb-label :color="agentAccent(agent.agent_id)" class="mb-2" hide-details />
+                    <v-text-field v-model="forms[agent.agent_id].base_url" label="LM Studio Base URL"
+                      density="compact" variant="outlined" placeholder="http://localhost:1234/v1"
+                      hide-details class="mb-3" prepend-inner-icon="mdi-server-outline" />
 
-                <v-text-field v-model.number="forms[agent.agent_id].max_tokens" label="Max Tokens"
-                  density="compact" variant="outlined" type="number"
-                  hide-details class="mb-3" prepend-inner-icon="mdi-counter" />
+                    <v-text-field v-model="forms[agent.agent_id].api_key" label="API Key"
+                      density="compact" variant="outlined" placeholder="lm-studio"
+                      hide-details class="mb-3" prepend-inner-icon="mdi-key-outline"
+                      :type="showKey[agent.agent_id] ? 'text' : 'password'"
+                      :append-inner-icon="showKey[agent.agent_id] ? 'mdi-eye-off' : 'mdi-eye'"
+                      @click:append-inner="showKey[agent.agent_id] = !showKey[agent.agent_id]" />
 
-                <v-textarea v-model="forms[agent.agent_id].system_prompt" label="System Prompt Override"
-                  density="compact" variant="outlined" rows="3" hide-details class="mb-3"
-                  placeholder="Leave empty to use default" />
+                    <div class="field-label">Temperature: {{ forms[agent.agent_id].temperature }}</div>
+                    <v-slider v-model="forms[agent.agent_id].temperature" min="0" max="2" step="0.05"
+                      thumb-label :color="agentAccent(agent.agent_id)" class="mb-2" hide-details />
 
-                <v-switch v-model="forms[agent.agent_id].compression_enabled"
-                  label="Prompt Compression" color="primary" hide-details density="compact" inset />
-              </div>
-              <div class="panel__footer">
-                <v-btn color="secondary" variant="tonal" size="small"
-                  prepend-icon="mdi-connection" :loading="testing[agent.agent_id]"
-                  @click="testConnection(agent.agent_id)">Test Connection</v-btn>
-                <v-btn :color="agentAccent(agent.agent_id)" size="small"
-                  prepend-icon="mdi-content-save" :loading="saving[agent.agent_id]"
-                  @click="saveSettings(agent.agent_id)">Save</v-btn>
-              </div>
-            </div>
+                    <v-text-field v-model.number="forms[agent.agent_id].max_tokens" label="Max Tokens"
+                      density="compact" variant="outlined" type="number"
+                      hide-details class="mb-3" prepend-inner-icon="mdi-counter" />
 
-            <!-- MCP — researcher only -->
-            <div v-if="agent.agent_id === 'researcher'" class="panel card-hover mt-3">
-              <div class="panel__header">
-                <div class="d-flex align-center gap-2">
-                  <v-icon size="15" color="#22D3EE">mdi-web</v-icon>
-                  <span class="section-title">MCP — Web Browser</span>
+                    <v-textarea v-model="forms[agent.agent_id].system_prompt" label="System Prompt Override"
+                      density="compact" variant="outlined" rows="3" hide-details class="mb-3"
+                      placeholder="Leave empty to use default" />
+
+                    <v-switch v-model="forms[agent.agent_id].compression_enabled"
+                      label="Prompt Compression" color="primary" hide-details density="compact" inset />
+                  </div>
                 </div>
-                <v-chip size="x-small" :color="researcherMCPEnabled ? 'cyan' : 'default'" variant="tonal">
-                  {{ researcherMCPEnabled ? 'Enabled' : 'Disabled' }}
-                </v-chip>
-              </div>
-              <div class="panel__body">
-                <div class="loop-toggle-row">
-                  <div class="loop-toggle-info">
-                    <div class="loop-toggle-label">Enable Puppeteer MCP</div>
-                    <div class="loop-toggle-hint">
-                      Launches a Puppeteer browser via
-                      <code class="font-mono" style="font-size:10px;color:#A78BFA">@modelcontextprotocol/server-puppeteer</code>
-                      for live web browsing. Falls back to plain research if MCP fails.
+
+                <!-- MCP — researcher only -->
+                <div v-if="agent.agent_id === 'researcher'" class="panel mt-3">
+                  <div class="panel__header">
+                    <div class="d-flex align-center gap-2">
+                      <v-icon size="15" color="#22D3EE">mdi-web</v-icon>
+                      <span class="section-title">MCP — Web Browser</span>
                     </div>
+                    <v-chip size="x-small" :color="researcherMCPEnabled ? 'cyan' : 'default'" variant="tonal">
+                      {{ researcherMCPEnabled ? 'Enabled' : 'Disabled' }}
+                    </v-chip>
                   </div>
-                  <v-switch v-model="researcherMCPEnabled" color="cyan" hide-details density="compact" inset />
-                </div>
-              </div>
-              <div class="panel__footer">
-                <span class="hint">Requires <code class="font-mono" style="font-size:10px">npx</code> access</span>
-                <v-btn color="primary" size="small" prepend-icon="mdi-content-save"
-                  :loading="savingMCP" @click="saveMCPSettings">Save</v-btn>
-              </div>
-            </div>
-          </div>
-
-          <!-- Right column: Tools -->
-          <div class="agent-right">
-            <div class="panel card-hover" style="height:100%">
-              <div class="panel__header">
-                <div class="d-flex align-center gap-2">
-                  <v-icon size="15" :color="agentAccent(agent.agent_id)">mdi-tools</v-icon>
-                  <span class="section-title">Allowed Tools</span>
-                </div>
-                <v-chip size="x-small" :color="agentAccent(agent.agent_id)" variant="tonal">
-                  {{ enabledCount(agent.agent_id) }} / {{ totalTools }} enabled
-                </v-chip>
-              </div>
-
-              <div class="preset-bar">
-                <button class="preset-btn preset-btn--green"  @click="applyPreset(agent.agent_id, 'all')">All</button>
-                <button class="preset-btn preset-btn--blue"   @click="applyPreset(agent.agent_id, 'safe')">Safe Only</button>
-                <button class="preset-btn preset-btn--yellow" @click="applyPreset(agent.agent_id, 'readonly')">Read Only</button>
-                <button class="preset-btn preset-btn--red"    @click="applyPreset(agent.agent_id, 'none')">None</button>
-              </div>
-
-              <div class="tool-groups">
-                <div v-for="(group, category) in groupedTools" :key="category">
-                  <div class="tool-category-header">
-                    <v-icon size="12" class="mr-1" color="rgba(226,232,240,0.3)">{{ categoryIcon(category) }}</v-icon>
-                    {{ category }}
-                  </div>
-                  <div v-for="tool in group" :key="tool.name" class="tool-row">
-                    <v-switch
-                      :model-value="isToolEnabled(agent.agent_id, tool.name)"
-                      @update:model-value="toggleTool(agent.agent_id, tool.name, $event)"
-                      :color="tool.safe ? 'success' : 'warning'"
-                      hide-details density="compact" inset class="tool-switch"
-                    />
-                    <div class="tool-info">
-                      <div class="tool-name">
-                        <v-icon size="13" :color="tool.safe ? '#10B981' : '#F59E0B'" class="mr-1">{{ tool.icon }}</v-icon>
-                        <span class="font-mono">{{ tool.name }}</span>
-                        <span class="tool-badge" :style="tool.safe ? 'background:rgba(16,185,129,0.1);color:#10B981' : 'background:rgba(245,158,11,0.1);color:#F59E0B'">
-                          {{ tool.safe ? 'read' : 'write' }}
-                        </span>
+                  <div class="panel__body">
+                    <div class="loop-toggle-row">
+                      <div class="loop-toggle-info">
+                        <div class="loop-toggle-label">Enable Puppeteer MCP</div>
+                        <div class="loop-toggle-hint">
+                          Launches a Puppeteer browser via
+                          <code class="font-mono" style="font-size:10px;color:#A78BFA">@modelcontextprotocol/server-puppeteer</code>
+                          for live web browsing. Falls back to plain research if MCP fails.
+                        </div>
                       </div>
-                      <div class="tool-desc">{{ tool.description }}
-                        <span class="tool-params font-mono">{{ tool.params }}</span>
-                      </div>
+                      <v-switch v-model="researcherMCPEnabled" color="cyan" hide-details density="compact" inset />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="panel__footer">
-                <div style="font-size:11px;color:rgba(226,232,240,0.35)">
-                  <v-icon size="12" color="#10B981">mdi-shield-check</v-icon> read &nbsp;
-                  <v-icon size="12" color="#F59E0B">mdi-pencil</v-icon> write
+              <!-- Right: Tools -->
+              <div class="agent-right">
+                <div class="panel">
+                  <div class="panel__header">
+                    <div class="d-flex align-center gap-2">
+                      <v-icon size="15" :color="agentAccent(agent.agent_id)">mdi-tools</v-icon>
+                      <span class="section-title">Allowed Tools</span>
+                    </div>
+                    <v-chip size="x-small" :color="agentAccent(agent.agent_id)" variant="tonal">
+                      {{ enabledCount(agent.agent_id) }} / {{ totalTools }} enabled
+                    </v-chip>
+                  </div>
+
+                  <div class="preset-bar">
+                    <button class="preset-btn preset-btn--green"  @click="applyPreset(agent.agent_id, 'all')">All</button>
+                    <button class="preset-btn preset-btn--blue"   @click="applyPreset(agent.agent_id, 'safe')">Safe Only</button>
+                    <button class="preset-btn preset-btn--yellow" @click="applyPreset(agent.agent_id, 'readonly')">Read Only</button>
+                    <button class="preset-btn preset-btn--red"    @click="applyPreset(agent.agent_id, 'none')">None</button>
+                  </div>
+
+                  <div class="tool-groups">
+                    <div v-for="(group, category) in groupedTools" :key="category">
+                      <div class="tool-category-header">
+                        <v-icon size="12" class="mr-1" color="rgba(226,232,240,0.3)">{{ categoryIcon(category) }}</v-icon>
+                        {{ category }}
+                      </div>
+                      <div v-for="tool in group" :key="tool.name" class="tool-row">
+                        <v-switch
+                          :model-value="isToolEnabled(agent.agent_id, tool.name)"
+                          @update:model-value="toggleTool(agent.agent_id, tool.name, $event)"
+                          :color="tool.safe ? 'success' : 'warning'"
+                          hide-details density="compact" inset class="tool-switch"
+                        />
+                        <div class="tool-info">
+                          <div class="tool-name">
+                            <v-icon size="13" :color="tool.safe ? '#10B981' : '#F59E0B'" class="mr-1">{{ tool.icon }}</v-icon>
+                            <span class="font-mono">{{ tool.name }}</span>
+                            <span class="tool-badge" :style="tool.safe ? 'background:rgba(16,185,129,0.1);color:#10B981' : 'background:rgba(245,158,11,0.1);color:#F59E0B'">
+                              {{ tool.safe ? 'read' : 'write' }}
+                            </span>
+                          </div>
+                          <div class="tool-desc">{{ tool.description }}
+                            <span class="tool-params font-mono">{{ tool.params }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="tools-legend">
+                    <v-icon size="12" color="#10B981">mdi-shield-check</v-icon> read-only &nbsp;
+                    <v-icon size="12" color="#F59E0B">mdi-pencil</v-icon> modifies files
+                  </div>
                 </div>
-                <v-btn :color="agentAccent(agent.agent_id)" size="small" prepend-icon="mdi-content-save"
-                  :loading="savingTools[agent.agent_id]" @click="saveTools(agent.agent_id)">
-                  Save Tools
-                </v-btn>
               </div>
+
             </div>
           </div>
+        </template>
 
-        </div>
-      </template>
+      </div><!-- /panels-scroll -->
+
+      <!-- ── Sticky action bar ────────────────────────────────────── -->
+      <div class="action-bar">
+        <!-- Global actions -->
+        <template v-if="section === 'global'">
+          <div class="action-bar__info">
+            <v-icon size="14" color="rgba(226,232,240,0.3)">mdi-information-outline</v-icon>
+            <span>Changes take effect on the next workflow run.</span>
+          </div>
+          <v-btn
+            color="primary"
+            size="small"
+            prepend-icon="mdi-content-save-all"
+            :loading="savingGlobal"
+            @click="saveAllGlobal"
+          >Save</v-btn>
+        </template>
+
+        <!-- Agent actions -->
+        <template v-else>
+          <div class="action-bar__info">
+            <v-icon size="14" color="rgba(226,232,240,0.3)">mdi-information-outline</v-icon>
+            <span>Saves LLM config{{ section === 'researcher' ? ', MCP' : '' }} and tools together.</span>
+          </div>
+          <div class="action-bar__btns">
+            <v-btn
+              variant="tonal"
+              size="small"
+              prepend-icon="mdi-connection"
+              :loading="testing[section]"
+              @click="testConnection(section)"
+            >Test Connection</v-btn>
+            <v-btn
+              :color="agentAccent(section)"
+              size="small"
+              prepend-icon="mdi-content-save-all"
+              :loading="savingAgent[section]"
+              @click="saveAllAgent(section)"
+            >Save</v-btn>
+          </div>
+        </template>
+      </div>
 
     </main>
 
-    <!-- ── Confirm clear logs dialog ──────────────────────────────── -->
+    <!-- ── Confirm clear logs ──────────────────────────────────────── -->
     <v-dialog v-model="confirmClearLogs" max-width="400" persistent>
       <v-card style="background:#12121E;border:1px solid rgba(255,255,255,0.08);border-radius:14px">
         <v-card-title class="d-flex align-center gap-2 pt-5 px-5">
@@ -378,9 +385,7 @@
         <v-card-actions class="px-5 pb-5 pt-3 d-flex gap-2 justify-end">
           <v-btn variant="tonal" size="small" @click="confirmClearLogs = false">Cancel</v-btn>
           <v-btn color="error" size="small" prepend-icon="mdi-delete-sweep"
-            :loading="clearingLogs" @click="clearLogs">
-            Yes, Clear Logs
-          </v-btn>
+            :loading="clearingLogs" @click="clearLogs">Yes, Clear Logs</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -397,35 +402,34 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import axios from 'axios';
 
 const agentSettings = ref([]);
-const AGENT_ORDER = ['researcher', 'planner', 'worker', 'reviewer'];
-const section = ref('global');
+const AGENT_ORDER   = ['researcher', 'planner', 'worker', 'reviewer'];
+const section       = ref('global');
 const workspacePath = ref('./workspace');
-const savingWorkspace = ref(false);
 
 const subskillProfiles = ref([]);
 const activeSubskill   = ref('default');
 const selectedSubskill = ref('default');
-const savingSubskill   = ref(false);
 const clearingLogs     = ref(false);
 const confirmClearLogs = ref(false);
 const loopEnabled      = ref(false);
 const maxLoops         = ref(3);
 const recursionLimit   = ref(200);
-const savingLoop       = ref(false);
 const researcherMCPEnabled = ref(false);
-const savingMCP        = ref(false);
-const forms            = reactive({});
-const saving           = reactive({});
-const savingTools      = reactive({});
-const testing          = reactive({});
+
+const forms         = reactive({});
+const testing       = reactive({});
 const connectionStatus = reactive({});
-const showKey          = reactive({});
-const snack            = reactive({ show: false, message: '', color: 'success' });
-const availableModels  = reactive({});
-const loadingModels    = reactive({});
-const modelLoadError   = reactive({});
-const toolState        = reactive({});
-const allToolsMeta     = ref([]);
+const showKey       = reactive({});
+const snack         = reactive({ show: false, message: '', color: 'success' });
+const availableModels = reactive({});
+const loadingModels = reactive({});
+const modelLoadError = reactive({});
+const toolState     = reactive({});
+const allToolsMeta  = ref([]);
+
+// Unified save loading states
+const savingGlobal  = ref(false);
+const savingAgent   = reactive({});
 
 const totalTools = computed(() => allToolsMeta.value.length);
 const groupedTools = computed(() => {
@@ -437,27 +441,72 @@ const groupedTools = computed(() => {
   return groups;
 });
 
+// ── Unified save handlers ─────────────────────────────────────────────
+
+async function saveAllGlobal() {
+  savingGlobal.value = true;
+  try {
+    const calls = [
+      axios.put('/api/settings/global', {
+        workspace_path:           workspacePath.value,
+        workflow_loop_enabled:    loopEnabled.value ? '1' : '0',
+        workflow_max_loops:       String(maxLoops.value),
+        workflow_recursion_limit: String(recursionLimit.value ?? 0),
+      }),
+    ];
+    if (selectedSubskill.value !== activeSubskill.value) {
+      calls.push(
+        axios.put('/api/settings/subskill', { name: selectedSubskill.value })
+          .then(({ data }) => { activeSubskill.value = data.active; })
+      );
+    }
+    await Promise.all(calls);
+    showSnack('Global settings saved');
+  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
+  finally { savingGlobal.value = false; }
+}
+
+async function saveAllAgent(agentId) {
+  savingAgent[agentId] = true;
+  try {
+    const calls = [
+      axios.put(`/api/settings/${agentId}`, forms[agentId]),
+      axios.put(`/api/settings/${agentId}/tools`, {
+        enabledTools: Object.entries(toolState[agentId] || {}).filter(([, v]) => v).map(([k]) => k),
+      }),
+    ];
+    if (agentId === 'researcher') {
+      calls.push(
+        axios.put('/api/settings/global', { researcher_mcp_enabled: researcherMCPEnabled.value ? '1' : '0' })
+      );
+    }
+    await Promise.all(calls);
+    showSnack(`${agentId} settings saved`);
+  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
+  finally { savingAgent[agentId] = false; }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
 function modelMismatch(agentId) {
   const models  = availableModels[agentId];
   const current = forms[agentId]?.model_name;
   return models && models.length > 0 && current && !models.includes(current);
 }
 function suggestModel(agentId) {
-  const models  = availableModels[agentId] || [];
+  const models   = availableModels[agentId] || [];
   if (!models.length) return null;
   const current  = (forms[agentId]?.model_name || '').toLowerCase();
   const keywords = current.split(/[-\/.:@]/).filter(k => k.length > 2);
   let best = null, bestScore = -1;
   for (const m of models) {
-    const ml    = m.toLowerCase();
-    const score = keywords.reduce((acc, k) => acc + (ml.includes(k) ? 1 : 0), 0);
+    const score = keywords.reduce((acc, k) => acc + (m.toLowerCase().includes(k) ? 1 : 0), 0);
     if (score > bestScore) { bestScore = score; best = m; }
   }
   return best || models[0];
 }
 async function applyModel(agentId, modelName) {
   forms[agentId].model_name = modelName;
-  await saveSettings(agentId);
 }
 
 const SUBSKILL_META = {
@@ -478,8 +527,7 @@ function connLabel(id) {
   return connectionStatus[id] === true ? 'Online' : connectionStatus[id] === false ? 'Offline' : '…';
 }
 function enabledCount(agentId) {
-  if (!toolState[agentId]) return 0;
-  return Object.values(toolState[agentId]).filter(Boolean).length;
+  return Object.values(toolState[agentId] || {}).filter(Boolean).length;
 }
 function isToolEnabled(agentId, toolName) { return Boolean(toolState[agentId]?.[toolName]); }
 function toggleTool(agentId, toolName, value) {
@@ -500,39 +548,13 @@ function categoryIcon(cat) {
 }
 function showSnack(message, color = 'success') { Object.assign(snack, { show: true, message, color }); }
 
-async function fetchSubskills() {
-  try {
-    const { data } = await axios.get('/api/settings/subskills');
-    subskillProfiles.value = data.available || [];
-    activeSubskill.value   = data.active || 'default';
-    selectedSubskill.value = data.active || 'default';
-  } catch { /* use defaults */ }
-}
-async function saveSubskill() {
-  savingSubskill.value = true;
-  try {
-    const { data } = await axios.put('/api/settings/subskill', { name: selectedSubskill.value });
-    activeSubskill.value = data.active;
-    showSnack(`Skill profile switched to "${subskillLabel(data.active)}"`);
-  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { savingSubskill.value = false; }
-}
-async function clearLogs() {
-  clearingLogs.value = true;
-  try {
-    await axios.delete('/api/logs');
-    confirmClearLogs.value = false;
-    showSnack('All logs cleared');
-  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { clearingLogs.value = false; }
-}
 async function fetchModels(agentId) {
   loadingModels[agentId] = true;
   modelLoadError[agentId] = '';
   try {
-    const baseUrl = forms[agentId]?.base_url || 'http://localhost:1234/v1';
-    const apiKey  = forms[agentId]?.api_key  || 'lm-studio';
-    const { data } = await axios.get('/api/agents/models/list', { params: { baseUrl, apiKey } });
+    const { data } = await axios.get('/api/agents/models/list', {
+      params: { baseUrl: forms[agentId]?.base_url || 'http://localhost:1234/v1', apiKey: forms[agentId]?.api_key || 'lm-studio' },
+    });
     availableModels[agentId] = data.models.map(m => m.id);
     if (!availableModels[agentId].length) modelLoadError[agentId] = 'No models found — is LM Studio running?';
     showSnack(`Loaded ${availableModels[agentId].length} model(s) for ${agentId}`);
@@ -549,27 +571,15 @@ async function fetchGlobal() {
     maxLoops.value             = parseInt(data.workflow_max_loops || '3', 10);
     recursionLimit.value       = parseInt(data.workflow_recursion_limit || '200', 10);
     researcherMCPEnabled.value = data.researcher_mcp_enabled === '1';
-  } catch { /* use default */ }
+  } catch { /* use defaults */ }
 }
-async function saveWorkspace() {
-  savingWorkspace.value = true;
+async function fetchSubskills() {
   try {
-    await axios.put('/api/settings/global', { workspace_path: workspacePath.value });
-    showSnack('Workspace path saved');
-  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { savingWorkspace.value = false; }
-}
-async function saveLoopSettings() {
-  savingLoop.value = true;
-  try {
-    await axios.put('/api/settings/global', {
-      workflow_loop_enabled:    loopEnabled.value ? '1' : '0',
-      workflow_max_loops:       String(maxLoops.value),
-      workflow_recursion_limit: String(recursionLimit.value ?? 0),
-    });
-    showSnack('Workflow loop settings saved');
-  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { savingLoop.value = false; }
+    const { data } = await axios.get('/api/settings/subskills');
+    subskillProfiles.value = data.available || [];
+    activeSubskill.value   = data.active || 'default';
+    selectedSubskill.value = data.active || 'default';
+  } catch { /* use defaults */ }
 }
 async function fetchSettings() {
   const { data } = await axios.get('/api/settings');
@@ -583,7 +593,8 @@ async function fetchSettings() {
       system_prompt:       s.system_prompt || '',
       compression_enabled: Boolean(s.compression_enabled),
     };
-    showKey[s.agent_id] = false;
+    showKey[s.agent_id]    = false;
+    savingAgent[s.agent_id] = false;
   }
   agentSettings.value = [...data]
     .filter(a => AGENT_ORDER.includes(a.agent_id))
@@ -593,29 +604,12 @@ async function fetchSettings() {
 async function fetchAgentTools(agentId) {
   try {
     const { data } = await axios.get(`/api/settings/${agentId}/tools`);
-    if (allToolsMeta.value.length === 0) {
+    if (!allToolsMeta.value.length) {
       allToolsMeta.value = data.map(({ name, params, safe, category, description, icon }) => ({ name, params, safe, category, description, icon }));
     }
     if (!toolState[agentId]) toolState[agentId] = {};
     for (const t of data) toolState[agentId][t.name] = Boolean(t.enabled);
   } catch { /* ignore */ }
-}
-async function saveSettings(agentId) {
-  saving[agentId] = true;
-  try {
-    await axios.put(`/api/settings/${agentId}`, forms[agentId]);
-    showSnack(`${agentId} settings saved`);
-  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { saving[agentId] = false; }
-}
-async function saveTools(agentId) {
-  savingTools[agentId] = true;
-  try {
-    const enabledTools = Object.entries(toolState[agentId] || {}).filter(([, v]) => v).map(([k]) => k);
-    await axios.put(`/api/settings/${agentId}/tools`, { enabledTools });
-    showSnack(`${agentId} tools saved (${enabledTools.length} enabled)`);
-  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { savingTools[agentId] = false; }
 }
 async function testConnection(agentId) {
   testing[agentId] = true;
@@ -632,13 +626,14 @@ async function testConnection(agentId) {
     showSnack(`${agentId}: Connection failed`, 'error');
   } finally { testing[agentId] = false; }
 }
-async function saveMCPSettings() {
-  savingMCP.value = true;
+async function clearLogs() {
+  clearingLogs.value = true;
   try {
-    await axios.put('/api/settings/global', { researcher_mcp_enabled: researcherMCPEnabled.value ? '1' : '0' });
-    showSnack(`Researcher MCP ${researcherMCPEnabled.value ? 'enabled' : 'disabled'}`);
+    await axios.delete('/api/logs');
+    confirmClearLogs.value = false;
+    showSnack('All logs cleared');
   } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { savingMCP.value = false; }
+  finally { clearingLogs.value = false; }
 }
 
 onMounted(async () => {
@@ -648,7 +643,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* ── Root layout ─────────────────────────────────────────────────────── */
+/* ── Root ────────────────────────────────────────────────────────────── */
 .settings-root {
   display: flex;
   height: 100%;
@@ -667,57 +662,65 @@ onMounted(async () => {
   overflow-y: auto;
 }
 .nav-group-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px;
   color: rgba(226,232,240,0.25);
-  padding: 0 8px;
-  margin-bottom: 4px;
+  padding: 0 8px; margin-bottom: 4px;
 }
 .nav-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: 8px;
+  font-size: 13px; font-weight: 500;
   color: rgba(226,232,240,0.5);
-  background: transparent;
-  border: none;
-  cursor: pointer;
+  background: transparent; border: none; cursor: pointer;
   transition: background 0.15s, color 0.15s;
-  text-align: left;
-  width: 100%;
+  text-align: left; width: 100%;
 }
 .nav-item:hover { background: rgba(255,255,255,0.04); color: rgba(226,232,240,0.85); }
-.nav-item--active {
-  background: rgba(99,102,241,0.12) !important;
-  color: #A78BFA !important;
-}
+.nav-item--active { background: rgba(99,102,241,0.12) !important; color: #A78BFA !important; }
 .nav-item--danger { color: rgba(239,68,68,0.6) !important; margin-top: 4px; }
 .nav-item--danger:hover { background: rgba(239,68,68,0.06) !important; color: #EF4444 !important; }
-.nav-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.nav-divider {
-  border-top: 1px solid rgba(255,255,255,0.06);
-  margin: 8px 0;
-}
+.nav-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.nav-divider { border-top: 1px solid rgba(255,255,255,0.06); margin: 8px 0; }
 
-/* ── Content area ────────────────────────────────────────────────────── */
+/* ── Content ─────────────────────────────────────────────────────────── */
 .settings-content {
   flex: 1;
-  padding: 20px 24px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  overflow: hidden;
 }
-.content-header { margin-bottom: 4px; }
+.panels-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Section heading ─────────────────────────────────────────────────── */
+.section-heading { margin-bottom: 4px; }
+.page-title    { font-size: 17px; font-weight: 700; color: #E2E8F0; }
+.page-subtitle { font-size: 12px; color: rgba(226,232,240,0.35); margin-top: 2px; }
+
+/* ── Sticky action bar ───────────────────────────────────────────────── */
+.action-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  background: rgba(10,10,20,0.6);
+  backdrop-filter: blur(8px);
+  gap: 12px;
+}
+.action-bar__info {
+  display: flex; align-items: center;
+  font-size: 11px; color: rgba(226,232,240,0.3);
+  gap: 6px;
+}
+.action-bar__btns { display: flex; align-items: center; gap: 8px; }
 
 /* ── Global grid ─────────────────────────────────────────────────────── */
 .global-grid {
@@ -736,9 +739,8 @@ onMounted(async () => {
   align-items: start;
 }
 @media (max-width: 960px) { .agent-layout { grid-template-columns: 1fr; } }
-.agent-left  { display: flex; flex-direction: column; gap: 0; }
-.agent-right { height: 100%; }
-.mt-3 { margin-top: 14px; }
+.agent-left  { display: flex; flex-direction: column; }
+.mt-3        { margin-top: 14px; }
 
 /* ── Panel ───────────────────────────────────────────────────────────── */
 .panel {
@@ -752,22 +754,11 @@ onMounted(async () => {
   padding: 12px 14px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.panel__body  { padding: 14px; }
-.panel__footer {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px;
-  border-top: 1px solid rgba(255,255,255,0.04);
-}
+.panel__body { padding: 14px; }
 .panel-desc {
-  font-size: 12px;
-  color: rgba(226,232,240,0.35);
-  margin-bottom: 12px;
-  line-height: 1.5;
+  font-size: 12px; color: rgba(226,232,240,0.35);
+  margin-bottom: 12px; line-height: 1.5;
 }
-
-/* ── Page titles ─────────────────────────────────────────────────────── */
-.page-title    { font-size: 17px; font-weight: 700; color: #E2E8F0; }
-.page-subtitle { font-size: 12px; color: rgba(226,232,240,0.35); margin-top: 2px; }
 .section-title { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.85); }
 .hint          { font-size: 11px; color: rgba(226,232,240,0.3) !important; }
 .field-label   { font-size: 12px; color: rgba(226,232,240,0.45) !important; margin-bottom: 2px; }
@@ -798,7 +789,7 @@ onMounted(async () => {
 .preset-btn--red    { background: rgba(239,68,68,0.1);   color: #EF4444; border-color: rgba(239,68,68,0.2); }
 
 /* ── Tool list ───────────────────────────────────────────────────────── */
-.tool-groups { max-height: 560px; overflow-y: auto; }
+.tool-groups { max-height: 520px; overflow-y: auto; }
 .tool-category-header {
   padding: 8px 14px;
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
@@ -820,14 +811,18 @@ onMounted(async () => {
 .tool-badge      { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; }
 .tool-desc       { font-size: 11px; color: rgba(226,232,240,0.4) !important; margin-top: 2px; }
 .tool-params     { color: #A78BFA !important; margin-left: 4px; }
+.tools-legend {
+  padding: 8px 14px;
+  font-size: 11px; color: rgba(226,232,240,0.3);
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
 
 /* ── Subskill cards ──────────────────────────────────────────────────── */
 .subskill-grid { display: flex; gap: 12px; flex-wrap: wrap; }
 .subskill-card {
   flex: 1; min-width: 180px; max-width: 300px;
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
-  padding: 14px 16px;
-  border-radius: 10px;
+  padding: 14px 16px; border-radius: 10px;
   border: 1px solid rgba(255,255,255,0.07);
   background: rgba(255,255,255,0.02);
   cursor: pointer; text-align: left;

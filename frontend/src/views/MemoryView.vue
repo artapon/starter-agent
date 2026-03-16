@@ -79,12 +79,11 @@
               {{ s.session_id.slice(0, 16) }}… · {{ s.snapshot_count }} snap
             </option>
           </select>
-          <a v-if="selectedSession[activeAgent] && reportSessions.has(selectedSession[activeAgent])"
-            :href="`/reports/${selectedSession[activeAgent]}/walkthrough.html`"
-            target="_blank" rel="noopener"
+          <router-link v-if="selectedSession[activeAgent] && reportSessions.has(selectedSession[activeAgent])"
+            :to="`/report/${selectedSession[activeAgent]}`"
             class="report-btn" title="Open walkthrough report">
             <v-icon size="13">mdi-file-chart-outline</v-icon>
-          </a>
+          </router-link>
         </div>
 
         <!-- Chat messages from latest snapshot -->
@@ -109,12 +108,22 @@
           </div>
         </div>
 
-        <!-- Snapshot count footer -->
+        <!-- Snapshot count + save-to-LTM footer -->
         <div v-if="sessionSnapshots[activeAgent]?.length" class="stm-snap-row">
           <span class="stm-snap-label">{{ sessionSnapshots[activeAgent].length }} snapshots</span>
           <span class="stm-snap-ts">
             Last: {{ new Date((sessionSnapshots[activeAgent][0]?.created_at || 0) * 1000).toLocaleTimeString() }}
           </span>
+          <button
+            class="stm-to-ltm-btn"
+            :class="{ 'stm-to-ltm-btn--loading': savingToLTM[activeAgent] }"
+            :disabled="savingToLTM[activeAgent] || !stmMessages[activeAgent]?.length"
+            :title="`Save this session's conversation to ${activeAgent}'s Long-Term Memory`"
+            @click="saveSTMtoLTM(activeAgent)"
+          >
+            <v-icon size="12">{{ savingToLTM[activeAgent] ? 'mdi-loading mdi-spin' : 'mdi-brain-plus' }}</v-icon>
+            Save to LTM
+          </button>
         </div>
       </div>
 
@@ -274,6 +283,7 @@ const ltmStats    = reactive({});  // agentId → {entries, dim, ready}
 const ltmQuery    = reactive({});  // agentId → string
 const ltmResults  = reactive({});  // agentId → result[]
 const ltmSearched = reactive({});  // agentId → bool
+const savingToLTM = reactive({});  // agentId → bool
 
 // ── Computed helpers (always reads activeAgent) ───────────────────────────────
 const curSTMSize = computed(() => stmStats[activeAgent.value]?.size ?? '—');
@@ -380,6 +390,29 @@ async function clearSession(agent, sessionId) {
   sessionSnapshots[agent] = [];
   stmStats[agent]         = { size: 0 };
   await fetchSTM();
+}
+
+// ── STM → LTM ─────────────────────────────────────────────────────────────────
+async function saveSTMtoLTM(agent) {
+  const messages = stmMessages[agent];
+  if (!messages?.length) return;
+  savingToLTM[agent] = true;
+  try {
+    // Build a single content string from all message pairs
+    const pairs = [];
+    for (let i = 0; i < messages.length - 1; i += 2) {
+      const input  = messages[i]?.content   || '';
+      const output = messages[i + 1]?.content || '';
+      if (input || output) pairs.push(`User: ${input}\nAssistant: ${output}`);
+    }
+    const content = pairs.join('\n\n---\n\n');
+    await axios.post(`/api/memory/ltm/${agent}/store`, {
+      content,
+      metadata: { agentId: agent, sessionId: selectedSession[agent], source: 'manual' },
+    });
+    await fetchLTMStats();
+  } catch { /* ignore */ }
+  finally { savingToLTM[agent] = false; }
 }
 
 // ── LTM ───────────────────────────────────────────────────────────────────────
@@ -567,6 +600,19 @@ onUnmounted(() => {
 }
 .stm-snap-label { font-size: 11px; color: rgba(226,232,240,0.35); }
 .stm-snap-ts    { font-size: 11px; color: rgba(226,232,240,0.25); }
+.stm-to-ltm-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 6px;
+  font-size: 11px; font-weight: 600;
+  background: rgba(20,184,166,0.1);
+  border: 1px solid rgba(20,184,166,0.25);
+  color: #14B8A6;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+.stm-to-ltm-btn:hover:not(:disabled) { background: rgba(20,184,166,0.2); }
+.stm-to-ltm-btn:disabled { opacity: 0.4; cursor: default; }
+.stm-to-ltm-btn--loading { opacity: 0.7; pointer-events: none; }
 
 /* ── WM ─────────────────────────────────────────────────────────────────────── */
 .wm-live-badge {

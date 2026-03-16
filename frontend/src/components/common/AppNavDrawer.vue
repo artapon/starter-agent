@@ -50,7 +50,7 @@ const router = useRouter();
 const route  = useRoute();
 
 const currentPath = computed(() => route.path);
-const navRoutes   = computed(() => router.options.routes.filter(r => r.meta?.title));
+const navRoutes   = computed(() => router.options.routes.filter(r => r.meta?.title && r.meta?.nav !== false));
 </script>
 
 <style scoped>
