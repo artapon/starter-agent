@@ -68,4 +68,33 @@ export class SettingsController {
       res.json(result);
     } catch (e) { next(e); }
   };
+
+  // ── Browser search tools ───────────────────────────────────────────────────
+
+  getBrowserTools = (req, res, next) => {
+    try { res.json(this.service.getBrowserTools()); } catch (e) { next(e); }
+  };
+
+  updateBrowserTools = (req, res, next) => {
+    try {
+      const { tools } = req.body;
+      if (!Array.isArray(tools)) return res.status(400).json({ error: 'tools must be an array' });
+      res.json(this.service.updateBrowserTools(tools));
+    } catch (e) { next(e); }
+  };
+
+  addBrowserTool = (req, res, next) => {
+    try { res.json(this.service.addBrowserTool(req.body)); }
+    catch (e) { e.status = 400; next(e); }
+  };
+
+  editBrowserTool = (req, res, next) => {
+    try { res.json(this.service.editBrowserTool(req.params.sourceName, req.body)); }
+    catch (e) { e.status = 400; next(e); }
+  };
+
+  deleteBrowserTool = (req, res, next) => {
+    try { res.json(this.service.deleteBrowserTool(req.params.sourceName)); }
+    catch (e) { e.status = 400; next(e); }
+  };
 }

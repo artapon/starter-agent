@@ -239,35 +239,12 @@
                   </div>
                 </div>
 
-                <!-- MCP — researcher only -->
-                <div v-if="agent.agent_id === 'researcher'" class="panel mt-3">
-                  <div class="panel__header">
-                    <div class="d-flex align-center gap-2">
-                      <v-icon size="15" color="#22D3EE">mdi-web</v-icon>
-                      <span class="section-title">MCP — Web Browser</span>
-                    </div>
-                    <v-chip size="x-small" :color="researcherMCPEnabled ? 'cyan' : 'default'" variant="tonal">
-                      {{ researcherMCPEnabled ? 'Enabled' : 'Disabled' }}
-                    </v-chip>
-                  </div>
-                  <div class="panel__body">
-                    <div class="loop-toggle-row">
-                      <div class="loop-toggle-info">
-                        <div class="loop-toggle-label">Enable Puppeteer MCP</div>
-                        <div class="loop-toggle-hint">
-                          Launches a Puppeteer browser via
-                          <code class="font-mono" style="font-size:10px;color:#A78BFA">@modelcontextprotocol/server-puppeteer</code>
-                          for live web browsing. Falls back to plain research if MCP fails.
-                        </div>
-                      </div>
-                      <v-switch v-model="researcherMCPEnabled" color="cyan" hide-details density="compact" inset />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              </div><!-- /agent-left -->
 
-              <!-- Right: Tools -->
+              <!-- Right: Tools + MCP Browser (researcher) -->
               <div class="agent-right">
+
+                <!-- Allowed Tools -->
                 <div class="panel">
                   <div class="panel__header">
                     <div class="d-flex align-center gap-2">
@@ -320,7 +297,98 @@
                     <v-icon size="12" color="#F59E0B">mdi-pencil</v-icon> modifies files
                   </div>
                 </div>
-              </div>
+
+                <!-- MCP Browser — researcher only, below Allowed Tools -->
+                <div v-if="agent.agent_id === 'researcher'" class="panel">
+
+                  <!-- Header -->
+                  <div class="panel__header">
+                    <div class="d-flex align-center gap-2">
+                      <v-icon size="15" color="#22D3EE">mdi-web</v-icon>
+                      <span class="section-title">MCP Browser</span>
+                    </div>
+                    <div class="d-flex align-center gap-2">
+                      <span v-if="browserTools.length" class="brow-on-badge">
+                        {{ enabledBrowserCount }}/{{ browserTools.length }}
+                      </span>
+                      <v-chip size="x-small" :color="researcherMCPEnabled ? 'cyan' : 'default'" variant="tonal">
+                        {{ researcherMCPEnabled ? 'Enabled' : 'Disabled' }}
+                      </v-chip>
+                    </div>
+                  </div>
+
+                  <!-- Master toggle -->
+                  <div class="brow-master">
+                    <div class="brow-master-info">
+                      <div class="brow-master-label">Live Web Search</div>
+                      <div class="brow-master-hint">Search multiple sources before analysis. Falls back to knowledge-only if off.</div>
+                    </div>
+                    <v-switch v-model="researcherMCPEnabled" color="cyan" hide-details density="compact" inset />
+                  </div>
+
+                  <!-- Source list -->
+                  <div class="brow-list" :class="{ 'brow-list--off': !researcherMCPEnabled }">
+
+                    <div class="brow-list-head">
+                      <span class="brow-col-src">Source</span>
+                      <span class="brow-col-depth">Depth</span>
+                      <span class="brow-col-on">On</span>
+                      <span class="brow-col-act"></span>
+                    </div>
+
+                    <div
+                      v-for="src in browserTools"
+                      :key="src.source_name"
+                      class="brow-row"
+                      :class="{ 'brow-row--off': !src.enabled }"
+                    >
+                      <div class="brow-col-src brow-src-cell">
+                        <span class="brow-src-dot" :style="{ background: sourceColor(src) }"></span>
+                        <div class="brow-src-text">
+                          <div class="brow-src-name">
+                            {{ src.label }}
+                            <span v-if="src.is_custom" class="brow-custom-badge">custom</span>
+                          </div>
+                          <div class="brow-src-desc">{{ src.is_custom ? (src.url_template || src.description) : src.description }}</div>
+                        </div>
+                      </div>
+
+                      <div class="brow-col-depth brow-depth-cell">
+                        <button class="depth-btn" :disabled="!src.enabled"
+                          @click="src.browse_count = Math.max(1, src.browse_count - 1)">−</button>
+                        <span class="depth-val">{{ src.browse_count }}</span>
+                        <button class="depth-btn" :disabled="!src.enabled"
+                          @click="src.browse_count = Math.min(5, src.browse_count + 1)">+</button>
+                      </div>
+
+                      <div class="brow-col-on">
+                        <v-switch v-model="src.enabled" color="cyan" hide-details density="compact" inset />
+                      </div>
+
+                      <div class="brow-col-act">
+                        <template v-if="src.is_custom">
+                          <button class="brow-act-btn" title="Edit" @click="openEditSource(src)">
+                            <v-icon size="13">mdi-pencil-outline</v-icon>
+                          </button>
+                          <button class="brow-act-btn brow-act-btn--danger" title="Delete" @click="deleteSource(src.source_name)">
+                            <v-icon size="13">mdi-delete-outline</v-icon>
+                          </button>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Add Source row -->
+                    <div class="brow-add-row">
+                      <button class="brow-add-btn" @click="openAddSource">
+                        <v-icon size="14" class="mr-1">mdi-plus</v-icon>
+                        Add Source
+                      </button>
+                    </div>
+
+                  </div>
+                </div><!-- /MCP Browser -->
+
+              </div><!-- /agent-right -->
 
             </div>
           </div>
@@ -349,7 +417,7 @@
         <template v-else>
           <div class="action-bar__info">
             <v-icon size="14" color="rgba(226,232,240,0.3)">mdi-information-outline</v-icon>
-            <span>Saves LLM config{{ section === 'researcher' ? ', MCP' : '' }} and tools together.</span>
+            <span>Saves LLM config{{ section === 'researcher' ? ', Browser' : '' }} and tools together.</span>
           </div>
           <div class="action-bar__btns">
             <v-btn
@@ -390,6 +458,64 @@
       </v-card>
     </v-dialog>
 
+    <!-- Add / Edit Source dialog -->
+    <v-dialog v-model="showSourceDialog" max-width="460" persistent>
+      <v-card class="src-dialog-card">
+        <div class="src-dialog-header">
+          <v-icon size="16" color="#22D3EE" class="mr-2">{{ editingSource ? 'mdi-pencil-outline' : 'mdi-plus-circle-outline' }}</v-icon>
+          <span>{{ editingSource ? 'Edit Source' : 'Add Search Source' }}</span>
+        </div>
+        <div class="src-dialog-body">
+
+          <v-text-field
+            v-model="sourceForm.label"
+            label="Label" density="compact" variant="outlined" hide-details class="mb-3"
+            placeholder="e.g. Reddit, DevDocs, MDN"
+          />
+
+          <v-text-field
+            v-model="sourceForm.url_template"
+            label="Search URL" density="compact" variant="outlined" class="mb-1"
+            placeholder="https://site.com/search?q={query}"
+            :error="urlTemplateError"
+            :error-messages="urlTemplateError ? 'Must contain {query} placeholder' : ''"
+          />
+          <div class="src-hint mb-3">Use <code class="src-code">{query}</code> where the search term goes.</div>
+
+          <v-textarea
+            v-model="sourceForm.description"
+            label="Description (optional)" density="compact" variant="outlined"
+            rows="2" hide-details class="mb-3"
+            placeholder="What this source is good for"
+          />
+
+          <div class="src-dialog-row">
+            <v-select
+              v-model="sourceForm.query_type"
+              :items="[{ title: 'Full sentence', value: 'full' }, { title: 'Keywords only', value: 'keywords' }]"
+              label="Query mode" density="compact" variant="outlined" hide-details
+              style="flex:1"
+            />
+            <div class="src-depth-wrap">
+              <div class="src-depth-label">Depth</div>
+              <div class="src-depth-ctrl">
+                <button class="depth-btn" @click="sourceForm.browse_count = Math.max(1, sourceForm.browse_count - 1)">−</button>
+                <span class="depth-val">{{ sourceForm.browse_count }}</span>
+                <button class="depth-btn" @click="sourceForm.browse_count = Math.min(5, sourceForm.browse_count + 1)">+</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="src-dialog-actions">
+          <v-btn variant="text" size="small" @click="closeSourceDialog">Cancel</v-btn>
+          <v-btn color="cyan" size="small" :loading="savingSource" @click="saveSource">
+            {{ editingSource ? 'Update' : 'Add Source' }}
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
+
     <!-- Snackbar -->
     <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000" location="bottom right" rounded="lg">
       {{ snack.message }}
@@ -399,6 +525,16 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
+
+// source_type → display color. Add an entry when a new sourceType is introduced.
+const SOURCE_TYPE_DISPLAY = {
+  google:        { color: '#4285F4' },  // Google blue
+  duckduckgo:    { color: '#38BDF8' },  // sky blue (was 'google' before)
+  github:        { color: '#A78BFA' },
+  npm:           { color: '#EF4444' },
+  stackoverflow: { color: '#F59E0B' },
+  hackernews:    { color: '#F97316' },
+};
 import axios from 'axios';
 
 const agentSettings = ref([]);
@@ -415,6 +551,14 @@ const loopEnabled      = ref(false);
 const maxLoops         = ref(3);
 const recursionLimit   = ref(200);
 const researcherMCPEnabled = ref(false);
+const browserTools         = ref([]);
+
+// Add/Edit source dialog
+const showSourceDialog = ref(false);
+const editingSource    = ref(null);  // null = add mode, object = edit mode
+const savingSource     = ref(false);
+const sourceForm       = reactive({ label: '', url_template: '', description: '', query_type: 'full', browse_count: 1 });
+const urlTemplateError = computed(() => sourceForm.url_template.length > 0 && !sourceForm.url_template.includes('{query}'));
 
 const forms         = reactive({});
 const testing       = reactive({});
@@ -431,7 +575,8 @@ const allToolsMeta  = ref([]);
 const savingGlobal  = ref(false);
 const savingAgent   = reactive({});
 
-const totalTools = computed(() => allToolsMeta.value.length);
+const totalTools          = computed(() => allToolsMeta.value.length);
+const enabledBrowserCount = computed(() => browserTools.value.filter(t => t.enabled).length);
 const groupedTools = computed(() => {
   const groups = {};
   for (const t of allToolsMeta.value) {
@@ -477,7 +622,14 @@ async function saveAllAgent(agentId) {
     ];
     if (agentId === 'researcher') {
       calls.push(
-        axios.put('/api/settings/global', { researcher_mcp_enabled: researcherMCPEnabled.value ? '1' : '0' })
+        axios.put('/api/settings/global', { researcher_mcp_enabled: researcherMCPEnabled.value ? '1' : '0' }),
+        axios.put('/api/settings/browser/tools', {
+          tools: browserTools.value.map(t => ({
+            source_name:  t.source_name,
+            enabled:      t.enabled ? 1 : 0,
+            browse_count: t.browse_count,
+          })),
+        }),
       );
     }
     await Promise.all(calls);
@@ -516,6 +668,12 @@ const SUBSKILL_META = {
 function subskillLabel(sk) { return SUBSKILL_META[sk]?.label || sk.replace(/_/g, ' '); }
 function subskillIcon(sk)  { return SUBSKILL_META[sk]?.icon  || 'mdi-book-outline'; }
 function subskillDesc(sk)  { return SUBSKILL_META[sk]?.desc  || ''; }
+
+// Label and description come from the API (SEARCH_ADAPTERS metadata).
+// Only color needs a local fallback; new source_types get a default colour automatically.
+function sourceColor(src) {
+  return SOURCE_TYPE_DISPLAY[src.source_type]?.color || '#6366F1';
+}
 
 function agentAccent(id) {
   return { researcher: '#22D3EE', planner: '#6366F1', worker: '#10B981', reviewer: '#F59E0B' }[id] || '#6366F1';
@@ -572,6 +730,56 @@ async function fetchGlobal() {
     recursionLimit.value       = parseInt(data.workflow_recursion_limit || '200', 10);
     researcherMCPEnabled.value = data.researcher_mcp_enabled === '1';
   } catch { /* use defaults */ }
+}
+async function fetchBrowserTools() {
+  try {
+    const { data } = await axios.get('/api/settings/browser/tools');
+    browserTools.value = data.map(t => ({ ...t, enabled: Boolean(t.enabled), browse_count: t.browse_count || 1 }));
+  } catch { /* use defaults */ }
+}
+
+function openAddSource() {
+  editingSource.value = null;
+  Object.assign(sourceForm, { label: '', url_template: '', description: '', query_type: 'full', browse_count: 1 });
+  showSourceDialog.value = true;
+}
+function openEditSource(src) {
+  editingSource.value = src;
+  Object.assign(sourceForm, {
+    label:        src.label,
+    url_template: src.url_template || '',
+    description:  src.description  || '',
+    query_type:   src.query_type   || 'full',
+    browse_count: src.browse_count || 1,
+  });
+  showSourceDialog.value = true;
+}
+function closeSourceDialog() {
+  showSourceDialog.value = false;
+  editingSource.value = null;
+}
+async function saveSource() {
+  if (!sourceForm.label.trim() || !sourceForm.url_template.includes('{query}')) return;
+  savingSource.value = true;
+  try {
+    let data;
+    if (editingSource.value) {
+      ({ data } = await axios.put(`/api/settings/browser/tools/${editingSource.value.source_name}`, sourceForm));
+    } else {
+      ({ data } = await axios.post('/api/settings/browser/tools', sourceForm));
+    }
+    browserTools.value = data.map(t => ({ ...t, enabled: Boolean(t.enabled), browse_count: t.browse_count || 1 }));
+    showSnack(editingSource.value ? 'Source updated' : 'Source added');
+    closeSourceDialog();
+  } catch (e) { showSnack(`Error: ${e.response?.data?.error || e.message}`, 'error'); }
+  finally { savingSource.value = false; }
+}
+async function deleteSource(source_name) {
+  try {
+    const { data } = await axios.delete(`/api/settings/browser/tools/${source_name}`);
+    browserTools.value = data.map(t => ({ ...t, enabled: Boolean(t.enabled), browse_count: t.browse_count || 1 }));
+    showSnack('Source removed');
+  } catch (e) { showSnack(`Error: ${e.response?.data?.error || e.message}`, 'error'); }
 }
 async function fetchSubskills() {
   try {
@@ -637,7 +845,7 @@ async function clearLogs() {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchGlobal(), fetchSettings(), fetchSubskills()]);
+  await Promise.all([fetchGlobal(), fetchSettings(), fetchSubskills(), fetchBrowserTools()]);
   for (const s of agentSettings.value) fetchModels(s.agent_id);
 });
 </script>
@@ -740,6 +948,7 @@ onMounted(async () => {
 }
 @media (max-width: 960px) { .agent-layout { grid-template-columns: 1fr; } }
 .agent-left  { display: flex; flex-direction: column; }
+.agent-right { display: flex; flex-direction: column; gap: 14px; }
 .mt-3        { margin-top: 14px; }
 
 /* ── Panel ───────────────────────────────────────────────────────────── */
@@ -835,6 +1044,150 @@ onMounted(async () => {
 .subskill-card__name { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.85); }
 .subskill-card--active .subskill-card__name { color: #A78BFA; }
 .subskill-card__desc { font-size: 11px; color: rgba(226,232,240,0.35); line-height: 1.5; }
+
+/* ── MCP Browser panel ───────────────────────────────────────────────── */
+
+/* Master toggle row */
+.brow-master {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.brow-master-info  { flex: 1; min-width: 0; }
+.brow-master-label { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.9); margin-bottom: 3px; }
+.brow-master-hint  { font-size: 11px; color: rgba(226,232,240,0.35); line-height: 1.45; }
+.brow-on-badge {
+  font-size: 10px; font-weight: 700;
+  color: #22D3EE; background: rgba(34,211,238,.1);
+  border: 1px solid rgba(34,211,238,.2);
+  border-radius: 20px; padding: 1px 7px; white-space: nowrap;
+}
+
+/* Source list */
+.brow-list { transition: opacity .2s; }
+.brow-list--off { opacity: .3; pointer-events: none; }
+
+/* 4-column grid: source | depth | toggle | actions */
+.brow-list-head,
+.brow-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 52px 52px;
+  align-items: center;
+}
+.brow-list-head {
+  padding: 5px 14px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+  color: rgba(226,232,240,0.22);
+  background: rgba(255,255,255,0.015);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.brow-col-depth { text-align: center; }
+.brow-col-on    { display: flex; justify-content: center; }
+.brow-col-act   { display: flex; align-items: center; justify-content: center; gap: 2px; }
+
+.brow-row {
+  padding: 7px 14px; min-height: 50px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  transition: background .15s, opacity .15s;
+}
+.brow-row:last-child  { border-bottom: none; }
+.brow-row:hover       { background: rgba(255,255,255,0.02); }
+.brow-row--off        { opacity: .45; }
+.brow-row--off:hover  { opacity: .65; }
+
+/* Source cell */
+.brow-src-cell { display: flex; align-items: flex-start; gap: 8px; padding-right: 6px; min-width: 0; }
+.brow-src-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.brow-src-text { min-width: 0; }
+.brow-src-name {
+  font-size: 12px; font-weight: 600; color: rgba(226,232,240,0.88);
+  display: flex; align-items: center; gap: 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.brow-src-desc {
+  font-size: 10px; color: rgba(226,232,240,0.3);
+  line-height: 1.4; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.brow-custom-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  color: #22D3EE; background: rgba(34,211,238,.1); border: 1px solid rgba(34,211,238,.2);
+  border-radius: 3px; padding: 0 4px; flex-shrink: 0;
+}
+
+/* Depth stepper */
+.brow-depth-cell { display: flex; align-items: center; justify-content: center; gap: 3px; }
+.depth-btn {
+  width: 20px; height: 20px; border-radius: 5px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(226,232,240,0.65); font-size: 14px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .12s;
+}
+.depth-btn:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: #E2E8F0; }
+.depth-btn:disabled { opacity: .3; cursor: not-allowed; }
+.depth-val {
+  width: 16px; text-align: center;
+  font-size: 12px; font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(226,232,240,0.75);
+}
+
+/* Action buttons */
+.brow-act-btn {
+  width: 22px; height: 22px; border-radius: 5px;
+  background: transparent; border: none; cursor: pointer;
+  color: rgba(226,232,240,0.3); display: flex; align-items: center; justify-content: center;
+  transition: background .12s, color .12s;
+}
+.brow-act-btn:hover { background: rgba(255,255,255,0.08); color: rgba(226,232,240,0.8); }
+.brow-act-btn--danger:hover { background: rgba(239,68,68,0.1); color: #EF4444; }
+
+/* Add Source row */
+.brow-add-row {
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.brow-add-btn {
+  display: flex; align-items: center;
+  padding: 5px 10px; border-radius: 7px;
+  font-size: 12px; font-weight: 500; color: rgba(226,232,240,0.45);
+  background: transparent; border: 1px dashed rgba(255,255,255,0.1);
+  cursor: pointer; width: 100%; justify-content: center;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.brow-add-btn:hover {
+  background: rgba(34,211,238,.04);
+  color: #22D3EE;
+  border-color: rgba(34,211,238,.25);
+}
+
+/* ── Add/Edit source dialog ───────────────────────────────────────────── */
+.src-dialog-card {
+  background: #12121E !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 14px !important;
+}
+.src-dialog-header {
+  display: flex; align-items: center;
+  padding: 16px 18px 0;
+  font-size: 14px; font-weight: 700; color: #E2E8F0;
+}
+.src-dialog-body { padding: 16px 18px; }
+.src-hint { font-size: 11px; color: rgba(226,232,240,0.35); }
+.src-code {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px;
+  color: #22D3EE; background: rgba(34,211,238,.1);
+  padding: 1px 4px; border-radius: 3px;
+}
+.src-dialog-row { display: flex; align-items: flex-end; gap: 12px; }
+.src-depth-wrap { flex-shrink: 0; }
+.src-depth-label { font-size: 11px; color: rgba(226,232,240,0.4); margin-bottom: 4px; text-align: center; }
+.src-depth-ctrl  { display: flex; align-items: center; gap: 4px; }
+.src-dialog-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 0 18px 16px;
+}
 
 .font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace !important; }
 </style>

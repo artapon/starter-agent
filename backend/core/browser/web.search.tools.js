@@ -33,9 +33,115 @@ import { createLogger } from '../logger/winston.logger.js';
 
 const logger = createLogger('web-search');
 
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 // ─── Search implementations ───────────────────────────────────────────────────
+
+/**
+ * Google Search — extracts AI Overview, featured snippet, and organic results.
+ *
+ * Priority: AI Overview → Featured Snippet → organic results.
+ * Uses multi-strategy HTML parsing because Google's class names change frequently.
+ * Gracefully returns organic results if no AI Overview is found in the static HTML
+ * (Google may render the AI Overview via JS, which fetch() cannot capture).
+ */
+async function googleSearch(query) {
+  const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&hl=en&gl=us&num=8`;
+  const res = await fetch(url, {
+    headers: {
+      'User-Agent': UA,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'identity',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Sec-Ch-Ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+      'Sec-Ch-Ua-Mobile': '?0',
+      'Sec-Ch-Ua-Platform': '"Windows"',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Upgrade-Insecure-Requests': '1',
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`Google returned HTTP ${res.status}`);
+
+  // Strip scripts/styles before parsing
+  const html = (await res.text())
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '');
+
+  const results = [];
+  const strip = s => s.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // ── 1. AI Overview (multi-strategy) ─────────────────────────────────
+  let aiText = '';
+
+  // Strategy A: "AI overview" marker text followed by content
+  {
+    const m = html.match(/AI\s+[Oo]verview[\s\S]{0,300}?(?:class|jsname)="[^"]{3,50}"[^>]*>([\s\S]{80,3000}?)(?=<\/div>\s*<(?:div|h|p))/);
+    if (m) { const t = strip(m[1]); if (t.length > 80) aiText = t.slice(0, 2000); }
+  }
+
+  // Strategy B: jsname="yynA5e" — known AI Overview container
+  if (!aiText) {
+    const m = html.match(/jsname="yynA5e"[^>]*>([\s\S]{80,3000}?)<\/div>\s*<\/div>/);
+    if (m) { const t = strip(m[1]); if (t.length > 80) aiText = t.slice(0, 2000); }
+  }
+
+  // Strategy C: longest data-hveid block (AI Overview tends to be the lengthiest)
+  if (!aiText) {
+    const blocks = [];
+    const re = /data-hveid="[^"]+"[^>]*class="[^"]{2,30}"[^>]*>([\s\S]{200,4000}?)<\/div>/g;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      const t = strip(m[1]);
+      if (t.length > 200 && !/Privacy|Terms|©|cookie/i.test(t.slice(0, 100))) blocks.push(t);
+    }
+    if (blocks.length) aiText = blocks.sort((a, b) => b.length - a.length)[0].slice(0, 2000);
+  }
+
+  if (aiText) {
+    results.push({ type: 'ai_overview', url, title: 'AI Overview', text: aiText });
+  }
+
+  // ── 2. Featured Snippet (only if no AI Overview found) ───────────────
+  if (!aiText) {
+    const fsPatterns = [
+      /class="[^"]*hgKElc[^"]*"[^>]*>([\s\S]{50,1200}?)<\/(?:span|div)>/,
+      /class="[^"]*ILfuVd[^"]*"[^>]*>([\s\S]{50,1200}?)<\/div>/,
+      /class="[^"]*LGOjhe[^"]*"[^>]*>([\s\S]{50,1200}?)<\/div>/,
+      /class="[^"]*yDYNvb[^"]*"[^>]*>([\s\S]{50,1200}?)<\/div>/,
+    ];
+    for (const pattern of fsPatterns) {
+      const m = html.match(pattern);
+      if (m) { const t = strip(m[1]); if (t.length > 50) { results.push({ type: 'featured', url, title: 'Featured Snippet', text: t.slice(0, 800) }); break; } }
+    }
+  }
+
+  // ── 3. Organic results ───────────────────────────────────────────────
+  const seen = new Set();
+  const urls = [], titles = [], snips = [];
+  let m;
+
+  const urlRe = /href="(https?:\/\/(?!www\.google\.)[^"#?]{10,}?)"/g;
+  while ((m = urlRe.exec(html)) !== null && urls.length < 8) {
+    const u = m[1];
+    if (!seen.has(u) && !u.includes('google.com') && u.startsWith('http')) { seen.add(u); urls.push(u); }
+  }
+  const h3Re = /<h3[^>]*>([\s\S]*?)<\/h3>/g;
+  while ((m = h3Re.exec(html)) !== null && titles.length < 8) { const t = strip(m[1]); if (t) titles.push(t); }
+  const snipRe = /class="[^"]*(?:VwiC3b|yXK7lf|MUxGbd|lEBKkf)[^"]*"[^>]*>([\s\S]*?)<\/(?:span|div)>/g;
+  while ((m = snipRe.exec(html)) !== null && snips.length < 8) { const t = strip(m[1]); if (t.length > 20) snips.push(t); }
+
+  urls.slice(0, 5).forEach((url, i) => {
+    results.push({ type: 'result', url, title: titles[i] || url, snippet: snips[i] || '' });
+  });
+
+  logger.info(`Google: AI Overview=${!!aiText}, featured=${results.some(r=>r.type==='featured')}, results=${urls.length}`, { agentId: 'researcher' });
+  return results;
+}
 
 async function duckduckgoSearch(query) {
   const headers = {
@@ -227,14 +333,45 @@ async function fetchPageText(url, maxChars = 5000) {
 
 export const SEARCH_ADAPTERS = {
 
-  web: {
-    toolName:       'search_web',
-    label:          'Web Search',
-    description:    'Search the web (via DuckDuckGo) for articles, docs, and resources. Returns up to 5 results with titles, URLs, and snippets.',
+  // ── FIRST: Google — AI Overview has priority ─────────────────────────
+  google: {
+    toolName:       'search_google',
+    label:          'Google + AI Overview',
+    description:    'Search Google and extract AI Overview or featured snippet. Returns AI-generated summary first, followed by organic results.',
     queryType:      'full',
     sourceType:     'google',
     placeholderUrl: (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
-    contextLabel:   'WEB SEARCH RESULTS (articles, docs, tutorials)',
+    contextLabel:   'GOOGLE SEARCH — AI OVERVIEW & RESULTS',
+    formatContext: (results) => {
+      const parts = [];
+      const ai  = results.find(r => r.type === 'ai_overview');
+      const ft  = results.find(r => r.type === 'featured');
+      const org = results.filter(r => r.type === 'result');
+      if (ai) parts.push(`★ AI OVERVIEW:\n${ai.text}`);
+      else if (ft) parts.push(`★ FEATURED SNIPPET:\n${ft.text}`);
+      if (org.length) parts.push(org.map((r, i) => `[${i+1}] ${r.title}\nURL: ${r.url}\nSnippet: ${r.snippet}`).join('\n\n'));
+      return parts.join('\n\n---\n\n') || '(No results)';
+    },
+    formatSnippet: (results) => {
+      const ai = results.find(r => r.type === 'ai_overview');
+      if (ai) return `AI Overview: ${ai.text.slice(0, 200)}`;
+      const ft = results.find(r => r.type === 'featured');
+      if (ft) return `Featured: ${ft.text.slice(0, 200)}`;
+      return results.filter(r => r.type === 'result').map(r => r.title).join(' | ');
+    },
+    browseCount:    2,
+    fn:             googleSearch,
+  },
+
+  // ── DuckDuckGo fallback web search ────────────────────────────────────
+  web: {
+    toolName:       'search_web',
+    label:          'DuckDuckGo',
+    description:    'Search the web via DuckDuckGo for articles, docs, and resources. Returns up to 5 results with titles, URLs, and snippets.',
+    queryType:      'full',
+    sourceType:     'duckduckgo',
+    placeholderUrl: (q) => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
+    contextLabel:   'DUCKDUCKGO WEB RESULTS (articles, docs, tutorials)',
     formatContext:  (r) => r.map((x, i) => `[${i+1}] ${x.title}\nURL: ${x.url}\nSnippet: ${x.snippet}`).join('\n\n'),
     formatSnippet:  (r) => r.map(x => `${x.title} — ${x.url}`).join('\n'),
     browseCount:    2,
@@ -390,12 +527,11 @@ export function extractKeywords(text, max = 60) {
  */
 export function classifyUrl(url) {
   if (!url) return 'web';
-  for (const adapter of Object.values(SEARCH_ADAPTERS)) {
-    if (adapter.sourceType === 'google' && url.includes('google.com')) return 'google';
-    if (adapter.sourceType === 'github' && (url.includes('github.com') || url.includes('raw.githubusercontent.com'))) return 'github';
-    if (adapter.sourceType === 'npm' && (url.includes('npmjs.com') || url.includes('registry.npmjs.org'))) return 'npm';
-    if (adapter.sourceType === 'stackoverflow' && url.includes('stackoverflow.com')) return 'stackoverflow';
-    if (adapter.sourceType === 'hackernews' && url.includes('ycombinator.com')) return 'hackernews';
-  }
+  if (url.includes('google.com') || url.includes('googleapis.com'))       return 'google';
+  if (url.includes('duckduckgo.com'))                                      return 'duckduckgo';
+  if (url.includes('github.com') || url.includes('raw.githubusercontent')) return 'github';
+  if (url.includes('npmjs.com')  || url.includes('registry.npmjs.org'))   return 'npm';
+  if (url.includes('stackoverflow.com'))                                   return 'stackoverflow';
+  if (url.includes('ycombinator.com'))                                     return 'hackernews';
   return 'web';
 }

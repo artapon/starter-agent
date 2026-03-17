@@ -12,6 +12,13 @@ export function createSettingsRouter(controller) {
   router.get('/subskills', controller.getSubskills);
   router.put('/subskill', controller.setSubskill);
 
+  // Browser search source settings — must be before /:agentId
+  router.get('/browser/tools',                  controller.getBrowserTools);
+  router.put('/browser/tools',                  controller.updateBrowserTools);
+  router.post('/browser/tools',                 controller.addBrowserTool);
+  router.put('/browser/tools/:sourceName',      controller.editBrowserTool);
+  router.delete('/browser/tools/:sourceName',   controller.deleteBrowserTool);
+
   // Per-agent settings
   router.get('/:agentId', controller.getByAgent);
   router.put('/:agentId', controller.update);

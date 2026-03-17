@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ALL_TOOLS, DEFAULT_AGENT_TOOLS } from '../tools/tool.definitions.js';
+import { SEARCH_ADAPTERS } from '../browser/web.search.tools.js';
 
 // Project root is 3 levels up from backend/core/database/
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -46,5 +47,16 @@ export function runMigrations(db) {
         enabled: enabledTools.includes(tool.name) ? 1 : 0,
       });
     }
+  }
+
+  // Seed browser search source settings — driven by SEARCH_ADAPTERS registry.
+  // New adapters added to web.search.tools.js are automatically seeded here.
+  const browserToolsTable = db.table('browser_tools');
+  for (const [key, adapter] of Object.entries(SEARCH_ADAPTERS)) {
+    browserToolsTable.insertOrIgnore(['source_name'], {
+      source_name:  key,
+      enabled:      1,
+      browse_count: adapter.browseCount ?? 1,
+    });
   }
 }

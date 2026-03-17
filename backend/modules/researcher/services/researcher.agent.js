@@ -6,7 +6,7 @@ import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
-import { getRawSkillPrompt, getSkillSources } from '../../../core/skills/skill.loader.js';
+import { getRawSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { extractKeywords, SEARCH_ADAPTERS } from '../../../core/browser/web.search.tools.js';
 
 const logger = createLogger('researcher');
@@ -156,12 +156,20 @@ export class ResearcherAgent {
     // Lookup tools by name (safe against ordering changes)
     const byName = Object.fromEntries(tools.map(t => [t.name, t]));
 
-    // Which sources to search — driven by `## Sources` in RESEARCHER.md
-    // Null means the skill file has no Sources section → use all available
-    const enabledSources = getSkillSources('researcher');
-    const useSource = (name) => !enabledSources || enabledSources.includes(name);
+    // Which sources to search — read from browser_tools DB table (user-configurable)
+    const browserRows  = this.db.table('browser_tools').all({});
+    const browserConfig = Object.fromEntries(browserRows.map(r => [r.source_name, r]));
+    const useSource    = (name) => {
+      const row = browserConfig[name];
+      return row ? (row.enabled === 1 || row.enabled === '1') : true; // default on if not in DB
+    };
+    const getBrowseCount = (key) => {
+      const row = browserConfig[key];
+      return row ? (parseInt(row.browse_count, 10) || 1) : (SEARCH_ADAPTERS[key]?.browseCount ?? 1);
+    };
 
-    logger.info(`Enabled sources: ${enabledSources?.join(', ') || 'all'}`, { agentId: 'researcher' });
+    const enabledList = Object.keys(SEARCH_ADAPTERS).filter(useSource);
+    logger.info(`Enabled sources: ${enabledList.join(', ')}`, { agentId: 'researcher' });
 
     const visitedSources = [];
     const emitSources = () => sm?.emit('researcher:web_sources', { sessionId, sources: [...visitedSources] });
@@ -215,15 +223,26 @@ export class ResearcherAgent {
         }
       }
 
-      // ── Phase 2: Selective browsing (browseCount from adapter) ────────────
+      // ── Phase 2: Selective browsing (browseCount from DB settings) ───────
       const urlsToBrowse = [];
       for (const [key, adapter] of Object.entries(SEARCH_ADAPTERS)) {
         const results = searchResults[key] || [];
-        const count   = adapter.browseCount ?? 1;
+        const count   = getBrowseCount(key);
         results.slice(0, count).forEach(r => {
           const url = adapter.getBrowseUrl ? adapter.getBrowseUrl(r) : r.url;
           if (url) urlsToBrowse.push({ url, type: adapter.sourceType });
         });
+      }
+
+      // Custom sources: browse the formatted search URL directly
+      const customRows = browserRows.filter(r => (r.is_custom === 1 || r.is_custom === '1') && useSource(r.source_name));
+      for (const src of customRows) {
+        const q   = (src.query_type === 'keywords') ? techKeywords : webQuery;
+        const url = (src.url_template || '').replace('{query}', encodeURIComponent(q));
+        if (url && url !== src.url_template) {
+          addSource(url, src.source_type || 'web');
+          urlsToBrowse.push({ url, type: src.source_type || 'web' });
+        }
       }
 
       const pageContents = [];
