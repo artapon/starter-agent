@@ -78,19 +78,19 @@ export class RLStore {
     if (top.length) {
       lines.push('### ✅ High-Quality Patterns (score ≥ 8) — follow these approaches:');
       for (const r of top) {
-        lines.push(`- [Score ${r.score}/10] Task: "${r.step_desc}"`);
-        if (r.worker_summary) lines.push(`  Result: ${r.worker_summary}`);
-        if (r.feedback) lines.push(`  Reviewer: ${r.feedback}`);
+        lines.push(`- [Score ${r.score}/10] Task: "${_esc(r.step_desc)}"`);
+        if (r.worker_summary) lines.push(`  Result: ${_esc(r.worker_summary)}`);
+        if (r.feedback) lines.push(`  Reviewer: ${_esc(r.feedback)}`);
       }
     }
 
     if (weak.length) {
       lines.push('\n### ❌ Anti-Patterns (score < 6) — avoid these mistakes:');
       for (const r of weak) {
-        lines.push(`- [Score ${r.score}/10] Task: "${r.step_desc}"`);
-        if (r.feedback) lines.push(`  Problem: ${r.feedback}`);
+        lines.push(`- [Score ${r.score}/10] Task: "${_esc(r.step_desc)}"`);
+        if (r.feedback) lines.push(`  Problem: ${_esc(r.feedback)}`);
         const suggestions = _parseSuggestions(r.suggestions);
-        if (suggestions.length) lines.push(`  Fix: ${suggestions.slice(0, 2).join('; ')}`);
+        if (suggestions.length) lines.push(`  Fix: ${suggestions.slice(0, 2).map(_esc).join('; ')}`);
       }
     }
 
@@ -117,16 +117,16 @@ export class RLStore {
     if (excellent.length) {
       lines.push('### Examples of excellent work (scored ≥ 9):');
       for (const r of excellent) {
-        lines.push(`- Task: "${r.step_desc}" → Score ${r.score}/10`);
-        if (r.feedback) lines.push(`  Why high: ${r.feedback}`);
+        lines.push(`- Task: "${_esc(r.step_desc)}" → Score ${r.score}/10`);
+        if (r.feedback) lines.push(`  Why high: ${_esc(r.feedback)}`);
       }
     }
 
     if (failures.length) {
       lines.push('\n### Examples of poor work (scored < 5):');
       for (const r of failures) {
-        lines.push(`- Task: "${r.step_desc}" → Score ${r.score}/10`);
-        if (r.feedback) lines.push(`  Why low: ${r.feedback}`);
+        lines.push(`- Task: "${_esc(r.step_desc)}" → Score ${r.score}/10`);
+        if (r.feedback) lines.push(`  Why low: ${_esc(r.feedback)}`);
       }
     }
 
@@ -258,6 +258,11 @@ export class RLStore {
 
 function _parseSuggestions(raw) {
   try { return JSON.parse(raw || '[]'); } catch { return []; }
+}
+
+/** Escape curly braces so the string is safe inside a LangChain prompt template */
+function _esc(str) {
+  return (str || '').replace(/[{}]/g, c => c + c);
 }
 
 /** Extract lowercase words (≥4 chars) from a string for similarity matching */
