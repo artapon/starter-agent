@@ -8,16 +8,17 @@ A local multi-agent AI system powered by LM Studio. An analyzer, worker, and rev
 
 | Layer | Technology |
 |---|---|
-| **Runtime** | Node.js v18+ (v22+ recommended) |
+| **Runtime** | Node.js v22.5+ (v24 recommended) |
 | **Backend** | Express.js (ESM modules) |
 | **Frontend** | Vue 3 + Vuetify 3 + Vite |
 | **Agents / Workflow** | LangChain.js + LangGraph.js |
 | **LLM Provider** | LM Studio (local, OpenAI-compatible API) |
-| **Database** | Custom JSON file store (no native addons required) |
+| **Database** | Custom JSON file store (`node:sqlite`-compatible, no native addons) |
 | **Realtime** | Socket.IO |
 | **Logging** | Winston (streams live to frontend) |
-| **Web Search** | Native fetch — DuckDuckGo, GitHub API, URL fetcher |
+| **Web Search** | Google (AI Overview), DuckDuckGo, GitHub API, URL browse — configurable via Settings |
 | **Vector Memory** | HNSWLib (local, no external service) |
+| **Reinforcement Learning** | Experience replay — outcomes stored per run, injected into Worker + Reviewer prompts |
 
 ---
 
@@ -33,18 +34,20 @@ starter-agent/
 │   │   ├── socket/            # Socket.IO manager + events
 │   │   ├── logger/            # Winston logger + socket transport
 │   │   ├── memory/            # Memory store (STM / LTM / working)
-│   │   ├── browser/           # Web search tools (DuckDuckGo, GitHub, fetch)
+│   │   ├── browser/           # Web search tools (Google, DuckDuckGo, GitHub, fetch)
+│   │   ├── rl/                # Reinforcement learning store (outcome replay)
 │   │   ├── reports/           # HTML report generator
+│   │   ├── mcp/               # MCP tool manager (Puppeteer web search bridge)
 │   │   └── skills/            # Skill profile system
 │   └── modules/               # HMVC feature modules
 │       ├── workflow/          # LangGraph StateGraph + runner
 │       ├── planner/           # Planner agent
-│       ├── researcher/        # Researcher agent (web search)
-│       ├── worker/            # Worker agent
-│       ├── reviewer/          # Reviewer agent
+│       ├── researcher/        # Researcher agent (web search + MCP)
+│       ├── worker/            # Worker agent (RL-guided)
+│       ├── reviewer/          # Reviewer agent (RL-calibrated)
 │       ├── chat/              # Direct chat API
 │       ├── memory/            # Memory API routes
-│       ├── settings/          # Global + per-agent settings
+│       ├── settings/          # Global + per-agent + browser tools settings
 │       └── dashboard/         # Stats aggregation
 ├── frontend/
 │   └── src/
@@ -56,7 +59,7 @@ starter-agent/
 │       │   ├── WalkthroughView # Embedded workflow report viewer
 │       │   ├── DebugView      # Researcher debug tool
 │       │   ├── LogsView       # Live log stream
-│       │   └── SettingsView   # Global + per-agent config
+│       │   └── SettingsView   # Global + per-agent + MCP Browser config
 │       ├── components/        # Shared UI components
 │       └── plugins/           # Router, Vuetify, Socket.IO
 ├── workspace/                 # Agent file sandbox (read/write)
@@ -74,25 +77,46 @@ starter-agent/
 User Goal
    │
    ▼
-[Analyze]   → research (web search) + generate step-by-step plan
+[Analyze]   → research (web search + MCP) + generate step-by-step plan
    │
    ▼
-[Worker]    → executes each plan step (file tools, code, scaffold, etc.)
+[Worker]    → executes each plan step; RL patterns injected into system prompt
    │
    ▼
-[Reviewer]  → quality checks output; on fail: retry or improvement loop
+[Reviewer]  → quality checks output; RL calibration injected into system prompt
+             on fail: retry or RL-guided improvement loop (target score ≥ 9/10)
              on pass: assembles final answer + HTML report
    │
    ▼ (loop up to N times if score < 10/10)
 Final Answer + HTML Report
 ```
 
+### Reinforcement Learning Loop
+
+After every review the outcome is stored (`rl_outcomes` table: score, feedback, suggestions, goal, loop count). On subsequent runs:
+
+- **Worker** receives a `## REINFORCEMENT LEARNING` block in its system prompt with top-3 high-scoring past examples (≥ 8/10) and bottom-3 anti-patterns (< 6/10).
+- **Reviewer** receives a `## REVIEWER CALIBRATION` block with historical avg score, trend, and excellent/failure examples to keep scoring consistent.
+- **Improvement loops** get a targeted task description built from RL data: required fixes + score target + similar past high-scoring examples + patterns from prior improvement passes.
+
+Stats are available at `GET /api/rl/stats`.
+
+### MCP Web Search
+
+When **MCP Browser** is enabled for the Researcher agent, web search runs through a Puppeteer-backed MCP bridge in three phases:
+
+1. **Parallel search** — all enabled sources queried simultaneously (Google AI Overview first, then DuckDuckGo, GitHub, and any custom URL-template sources).
+2. **Selective browse** — top N pages per source fetched and read (browse depth configurable per source).
+3. **LLM analysis** — all gathered content sent to the Researcher LLM together with the skill prompt.
+
+Sources are fully configurable from the **Settings → MCP Browser** panel: enable/disable, set browse depth, add custom URL-template sources, or remove them.
+
 ---
 
 ## Prerequisites
 
-- **Node.js v18 or later** — [https://nodejs.org](https://nodejs.org)
-  - v22+ recommended for best ESM and performance support
+- **Node.js v22.5 or later** — [https://nodejs.org](https://nodejs.org)
+  - v24 recommended; v22.5+ required for `node:sqlite` built-in
 - **LM Studio** — [https://lmstudio.ai](https://lmstudio.ai)
   - Start the local server on `http://localhost:1234`
   - Load at least one model (e.g. `qwen2.5-7b-instruct`)
@@ -111,7 +135,7 @@ install.bat
 ```
 
 The script:
-1. Checks Node.js is installed (v18+)
+1. Checks Node.js is installed (v22.5+)
 2. Installs root, backend, and frontend dependencies
 3. Creates `backend/.env` from `.env.example` if missing
 4. Creates `backend/workspace/` and `reports/` directories
@@ -152,7 +176,7 @@ PORT=3000
 NODE_ENV=development
 ```
 
-Per-agent model overrides, tool configuration, and workflow loop settings can also be changed at runtime from **Settings** in the UI.
+Per-agent model overrides, tool configuration, workflow loop settings, and MCP Browser sources can all be changed at runtime from **Settings** in the UI.
 
 ---
 
@@ -173,7 +197,7 @@ Opens the backend and frontend in separate terminal windows, waits for the backe
 npm run dev
 
 # Or run separately:
-cd backend  && node server.js
+cd backend  && node --experimental-sqlite server.js
 cd frontend && npm run dev
 ```
 
@@ -193,11 +217,12 @@ cd frontend && npm run dev
 | **Workflow** | Run multi-agent pipelines with a single goal prompt; stop anytime |
 | **Chat** | Talk directly to any agent with streaming responses |
 | **Memory** | View / manage Short-Term, Long-Term, and Working memory per agent; save STM → LTM |
-| **Settings** | Sidebar-nav layout: configure LLM model, tools, and workflow loop per agent |
+| **Settings** | Sidebar-nav layout: configure LLM model, tools, workflow loop, and MCP Browser sources per agent |
+| **MCP Browser** | Enable/disable and tune browse depth per search source; add custom URL-template sources; Google AI Overview prioritized first |
+| **Reinforcement Learning** | Worker + Reviewer automatically improve over runs via experience replay — past scores, patterns, and calibration injected into prompts |
 | **Logs** | Live log stream from the backend with level filtering |
 | **Debug** | Interactive Researcher Agent walkthrough and backend connection tester |
 | **Reports** | Auto-generated HTML walkthrough after each workflow run, viewable in-app |
-| **Web Search** | Researcher uses native fetch tools: DuckDuckGo search, GitHub API, URL browse |
 | **Skill Profiles** | Switchable system prompt bundles per agent (default, software_house) |
 
 ---
@@ -222,6 +247,13 @@ GET    /api/settings/:agentId/tools     Get agent tool config
 PUT    /api/settings/:agentId/tools     Update agent tools
 GET    /api/settings/global             Get global settings
 PUT    /api/settings/global             Update global settings
+GET    /api/settings/browser/tools      List MCP Browser search sources
+PUT    /api/settings/browser/tools      Bulk update source enable/browse-count
+POST   /api/settings/browser/tools      Add a custom search source
+PUT    /api/settings/browser/tools/:sourceName   Edit a custom source
+DELETE /api/settings/browser/tools/:sourceName   Delete a custom source
+
+GET    /api/rl/stats                    Reinforcement learning outcome stats
 
 GET    /api/reports/sessions            List sessions with reports
 GET    /api/reports/:sessionId/content  Get parsed report HTML + styles
@@ -239,10 +271,19 @@ GET    /api/agents/researcher/status    Researcher agent status
 → Check the backend terminal for errors. Verify the LM Studio server URL is reachable at `http://localhost:1234/v1`.
 
 **Web search returns no results**
-→ The researcher uses DuckDuckGo HTML scraping and the GitHub public API — no API keys required. Check that the backend has outbound internet access.
+→ The researcher uses native fetch — Google scraping, DuckDuckGo HTML, and the GitHub public API — no API keys required. Check that the backend has outbound internet access. Google AI Overview requires JavaScript rendering by Google; the scraper uses static HTML fallback strategies.
+
+**MCP Browser not searching**
+→ Ensure **MCP Browser** is toggled on in Settings for the Researcher agent, and at least one source is enabled in the MCP Browser panel.
+
+**RL context not appearing**
+→ RL patterns only appear after the first completed workflow run that produces a review score. Run at least one full workflow to seed the `rl_outcomes` table.
 
 **Reports not appearing in Workflow / Dashboard**
 → Reports are generated after a run completes. Ensure the `reports/` directory exists at the project root (created automatically by `install.bat` or `start.bat`).
 
 **`node_modules` errors after updating**
 → Delete `node_modules` in the root, `backend/`, and `frontend/` directories, then run `install.bat` or `npm install` again.
+
+**Node.js version errors (`node:sqlite` / `--experimental-sqlite`)**
+→ This project requires Node.js v22.5 or later. Run `node -v` to check. Download the latest LTS from [https://nodejs.org](https://nodejs.org).

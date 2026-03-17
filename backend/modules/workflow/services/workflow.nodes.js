@@ -3,6 +3,7 @@ import { PlannerAgent }    from '../../planner/services/planner.agent.js';
 import { WorkerAgent }     from '../../worker/services/worker.agent.js';
 import { ReviewerAgent }   from '../../reviewer/services/reviewer.agent.js';
 import { memoryStore }     from '../../memory/services/memory.store.js';
+import { getRLStore }      from '../../../core/rl/rl.store.js';
 
 export function createNodes(socketManager) {
   const researcherAgent = new ResearcherAgent(socketManager);
@@ -98,6 +99,20 @@ export function createNodes(socketManager) {
       state.sessionId, lastResult.subtaskId, state.runId,
     );
     const score    = review.score ?? 10;
+
+    // Record outcome for reinforcement learning
+    getRLStore().recordOutcome({
+      runId:         state.runId,
+      sessionId:     state.sessionId,
+      goal:          state.userGoal,
+      stepDesc:      step?.description || '',
+      workerSummary: lastResult.result || '',
+      score,
+      feedback:      review.feedback || '',
+      suggestions:   review.suggestions || [],
+      approved:      review.approved,
+      loopCount:     state.loopCount || 0,
+    });
     const scoreBar = '█'.repeat(Math.round(score / 2)) + '░'.repeat(5 - Math.round(score / 2));
     const willLoop = allDone && state.loopEnabled && state.loopCount < state.maxLoops && score < 10;
     const suggestionLines = (review.suggestions || []).map(s => `  - ${s}`).join('\n');
@@ -126,13 +141,17 @@ export function createNodes(socketManager) {
     // All done — improvement loop (was loop_reset node)
     if (willLoop) {
       const nextLoop    = state.loopCount + 1;
-      const suggestions = (review.suggestions || []).length
-        ? review.suggestions.map((s, i) => `${i + 1}. ${s}`).join('\n')
-        : review.feedback || 'Improve overall code quality.';
+      const improvementDesc = getRLStore().buildImprovementContext(
+        step?.description || '',
+        score,
+        review.feedback || '',
+        review.suggestions || [],
+        nextLoop,
+      );
 
       emitStatus(
         state.sessionId, 'worker',
-        `\n\n🔄 **Improvement Loop ${nextLoop}/${state.maxLoops}** — Score: **${score}/10**. Sending back to Worker:\n${(review.suggestions || []).map(s => `  - ${s}`).join('\n') || `  - ${review.feedback}`}\n\n`,
+        `\n\n🔄 **Improvement Loop ${nextLoop}/${state.maxLoops}** — Score: **${score}/10** → target ≥${score < 8 ? 9 : 10}/10\n${(review.suggestions || []).map(s => `  - ${s}`).join('\n') || `  - ${review.feedback}`}\n\n`,
       );
       socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'loop', loop: nextLoop, score });
 
@@ -141,9 +160,7 @@ export function createNodes(socketManager) {
         loopCount:      nextLoop,
         plan: {
           ...state.plan,
-          steps: [{
-            description: `Improvement pass (loop ${nextLoop}) — previous score was ${score}/10.\n\nApply ALL of the following review suggestions to the existing code:\n${suggestions}`,
-          }],
+          steps: [{ description: improvementDesc }],
         },
         subtaskResults: null,
         currentStepIdx: 0,

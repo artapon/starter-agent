@@ -20,6 +20,7 @@ import { SettingsModule } from './modules/settings/settings.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { LogsModule } from './modules/logs/logs.module.js';
 import { WorkspaceModule } from './modules/workspace/workspace.module.js';
+import { getRLStore }     from './core/rl/rl.store.js';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const REPORTS_DIR = path.resolve(__dirname, '..', 'reports');
@@ -71,6 +72,11 @@ export function createApp() {
   // Health check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', ts: Date.now() });
+  });
+
+  // RL stats
+  app.get('/api/rl/stats', (req, res) => {
+    try { res.json(getRLStore().getStats()); } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
   // Reports — list sessions that have a walkthrough.html

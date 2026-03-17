@@ -7,6 +7,7 @@ import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
+import { getRLStore } from '../../../core/rl/rl.store.js';
 
 const logger = createLogger('reviewer');
 
@@ -18,7 +19,9 @@ Output ONLY a valid JSON object — no markdown, no explanation:
 Evaluate: correctness, code quality, edge cases, security.
 Return raw JSON only.`;
 
-function getSystemPrompt() { return BASE_PROMPT + getSkillPrompt('reviewer'); }
+function getSystemPrompt() {
+  return BASE_PROMPT + getSkillPrompt('reviewer') + getRLStore().buildReviewerContext();
+}
 
 export class ReviewerAgent {
   constructor(socketManager) {

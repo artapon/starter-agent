@@ -8,6 +8,7 @@ import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { writeFileTool } from '../../../core/tools/tool.implementations.js';
 import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
+import { getRLStore } from '../../../core/rl/rl.store.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('worker');
@@ -23,7 +24,9 @@ Rules:
 - include every file that needs to be created or modified
 - output raw JSON only`;
 
-function getSystemPrompt() { return BASE_PROMPT + getSkillPrompt('worker'); }
+function getSystemPrompt() {
+  return BASE_PROMPT + getSkillPrompt('worker') + getRLStore().buildWorkerContext();
+}
 
 export class WorkerAgent {
   constructor(socketManager) {
