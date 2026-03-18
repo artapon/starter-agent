@@ -357,6 +357,13 @@ async function fetchQueue() {
     queue.value = data.queue || [];
   } catch { /* keep empty */ }
 }
+
+async function fetchRecentRuns() {
+  try {
+    const { data } = await axios.get('/api/workflow/runs');
+    recentRuns.value = data.slice(0, 10);
+  } catch { /* keep existing */ }
+}
 const logs = ref([]);
 const queue = ref([]);
 const queueHasPending = computed(() => queue.value.some(j => j.status === 'queued'));
@@ -512,7 +519,13 @@ async function scrollLogs() {
 onMounted(() => {
   fetchStats();
   fetchQueue();
-  socket.on('queue:updated', (data) => { queue.value = data.queue || []; });
+  socket.on('queue:updated', (data) => {
+    const hadRunning = queue.value.some(j => j.status === 'running');
+    queue.value = data.queue || [];
+    const hasRunning = queue.value.some(j => j.status === 'running');
+    // A job just finished — refresh Recent Runs immediately
+    if (hadRunning && !hasRunning) fetchRecentRuns();
+  });
 
   const AGENT_NODES = new Set(['researcher', 'planner', 'worker', 'reviewer']);
 
