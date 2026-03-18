@@ -38,6 +38,84 @@
       </div>
     </div>
 
+    <!-- Token Usage — full width -->
+    <div class="panel card-hover">
+      <div class="panel__header">
+        <v-icon size="15" color="#6366F1">mdi-counter</v-icon>
+        <span class="section-title">Token Usage</span>
+        <span class="token-total-badge">{{ fmtTokens(tokenUsage.total) }} total</span>
+      </div>
+      <div class="token-grid">
+        <div class="token-card">
+          <div class="token-card__label">Today</div>
+          <div class="token-card__value">{{ fmtTokens(tokenUsage.today) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.today)}%;background:#6366F1`" /></div>
+        </div>
+        <div class="token-card">
+          <div class="token-card__label">This Week</div>
+          <div class="token-card__value">{{ fmtTokens(tokenUsage.weekly) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.weekly)}%;background:#22D3EE`" /></div>
+        </div>
+        <div class="token-card">
+          <div class="token-card__label">This Month</div>
+          <div class="token-card__value">{{ fmtTokens(tokenUsage.monthly) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.monthly)}%;background:#10B981`" /></div>
+        </div>
+        <div class="token-card">
+          <div class="token-card__label">All Time</div>
+          <div class="token-card__value token-card__value--accent">{{ fmtTokens(tokenUsage.total) }}</div>
+          <div class="token-card__bar"><div class="token-card__fill" style="width:100%;background:#F59E0B" /></div>
+        </div>
+        <template v-for="(t, agent) in tokenUsage.byAgent" :key="agent">
+          <div class="token-card token-card--agent">
+            <div class="token-card__label">{{ agent }}</div>
+            <div class="token-card__value token-card__value--sm">{{ fmtTokens(t) }}</div>
+            <div class="token-card__bar">
+              <div class="token-card__fill" :style="`width:${tokenUsage.total ? Math.round(t/tokenUsage.total*100) : 0}%;background:${agentTokenColor(agent)}`" />
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Agent Status — horizontal bar, full width -->
+    <div class="panel card-hover">
+      <div class="panel__header">
+        <v-icon size="15" color="#6366F1">mdi-robot-outline</v-icon>
+        <span class="section-title">Agent Status</span>
+      </div>
+      <div class="agent-h-list">
+        <div v-for="agent in agentStatuses" :key="agent.agentId"
+          class="agent-h-card"
+          :class="{ 'agent-h-card--working': agentLiveStatus[agent.agentId] === 'working' }">
+          <div class="agent-h-card__top">
+            <span :class="['status-dot',
+              agentLiveStatus[agent.agentId] === 'working' ? 'status-dot--working'
+              : agent.available ? 'status-dot--online' : 'status-dot--offline']" />
+            <span class="agent-h-card__name">{{ agent.agentId }}</span>
+            <v-chip :color="agent.available ? 'success' : 'error'" size="x-small" variant="tonal" class="ml-auto">
+              {{ agent.available ? 'Online' : 'Offline' }}
+            </v-chip>
+          </div>
+          <div class="agent-h-card__model">{{ agent.model }}</div>
+          <div class="agent-h-card__bottom">
+            <div v-if="agentLiveStatus[agent.agentId] === 'working'" class="working-badge">
+              <svg class="working-spinner" viewBox="0 0 16 16">
+                <circle cx="8" cy="8" r="6" fill="none" stroke="#F59E0B" stroke-width="2"
+                  stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"/>
+              </svg>
+              <span>Running</span>
+            </div>
+            <div v-else class="idle-badge">{{ agentLiveStatus[agent.agentId] || 'idle' }}</div>
+          </div>
+          <div v-if="agentCurrentTask[agent.agentId]" class="agent-h-card__task">
+            <v-icon size="10" color="#F59E0B" class="mr-1">mdi-chevron-right</v-icon>
+            {{ agentCurrentTask[agent.agentId] }}
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Main 2-column grid -->
     <div class="dash-main-grid">
 
@@ -133,90 +211,51 @@
           </div>
         </div>
 
-        <!-- Token Usage -->
-        <div class="panel card-hover token-panel">
-          <div class="panel__header">
-            <v-icon size="15" color="#6366F1">mdi-counter</v-icon>
-            <span class="section-title">Token Usage</span>
-            <span class="token-total-badge">{{ fmtTokens(tokenUsage.total) }} total</span>
-          </div>
-          <div class="token-grid">
-            <div class="token-card">
-              <div class="token-card__label">Today</div>
-              <div class="token-card__value">{{ fmtTokens(tokenUsage.today) }}</div>
-              <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.today)}%;background:#6366F1`" /></div>
-            </div>
-            <div class="token-card">
-              <div class="token-card__label">This Week</div>
-              <div class="token-card__value">{{ fmtTokens(tokenUsage.weekly) }}</div>
-              <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.weekly)}%;background:#22D3EE`" /></div>
-            </div>
-            <div class="token-card">
-              <div class="token-card__label">This Month</div>
-              <div class="token-card__value">{{ fmtTokens(tokenUsage.monthly) }}</div>
-              <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.monthly)}%;background:#10B981`" /></div>
-            </div>
-            <div class="token-card">
-              <div class="token-card__label">All Time</div>
-              <div class="token-card__value token-card__value--accent">{{ fmtTokens(tokenUsage.total) }}</div>
-              <div class="token-card__bar"><div class="token-card__fill" style="width:100%;background:#F59E0B" /></div>
-            </div>
-          </div>
-          <div v-if="Object.keys(tokenUsage.byAgent || {}).length" class="token-agents">
-            <div v-for="(t, agent) in tokenUsage.byAgent" :key="agent" class="token-agent-row">
-              <span class="token-agent-row__name">{{ agent }}</span>
-              <div class="token-agent-row__bar-wrap">
-                <div class="token-agent-row__bar">
-                  <div class="token-agent-row__fill" :style="`width:${tokenUsage.total ? Math.round(t/tokenUsage.total*100) : 0}%;background:${agentTokenColor(agent)}`" />
-                </div>
-              </div>
-              <span class="token-agent-row__val">{{ fmtTokens(t) }}</span>
-            </div>
-          </div>
-        </div>
-
       </div><!-- /dash-col left -->
 
       <!-- ── Right column ──────────────────────────────────────── -->
       <div class="dash-col">
 
-        <!-- Agent Status -->
+        <!-- Job Queue -->
         <div class="panel card-hover">
           <div class="panel__header">
-            <v-icon size="15" color="#6366F1">mdi-robot-outline</v-icon>
-            <span class="section-title">Agent Status</span>
+            <v-icon size="15" color="#6366F1">mdi-tray-full</v-icon>
+            <span class="section-title">Job Queue</span>
+            <span v-if="queue.length" class="queue-depth-badge">{{ queue.length }}</span>
+            <span v-if="queueHasPending" class="live-dot" style="margin-left:auto" />
           </div>
-          <div class="agent-list">
-            <div v-for="agent in agentStatuses" :key="agent.agentId"
-              class="agent-row"
-              :class="{ 'agent-row--working': agentLiveStatus[agent.agentId] === 'working' }">
-              <div class="agent-row__left">
-                <span :class="['status-dot',
-                  agentLiveStatus[agent.agentId] === 'working' ? 'status-dot--working'
-                  : agent.available ? 'status-dot--online' : 'status-dot--offline']" />
-                <div class="agent-row__info">
-                  <div class="agent-row__name">{{ agent.agentId }}</div>
-                  <div class="agent-row__model">{{ agent.model }}</div>
-                </div>
+          <div class="queue-list">
+            <div v-for="job in queue" :key="job.id"
+              class="queue-row"
+              :class="{ 'queue-row--running': job.status === 'running' }">
+              <div class="queue-row__pos">
+                <span v-if="job.status === 'running'" class="q-running-dot" />
+                <span v-else class="q-pos-badge">{{ job.position }}</span>
               </div>
-              <div class="agent-row__right">
-                <div v-if="agentLiveStatus[agent.agentId] === 'working'" class="working-badge">
-                  <svg class="working-spinner" viewBox="0 0 16 16">
-                    <circle cx="8" cy="8" r="6" fill="none" stroke="#F59E0B" stroke-width="2"
-                      stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"/>
+              <v-chip
+                :color="job.type === 'workflow' ? 'primary' : 'info'"
+                size="x-small" variant="tonal" class="flex-shrink-0">
+                {{ job.type }}
+              </v-chip>
+              <div class="queue-row__label" :title="job.label">{{ job.label }}</div>
+              <div class="queue-row__status">
+                <span v-if="job.status === 'running'" class="q-running-badge">
+                  <svg viewBox="0 0 16 16" style="width:11px;height:11px;flex-shrink:0">
+                    <circle cx="8" cy="8" r="6" fill="none" stroke="#22D3EE"
+                      stroke-width="2" stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"
+                      style="animation:spin 1s linear infinite"/>
                   </svg>
-                  <span>Running</span>
-                </div>
-                <div v-else class="idle-badge">{{ agentLiveStatus[agent.agentId] || 'idle' }}</div>
-                <v-chip :color="agent.available ? 'success' : 'error'" size="x-small" variant="tonal">
-                  {{ agent.available ? 'Online' : 'Offline' }}
-                </v-chip>
+                  Running
+                </span>
+                <span v-else class="q-waiting-badge">Waiting</span>
               </div>
-              <div v-if="agentCurrentTask[agent.agentId]" class="agent-row__task">
-                <v-icon size="11" color="#F59E0B" class="mr-1">mdi-chevron-right</v-icon>
-                {{ agentCurrentTask[agent.agentId] }}
-              </div>
+              <button v-if="job.status === 'queued'"
+                class="q-cancel-btn" title="Cancel job"
+                @click="cancelJob(job.id)">
+                <v-icon size="11">mdi-close</v-icon>
+              </button>
             </div>
+            <div v-if="!queue.length" class="empty-state">Queue is empty</div>
           </div>
         </div>
 
@@ -307,7 +346,20 @@ async function stopRun(runId) {
   } catch { /* best-effort */ }
   finally { stoppingRunId.value = null; }
 }
+
+async function cancelJob(jobId) {
+  try { await axios.delete(`/api/queue/${jobId}`); } catch { /* best-effort */ }
+}
+
+async function fetchQueue() {
+  try {
+    const { data } = await axios.get('/api/queue');
+    queue.value = data.queue || [];
+  } catch { /* keep empty */ }
+}
 const logs = ref([]);
+const queue = ref([]);
+const queueHasPending = computed(() => queue.value.some(j => j.status === 'queued'));
 const tokenUsage = ref({ today: 0, weekly: 0, monthly: 0, total: 0, byAgent: {} });
 const agentLiveStatus = ref({});
 const agentCurrentTask = ref({});
@@ -459,6 +511,9 @@ async function scrollLogs() {
 
 onMounted(() => {
   fetchStats();
+  fetchQueue();
+  socket.on('queue:updated', (data) => { queue.value = data.queue || []; });
+
   const AGENT_NODES = new Set(['researcher', 'planner', 'worker', 'reviewer']);
 
   socket.on('log:entry', (entry) => {
@@ -683,7 +738,6 @@ onMounted(() => {
   gap: 12px;
 }
 .dash-col { display: flex; flex-direction: column; gap: 12px; }
-.dash-col .panel.token-panel { flex: 1; }
 @media (max-width: 900px) { .dash-main-grid { grid-template-columns: 1fr; } }
 
 /* Panel */
@@ -700,37 +754,48 @@ onMounted(() => {
 }
 .panel__header > div { display: flex; align-items: center; gap: 7px; }
 
-/* Agent list */
-.agent-list { padding: 6px 0; }
+/* Agent Status — horizontal cards */
+.agent-h-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+@media (max-width: 700px) { .agent-h-list { grid-template-columns: repeat(2, 1fr); } }
 
-.agent-row {
-  display: flex; align-items: center; gap: 10px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
+.agent-h-card {
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  border-right: 1px solid rgba(255,255,255,0.04);
   transition: background 0.15s;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
 }
-.agent-row:last-child { border-bottom: none; }
-.agent-row:hover { background: rgba(255,255,255,0.02); }
-.agent-row--working {
+.agent-h-card:last-child { border-right: none; }
+.agent-h-card:hover { background: rgba(255,255,255,0.02); }
+.agent-h-card--working {
   background: rgba(245,158,11,0.04) !important;
-  border-left: 2px solid #F59E0B;
-  padding-left: 12px;
+  border-top: 2px solid #F59E0B;
+  padding-top: 10px;
 }
 
-.agent-row__left  { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
-.agent-row__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.agent-row__info  { min-width: 0; }
-.agent-row__name  { font-size: 13px; font-weight: 600; text-transform: capitalize; }
-.agent-row__model { font-size: 11px; color: rgba(226,232,240,0.35) !important; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Full-width task row */
-.agent-row__task {
-  width: 100%; padding-left: 20px;
-  font-size: 12px; color: #F59E0B !important;
+.agent-h-card__top {
+  display: flex; align-items: center; gap: 7px;
+}
+.agent-h-card__name {
+  font-size: 13px; font-weight: 600; text-transform: capitalize;
+  color: rgba(226,232,240,0.9);
+}
+.agent-h-card__model {
+  font-size: 11px; color: rgba(226,232,240,0.32);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.agent-h-card__bottom {
+  display: flex; align-items: center; gap: 6px; margin-top: 2px;
+}
+.agent-h-card__task {
+  font-size: 11px; color: #F59E0B;
   font-style: italic;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  display: flex; align-items: center;
+  display: flex; align-items: center; margin-top: 2px;
 }
 
 /* Working badge */
@@ -890,30 +955,91 @@ onMounted(() => {
   margin-left: auto;
 }
 .token-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 1px;
   border-top: 1px solid rgba(255,255,255,0.04);
 }
-@media (max-width: 700px) { .token-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1100px) { .token-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 600px)  { .token-grid { grid-template-columns: repeat(2, 1fr); } }
+
 .token-card {
   padding: 14px 16px;
   border-right: 1px solid rgba(255,255,255,0.04);
 }
 .token-card:last-child { border-right: none; }
+.token-card--agent .token-card__label { text-transform: capitalize; color: rgba(226,232,240,0.5); }
 .token-card__label { font-size: 11px; color: rgba(226,232,240,0.4); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
 .token-card__value { font-size: 22px; font-weight: 700; color: rgba(226,232,240,0.9); margin-bottom: 8px; font-family: 'JetBrains Mono','Fira Code',monospace; }
 .token-card__value--accent { color: #F59E0B; }
+.token-card__value--sm { font-size: 18px; }
 .token-card__bar  { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
 .token-card__fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
 
-.token-agents {
-  padding: 10px 16px 12px;
-  border-top: 1px solid rgba(255,255,255,0.04);
-  display: flex; flex-direction: column; gap: 7px;
+/* ── Job Queue panel ── */
+.queue-list { padding: 4px 0; }
+
+.queue-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px;
+  transition: background 0.15s;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
 }
-.token-agent-row { display: flex; align-items: center; gap: 10px; }
-.token-agent-row__name { font-size: 11px; color: rgba(226,232,240,0.45); width: 70px; flex-shrink: 0; text-transform: capitalize; }
-.token-agent-row__bar-wrap { flex: 1; }
-.token-agent-row__bar  { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
-.token-agent-row__fill { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
-.token-agent-row__val  { font-size: 11px; color: rgba(226,232,240,0.5); width: 48px; text-align: right; flex-shrink: 0; font-family: 'JetBrains Mono','Fira Code',monospace; }
+.queue-row:last-child { border-bottom: none; }
+.queue-row:hover { background: rgba(255,255,255,0.02); }
+.queue-row--running {
+  background: rgba(34,211,238,0.04) !important;
+  border-left: 2px solid #22D3EE;
+  padding-left: 12px;
+}
+
+.queue-row__pos {
+  width: 20px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.queue-row__label {
+  flex: 1; min-width: 0;
+  font-size: 12px; color: rgba(226,232,240,0.75);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.queue-row__status { flex-shrink: 0; }
+
+.q-pos-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  font-size: 10px; font-weight: 700;
+  background: rgba(255,255,255,0.07);
+  color: rgba(226,232,240,0.45);
+}
+.q-running-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #22D3EE; box-shadow: 0 0 6px #22D3EE;
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+.q-running-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; color: #22D3EE;
+}
+.q-waiting-badge {
+  font-size: 11px; color: rgba(226,232,240,0.28);
+}
+.q-cancel-btn {
+  width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.2);
+  color: #EF4444; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  outline: none;
+}
+.q-cancel-btn:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.4); }
+
+.queue-depth-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; border-radius: 9px; padding: 0 5px;
+  font-size: 10px; font-weight: 700;
+  background: rgba(99,102,241,0.18);
+  border: 1px solid rgba(99,102,241,0.3);
+  color: #818CF8;
+}
 </style>

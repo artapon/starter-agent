@@ -1,6 +1,7 @@
 import { getDb } from '../../../core/database/db.js';
 import { WorkflowRunner } from '../../workflow/services/workflow.runner.js';
 import { stopWorkflowRun } from '../../workflow/services/workflow.runner.js';
+import { agentQueue } from '../../../core/queue/agent.queue.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { SocketEvents } from '../../../core/socket/socket.events.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,7 +13,7 @@ export class ChatService {
     this.db = getDb();
     this.socketManager = socketManager;
     this.workflowRunner = new WorkflowRunner(socketManager);
-    this._activeRunIds = new Map(); // sessionId → runId
+    this._active = new Map(); // sessionId → { jobId, runId }
   }
 
   createOrGetSession(sessionId = null) {
@@ -60,12 +61,24 @@ export class ChatService {
     logger.info(`Chat message received`, { sessionId, contentLength: content.length });
 
     try {
-      // Run through workflow, tracking the active runId for this session
-      const result = await this.workflowRunner.run(content, sessionId, (runId) => {
-        this._activeRunIds.set(sessionId, runId);
-      });
+      // Enqueue — runs after any currently active job finishes
+      const result = await agentQueue.enqueue(
+        'chat',
+        content,
+        () => this.workflowRunner.run(content, sessionId, (runId) => {
+          // Update the active map with the real runId once the runner assigns it
+          const entry = this._active.get(sessionId);
+          if (entry) entry.runId = runId;
+          agentQueue.setRunId(this._active.get(sessionId)?.jobId, runId);
+        }),
+        null,
+        (jobId) => {
+          // Fired synchronously as soon as the job is registered in the queue
+          this._active.set(sessionId, { jobId, runId: null });
+        },
+      );
 
-      this._activeRunIds.delete(sessionId);
+      this._active.delete(sessionId);
 
       if (result?.stopped) {
         const stoppedMsg = 'Process was stopped by user.';
@@ -76,24 +89,31 @@ export class ChatService {
         return { sessionId, content: stoppedMsg, stopped: true };
       }
 
-      const finalAnswer = result.finalAnswer || 'Task completed.';
+      const finalAnswer  = result.finalAnswer || 'Task completed.';
       const streamBuffer = result.streamBuffer || '';
 
-      // Combine streamed work content with the assembled final answer
       const fullContent = streamBuffer
         ? `${streamBuffer}\n\n---\n\n${finalAnswer}`
         : finalAnswer;
 
-      // Save assistant response
       this.saveMessage(sessionId, 'assistant', fullContent, 'workflow');
-
-      // Emit response
       this.socketManager?.emitChatResponse(sessionId, finalAnswer, 'workflow');
       this.socketManager?.emit(SocketEvents.CHAT_AGENT_TYPING, { agentId: 'planner', typing: false, sessionId });
 
       return { sessionId, content: fullContent, agentId: 'workflow', runId: result.runId };
     } catch (err) {
-      this._activeRunIds.delete(sessionId);
+      this._active.delete(sessionId);
+
+      if (err.cancelled) {
+        // Job was cancelled while queued — treat as a user stop
+        const stoppedMsg = 'Process was stopped by user.';
+        this.saveMessage(sessionId, 'assistant', stoppedMsg, 'system');
+        this.socketManager?.emitChatResponse(sessionId, stoppedMsg, 'system');
+        this.socketManager?.emit(SocketEvents.CHAT_AGENT_TYPING, { agentId: 'planner', typing: false, sessionId });
+        this.socketManager?.emit(SocketEvents.CHAT_STOPPED, { sessionId });
+        return { sessionId, content: stoppedMsg, stopped: true };
+      }
+
       const detail = err.error?.message || err.message || 'Unknown error';
       const errMsg = `LLM error: ${detail}`;
       this.saveMessage(sessionId, 'assistant', errMsg, 'system');
@@ -104,11 +124,17 @@ export class ChatService {
   }
 
   stopSession(sessionId) {
-    const runId = this._activeRunIds.get(sessionId);
-    if (runId) {
-      stopWorkflowRun(runId);
-      return true;
-    }
+    const entry = this._active.get(sessionId);
+    if (!entry) return false;
+
+    const { jobId, runId } = entry;
+
+    // If the job is still waiting in the queue, cancel it before it starts
+    if (jobId && agentQueue.cancel(jobId)) return true;
+
+    // If the job is already running, abort the underlying workflow
+    if (runId) { stopWorkflowRun(runId); return true; }
+
     return false;
   }
 

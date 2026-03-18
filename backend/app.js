@@ -22,6 +22,7 @@ import { LogsModule } from './modules/logs/logs.module.js';
 import { WorkspaceModule } from './modules/workspace/workspace.module.js';
 import { getRLStore }     from './core/rl/rl.store.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
+import { QueueModule } from './modules/queue/queue.module.js';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const REPORTS_DIR = path.resolve(__dirname, '..', 'reports');
@@ -70,6 +71,7 @@ export function createApp() {
   app.use('/api/logs', LogsModule.router);
   app.use('/api/workspace', WorkspaceModule.router);
   app.use('/api/projects', ProjectsModule.router);
+  app.use('/api/queue', QueueModule.router);
 
   // Health check
   app.get('/api/health', (req, res) => {

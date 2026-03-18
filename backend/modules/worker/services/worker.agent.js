@@ -18,6 +18,12 @@ const BASE_PROMPT = `You are a Worker Agent — a senior full-stack engineer. Yo
 Respond with ONLY a valid JSON object — no markdown fences, no explanation outside the JSON:
 {{"files":[{{"path":"relative/path/file.ext","content":"complete file content"}}],"summary":"concise description of what was implemented"}}
 
+## ⚠️ JSON ENCODING RULES (strictly required)
+- File content goes inside a JSON string — every newline MUST be written as the two-character escape sequence \n (backslash + n), NOT as an actual line break
+- Every tab MUST be written as \t, every backslash as \\, every double-quote as \"
+- The entire response must be parseable by JSON.parse() without any pre-processing
+- Do NOT wrap the JSON in markdown code fences
+
 ## ⚠️ CRITICAL: Working with an Existing Project
 
 If the task contains an "=== EXISTING WORKSPACE PROJECT ===" section, you MUST:
@@ -88,7 +94,17 @@ export class WorkerAgent {
         logger.warn(`No JSON found in worker output (${output.length} chars). Model may have used all tokens for thinking — increase max_tokens in Settings.`, { agentId: 'worker' });
         return written;
       }
-      const files = Array.isArray(blueprint.files) ? blueprint.files : [];
+      // Normalise: model sometimes returns a single file object instead of the
+      // full blueprint (brace-scanner edge case with unbalanced braces in code).
+      let files;
+      if (Array.isArray(blueprint.files)) {
+        files = blueprint.files;
+      } else if (blueprint.path && blueprint.content != null) {
+        files = [blueprint];   // single file object — treat as a one-file blueprint
+      } else {
+        logger.warn(`Worker JSON has no "files" array (keys: ${Object.keys(blueprint).join(', ')})`, { agentId: 'worker' });
+        files = [];
+      }
       for (const { path: filePath, content } of files) {
         if (!filePath || content == null) continue;
         const result = await writeFileTool.func({ path: filePath, content: String(content) });

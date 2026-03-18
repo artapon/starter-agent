@@ -136,49 +136,120 @@ function stripThinkBlocks(text) {
 }
 
 /**
+ * Repair common JSON encoding faults produced by LLMs (especially thinking
+ * models like Qwen3 that embed raw file content inside JSON string values):
+ *
+ *  • Literal newline / carriage-return / tab inside a string value
+ *    → escaped as \\n / \\r / \\t
+ *  • Other bare control characters (U+0000–U+001F) inside a string value
+ *    → removed (they are illegal in JSON strings)
+ *
+ * Uses a single O(n) pass with a proper string-aware state machine so it is
+ * not fooled by escaped quotes (\") or escape sequences already present (\\n).
+ */
+function repairJSON(text) {
+  let inStr  = false;   // currently inside a JSON string
+  let escape = false;   // previous char was an unprocessed backslash
+  let out    = '';
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (escape) {
+      // Character after a backslash — always pass through verbatim
+      escape = false;
+      out += ch;
+      continue;
+    }
+
+    if (ch === '\\' && inStr) {
+      // Start of an escape sequence inside a string
+      escape = true;
+      out += ch;
+      continue;
+    }
+
+    if (ch === '"') {
+      inStr = !inStr;
+      out += ch;
+      continue;
+    }
+
+    if (inStr) {
+      // Inside a string value: escape illegal control characters
+      const code = ch.charCodeAt(0);
+      if      (ch === '\n') { out += '\\n';  continue; }
+      else if (ch === '\r') { out += '\\r';  continue; }
+      else if (ch === '\t') { out += '\\t';  continue; }
+      else if (code < 0x20) { /* drop other control chars */ continue; }
+    }
+
+    out += ch;
+  }
+
+  return out;
+}
+
+/**
  * Robustly extract and parse the first valid JSON object from model output.
  *
  * Strategy (ordered by confidence):
- *  1. Markdown code fences  — ```json ... ``` or ``` ... ```
- *  2. Brace-depth scanning  — last block first (most recent = actual answer,
- *     not a reasoning artifact or code example embedded earlier in the text)
- *  3. Newline normalisation — each candidate is retried with \r?\n → space
- *     (some models emit literal newlines inside JSON string values)
+ *  1. Direct parse — model output is already clean JSON (fastest path)
+ *  2. Direct parse after repairJSON — handles Qwen3 literal newlines in strings
+ *  3. Markdown code fences — ```json ... ``` or ``` ... ```
+ *  4. Anchor on `{"files":` — worker-specific: find the blueprint key and try
+ *     JSON.parse from that position (avoids brace-scanner confusion from code
+ *     content with unbalanced braces inside string values)
+ *  5. Brace-depth scanning last → first — generic fallback; each block is
+ *     tried raw then after repairJSON
  *
  * Returns the parsed object, or null if nothing is parseable.
  */
 export function extractJSON(text) {
   if (!text) return null;
 
-  const candidates = [];
+  const trimmed = text.trim();
 
-  // ── Pass 1: markdown code fence extraction ─────────────────────────────────
-  // Handles ```json\n{...}\n``` and ```\n{...}\n```
+  // ── Pass 1: direct parse (model output is already valid JSON) ──────────────
+  try { return JSON.parse(trimmed); } catch { /* continue */ }
+  try { return JSON.parse(repairJSON(trimmed)); } catch { /* continue */ }
+
+  // ── Pass 2: markdown code fences ───────────────────────────────────────────
   const fenceRe = /```(?:json)?\s*\n?([\s\S]*?)\n?```/g;
   let m;
-  while ((m = fenceRe.exec(text)) !== null) {
+  while ((m = fenceRe.exec(trimmed)) !== null) {
     const inner = m[1].trim();
-    if (inner.startsWith('{') || inner.startsWith('[')) candidates.push(inner);
+    if (!inner.startsWith('{') && !inner.startsWith('[')) continue;
+    try { return JSON.parse(inner); }         catch { /* try repaired */ }
+    try { return JSON.parse(repairJSON(inner)); } catch { /* next */ }
   }
 
-  // ── Pass 2: brace-depth scanning (collected last → first) ─────────────────
-  // Iterating from the end means the model's actual answer (always last)
-  // is tried before any JSON-like fragments in the reasoning preamble.
+  // ── Pass 3: anchor on `{"files":` (worker blueprint key) ───────────────────
+  // Qwen3 often emits preamble text before the JSON. Anchoring on the known
+  // key avoids the brace-scanner's blind spot (unbalanced braces in code).
+  const filesAnchor = trimmed.indexOf('{"files"');
+  if (filesAnchor !== -1) {
+    const sub = trimmed.slice(filesAnchor);
+    try { return JSON.parse(sub); }           catch { /* try repaired */ }
+    try { return JSON.parse(repairJSON(sub)); } catch { /* fall through */ }
+  }
+
+  // ── Pass 4: brace-depth scanning (collected last → first) ──────────────────
+  // Last resort. Iterating from the end prioritises the model's actual answer
+  // over any JSON-like fragments in the reasoning preamble.
   const blocks = [];
   let depth = 0, start = -1;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === '{') { if (depth === 0) start = i; depth++; }
-    else if (text[i] === '}' && depth > 0) {
+  for (let i = 0; i < trimmed.length; i++) {
+    if (trimmed[i] === '{') { if (depth === 0) start = i; depth++; }
+    else if (trimmed[i] === '}' && depth > 0) {
       depth--;
-      if (depth === 0 && start !== -1) { blocks.push(text.slice(start, i + 1)); start = -1; }
+      if (depth === 0 && start !== -1) { blocks.push(trimmed.slice(start, i + 1)); start = -1; }
     }
   }
-  for (let i = blocks.length - 1; i >= 0; i--) candidates.push(blocks[i]);
-
-  // ── Pass 3: try each candidate ─────────────────────────────────────────────
-  for (const raw of candidates) {
-    try { return JSON.parse(raw); } catch { /* try normalised */ }
-    try { return JSON.parse(raw.replace(/\r?\n/g, ' ')); } catch { /* next */ }
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const raw = blocks[i];
+    try { return JSON.parse(raw); }           catch { /* try repaired */ }
+    try { return JSON.parse(repairJSON(raw)); } catch { /* next */ }
   }
 
   return null;

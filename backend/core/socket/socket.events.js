@@ -29,4 +29,7 @@ export const SocketEvents = {
 
   // Researcher MCP
   RESEARCHER_WEB_SOURCES:   'researcher:web_sources',
+
+  // Job queue
+  QUEUE_UPDATED:            'queue:updated',
 };

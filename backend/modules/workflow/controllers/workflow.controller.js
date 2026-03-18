@@ -1,4 +1,5 @@
 import { WorkflowRunner, stopWorkflowRun } from '../services/workflow.runner.js';
+import { agentQueue } from '../../../core/queue/agent.queue.js';
 import { v4 as uuidv4 } from 'uuid';
 
 export class WorkflowController {
@@ -11,13 +12,28 @@ export class WorkflowController {
       const { goal, sessionId = uuidv4(), projectId = null } = req.body;
       if (!goal) return res.status(400).json({ error: 'goal is required' });
 
-      // Pre-generate runId so the client can use it immediately for stop
-      const runId = uuidv4();
-      res.json({ runId, sessionId, projectId, status: 'started' });
+      const runId   = uuidv4();
+      const current = agentQueue.getSnapshot();
+      const depth   = current.length;  // jobs already in queue (queued + running)
 
-      // Execute in background with the pre-generated runId
-      this.runner.run(goal, sessionId, null, runId, projectId).catch((err) => {
-        console.error('Workflow background error:', err.message);
+      // Respond immediately — client uses runId for stop and jobId for cancel
+      let jobId;
+      res.json({
+        runId,
+        sessionId,
+        projectId,
+        status:   depth === 0 ? 'started' : 'queued',
+        position: depth + 1,
+      });
+
+      agentQueue.enqueue(
+        'workflow',
+        goal,
+        () => this.runner.run(goal, sessionId, null, runId, projectId),
+        runId,
+        (id) => { jobId = id; },
+      ).catch(err => {
+        if (!err.cancelled) console.error('Workflow queue error:', err.message);
       });
     } catch (e) { next(e); }
   };

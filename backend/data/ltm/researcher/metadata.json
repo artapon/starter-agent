@@ -1,0 +1,447 @@
+{
+  "dim": 256,
+  "entries": [
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n@octokit/request v10.0.8 (121901k/mo)\nURL: https://www.npmjs.com/package/@octokit/request\nDesc: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\n\n@octokit/types v16.0.0 (186867k/mo)\nURL: https://www.npmjs.com/package/@octokit/types\nDesc: Shared TypeScript definitions for Octokit projects\nKeywords: github, api, sdk, toolkit, typescript\n\n@octokit/plugin-rest-endpoint-methods v17.0.0 (92735k/mo)\nURL: https://www.npmjs.com/package/@octok",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "search"
+      },
+      "ts": 1773857177828
+    },
+    {
+      "content": "[STACK OVERFLOW TOP QUESTIONS] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[2pts, 3 answers ✓] AWS Cognito + my own identity solution using DynamoDB?\nhttps://stackoverflow.com/questions/41658516/aws-cognito-my-own-identity-solution-using-dynamodb\nTags: node.js, amazon-web-services, lambda, amazon-dynamodb, amazon-cognito\n\n[2pts, 2 answers] Core 2 Authorize on API Controller\nhttps://stackoverflow.com/questions/46711593/core-2-authorize-on-api-controller\nTags: c#, asp.net-mvc, asp.net-core, asp.net-core-webapi, asp.net-core-2.0\n\n[1pts, 1 answers ✓] 401 when trying to auth",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "stackoverflow",
+        "kind": "search"
+      },
+      "ts": 1773857177840
+    },
+    {
+      "content": "[GITHUB REPOSITORIES (sorted by stars)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nRepo: ivanalbizu/angular_wordpress_rest_api (★4, JavaScript)\nURL: https://github.com/ivanalbizu/angular_wordpress_rest_api\nDesc: Angular consuming Wordpress Rest Api.Authenticate with JWT. Crud for Posts and Custom content types. Accessing certain fields through Endpoints. Wordpress Editing fields from AngularJS\nTopics: n/a\n\nRepo: Hassenne/NestJSAPIRestPostgreSQL (★2, TypeScript)\nURL: https://github.com/Hassenne/NestJSAPIRestPostgreSQL\nDesc: Becoming familiar with the NestJS framework an",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "search"
+      },
+      "ts": 1773857177850
+    },
+    {
+      "content": "[DUCKDUCKGO WEB RESULTS (articles, docs, tutorials)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[1] JWT Authentication in a Spring Boot REST API | Medium\nURL: https://medium.com/@AlexanderObregon/setting-up-jwt-based-authentication-in-a-spring-boot-rest-api-957c826cb4b3\nSnippet: Learn how to secure a Spring Boot REST API by issuing and validating JWTs without third-party tools like Keycloak or Auth0, step by step.\n\n[2] How to Secure REST APIs with Spring Security and JWT (2025 Edition)\nURL: https://www.javacodegeeks.com/2025/05/how-to-secure-rest-apis-with-spring-secur",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "search"
+      },
+      "ts": 1773857177859
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nJWT Authentication in a Spring Boot REST API | Medium Sitemap Open in app Sign up Sign in Medium Logo Get app Write Search Sign up Sign in Setting Up JWT-Based Authentication in a Spring Boot REST API Alexander Obregon 11 min read · Mar 27, 2025 -- 1 Listen Share Press enter or click to view image in full size Image Source Securing a REST API is a common task when working with backend systems. One way to do that is by using JWTs — short for JSON Web Tokens. These tokens let you pass around identity and authorizati",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773857177874
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nHow to Secure REST APIs with Spring Security and JWT (2025 Edition) - Java Code Geeks In 2025, stateless authentication remains the go-to approach for securing REST APIs. Spring Security combined with JWT (JSON Web Tokens) continues to be a powerful, scalable solution — but the practices around token handling, refresh flows, and endpoint protection have evolved. This guide walks you through securing your Spring Boot REST APIs using Spring Security and JWT, with updated approaches for 2025. ⚙️ Why JWT for REST API ",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773857177884
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n<p align=\"center\">\n  <a href=\"http://nestjs.com/\" target=\"blank\"><img src=\"https://nestjs.com/img/logo_text.svg\" width=\"320\" alt=\"Nest Logo\" /></a>\n</p>\n\n[travis-image]: https://api.travis-ci.org/nestjs/nest.svg?branch=master\n[travis-url]: https://travis-ci.org/nestjs/nest\n[linux-image]: https://img.shields.io/travis/nestjs/nest/master.svg?label=linux\n[linux-url]: https://travis-ci.org/nestjs/nest\n  \n  <p align=\"center\">A progressive <a href=\"http://nodejs.org\" target=\"blank\">Node.js</a> framework for bui",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773857177895
+    },
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nPackage: @octokit/request  Version: 10.0.8\nDescription: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\nHomepage: https://github.com/octokit/request.js#readme\nRepository: git+https://github.com/octokit/request.js.git\n\nREADME:\n# request.js\n\n> Send parameterized requests to GitHub’s APIs with sensible defaults in browsers and Node\n\n[![@latest](https://img.shields.io/npm/v/@octokit/request.svg)](https://www.npmjs.com/package/@octokit/r",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "page"
+      },
+      "ts": 1773857177906
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n# wpapi\n\nThis project is generated with [yo angular generator](https://github.com/yeoman/generator-angular)\nversion 0.14.0.\n\n## Build & development\n\nRun `grunt` for building and `grunt serve` for preview.\n\n## Testing\n\nRunning `grunt test` will run the unit tests with karma.\n# angular_wordpress_rest_api\n",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773857177916
+    },
+    {
+      "content": "Goal: Build a REST API with JWT authentication and CRUD endpoint\nResult: ",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "45e37735-0a73-452c-a0bb-fc2d03d1b6cf"
+      },
+      "ts": 1773857178071
+    },
+    {
+      "content": "[DUCKDUCKGO WEB RESULTS (articles, docs, tutorials)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[1] JWT Authentication in a Spring Boot REST API | Medium\nURL: https://medium.com/@AlexanderObregon/setting-up-jwt-based-authentication-in-a-spring-boot-rest-api-957c826cb4b3\nSnippet: Learn how to secure a Spring Boot REST API by issuing and validating JWTs without third-party tools like Keycloak or Auth0, step by step.\n\n[2] How to Secure REST APIs with Spring Security and JWT (2025 Edition)\nURL: https://www.javacodegeeks.com/2025/05/how-to-secure-rest-apis-with-spring-secur",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "search"
+      },
+      "ts": 1773858396821
+    },
+    {
+      "content": "[GITHUB REPOSITORIES (sorted by stars)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nRepo: ivanalbizu/angular_wordpress_rest_api (★4, JavaScript)\nURL: https://github.com/ivanalbizu/angular_wordpress_rest_api\nDesc: Angular consuming Wordpress Rest Api.Authenticate with JWT. Crud for Posts and Custom content types. Accessing certain fields through Endpoints. Wordpress Editing fields from AngularJS\nTopics: n/a\n\nRepo: Hassenne/NestJSAPIRestPostgreSQL (★2, TypeScript)\nURL: https://github.com/Hassenne/NestJSAPIRestPostgreSQL\nDesc: Becoming familiar with the NestJS framework an",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "search"
+      },
+      "ts": 1773858396851
+    },
+    {
+      "content": "[STACK OVERFLOW TOP QUESTIONS] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[2pts, 3 answers ✓] AWS Cognito + my own identity solution using DynamoDB?\nhttps://stackoverflow.com/questions/41658516/aws-cognito-my-own-identity-solution-using-dynamodb\nTags: node.js, amazon-web-services, lambda, amazon-dynamodb, amazon-cognito\n\n[2pts, 2 answers] Core 2 Authorize on API Controller\nhttps://stackoverflow.com/questions/46711593/core-2-authorize-on-api-controller\nTags: c#, asp.net-mvc, asp.net-core, asp.net-core-webapi, asp.net-core-2.0\n\n[1pts, 1 answers ✓] 401 when trying to auth",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "stackoverflow",
+        "kind": "search"
+      },
+      "ts": 1773858396881
+    },
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n@octokit/request v10.0.8 (121901k/mo)\nURL: https://www.npmjs.com/package/@octokit/request\nDesc: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\n\n@octokit/types v16.0.0 (186867k/mo)\nURL: https://www.npmjs.com/package/@octokit/types\nDesc: Shared TypeScript definitions for Octokit projects\nKeywords: github, api, sdk, toolkit, typescript\n\n@octokit/plugin-rest-endpoint-methods v17.0.0 (92735k/mo)\nURL: https://www.npmjs.com/package/@octok",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "search"
+      },
+      "ts": 1773858396932
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n# wpapi\n\nThis project is generated with [yo angular generator](https://github.com/yeoman/generator-angular)\nversion 0.14.0.\n\n## Build & development\n\nRun `grunt` for building and `grunt serve` for preview.\n\n## Testing\n\nRunning `grunt test` will run the unit tests with karma.\n# angular_wordpress_rest_api\n",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773858397079
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n<p align=\"center\">\n  <a href=\"http://nestjs.com/\" target=\"blank\"><img src=\"https://nestjs.com/img/logo_text.svg\" width=\"320\" alt=\"Nest Logo\" /></a>\n</p>\n\n[travis-image]: https://api.travis-ci.org/nestjs/nest.svg?branch=master\n[travis-url]: https://travis-ci.org/nestjs/nest\n[linux-image]: https://img.shields.io/travis/nestjs/nest/master.svg?label=linux\n[linux-url]: https://travis-ci.org/nestjs/nest\n  \n  <p align=\"center\">A progressive <a href=\"http://nodejs.org\" target=\"blank\">Node.js</a> framework for bui",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773858397222
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nJWT Authentication in a Spring Boot REST API | Medium Sitemap Open in app Sign up Sign in Medium Logo Get app Write Search Sign up Sign in Setting Up JWT-Based Authentication in a Spring Boot REST API Alexander Obregon 11 min read · Mar 27, 2025 -- 1 Listen Share Press enter or click to view image in full size Image Source Securing a REST API is a common task when working with backend systems. One way to do that is by using JWTs — short for JSON Web Tokens. These tokens let you pass around identity and authorizati",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773858397359
+    },
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nPackage: @octokit/request  Version: 10.0.8\nDescription: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\nHomepage: https://github.com/octokit/request.js#readme\nRepository: git+https://github.com/octokit/request.js.git\n\nREADME:\n# request.js\n\n> Send parameterized requests to GitHub’s APIs with sensible defaults in browsers and Node\n\n[![@latest](https://img.shields.io/npm/v/@octokit/request.svg)](https://www.npmjs.com/package/@octokit/r",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "page"
+      },
+      "ts": 1773858397528
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nHow to Secure REST APIs with Spring Security and JWT (2025 Edition) - Java Code Geeks In 2025, stateless authentication remains the go-to approach for securing REST APIs. Spring Security combined with JWT (JSON Web Tokens) continues to be a powerful, scalable solution — but the practices around token handling, refresh flows, and endpoint protection have evolved. This guide walks you through securing your Spring Boot REST APIs using Spring Security and JWT, with updated approaches for 2025. ⚙️ Why JWT for REST API ",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773858397703
+    },
+    {
+      "content": "Goal: Build a REST API with JWT authentication and CRUD endpoint\nResult: ",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "ce33e067-c96c-45d2-9f00-095493cae034"
+      },
+      "ts": 1773858413480
+    },
+    {
+      "content": "[GITHUB REPOSITORIES (sorted by stars)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nRepo: ivanalbizu/angular_wordpress_rest_api (★4, JavaScript)\nURL: https://github.com/ivanalbizu/angular_wordpress_rest_api\nDesc: Angular consuming Wordpress Rest Api.Authenticate with JWT. Crud for Posts and Custom content types. Accessing certain fields through Endpoints. Wordpress Editing fields from AngularJS\nTopics: n/a\n\nRepo: Hassenne/NestJSAPIRestPostgreSQL (★2, TypeScript)\nURL: https://github.com/Hassenne/NestJSAPIRestPostgreSQL\nDesc: Becoming familiar with the NestJS framework an",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "search"
+      },
+      "ts": 1773858651299
+    },
+    {
+      "content": "[DUCKDUCKGO WEB RESULTS (articles, docs, tutorials)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[1] GitHub - kenankd/java-spring-rest-api: RESTful API\nURL: https://github.com/kenankd/java-spring-rest-api\nSnippet: This Java project, built using IntelliJ IDEA, implements a RESTful CRUD API with user roles (user and admin). It leverages Spring Boot, Spring, Spring Security, and Spring Data JPA to provide robust functionality for user registration and CRUD operations on the user entity. Additionally, it incorporates JWT (JSON Web Token) for secure authentication and author",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "search"
+      },
+      "ts": 1773858651323
+    },
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n@octokit/request v10.0.8 (121901k/mo)\nURL: https://www.npmjs.com/package/@octokit/request\nDesc: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\n\n@octokit/types v16.0.0 (186867k/mo)\nURL: https://www.npmjs.com/package/@octokit/types\nDesc: Shared TypeScript definitions for Octokit projects\nKeywords: github, api, sdk, toolkit, typescript\n\n@octokit/plugin-rest-endpoint-methods v17.0.0 (92735k/mo)\nURL: https://www.npmjs.com/package/@octok",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "search"
+      },
+      "ts": 1773858651352
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n# RESTful CRUD API with JWT Authentication and Authorization\n\nThis Java project, built using IntelliJ IDEA, implements a RESTful CRUD API with user roles (user and admin). It leverages Spring Boot, Spring, Spring Security, and Spring Data JPA to provide robust functionality for user registration and CRUD operations on the user entity. Additionally, it incorporates JWT (JSON Web Token) for secure authentication and authorization.\n\n## Features\n\n- **User Registration:** Users can register with the system, providing t",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773858651499
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n# wpapi\n\nThis project is generated with [yo angular generator](https://github.com/yeoman/generator-angular)\nversion 0.14.0.\n\n## Build & development\n\nRun `grunt` for building and `grunt serve` for preview.\n\n## Testing\n\nRunning `grunt test` will run the unit tests with karma.\n# angular_wordpress_rest_api\n",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773858651667
+    },
+    {
+      "content": "[STACK OVERFLOW TOP QUESTIONS] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[2pts, 3 answers ✓] AWS Cognito + my own identity solution using DynamoDB?\nhttps://stackoverflow.com/questions/41658516/aws-cognito-my-own-identity-solution-using-dynamodb\nTags: node.js, amazon-web-services, lambda, amazon-dynamodb, amazon-cognito\n\n[2pts, 2 answers] Core 2 Authorize on API Controller\nhttps://stackoverflow.com/questions/46711593/core-2-authorize-on-api-controller\nTags: c#, asp.net-mvc, asp.net-core, asp.net-core-webapi, asp.net-core-2.0\n\n[1pts, 1 answers ✓] 401 when trying to auth",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "stackoverflow",
+        "kind": "search"
+      },
+      "ts": 1773858651813
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n<p align=\"center\">\n  <a href=\"http://nestjs.com/\" target=\"blank\"><img src=\"https://nestjs.com/img/logo_text.svg\" width=\"320\" alt=\"Nest Logo\" /></a>\n</p>\n\n[travis-image]: https://api.travis-ci.org/nestjs/nest.svg?branch=master\n[travis-url]: https://travis-ci.org/nestjs/nest\n[linux-image]: https://img.shields.io/travis/nestjs/nest/master.svg?label=linux\n[linux-url]: https://travis-ci.org/nestjs/nest\n  \n  <p align=\"center\">A progressive <a href=\"http://nodejs.org\" target=\"blank\">Node.js</a> framework for bui",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773858651974
+    },
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nPackage: @octokit/request  Version: 10.0.8\nDescription: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\nHomepage: https://github.com/octokit/request.js#readme\nRepository: git+https://github.com/octokit/request.js.git\n\nREADME:\n# request.js\n\n> Send parameterized requests to GitHub’s APIs with sensible defaults in browsers and Node\n\n[![@latest](https://img.shields.io/npm/v/@octokit/request.svg)](https://www.npmjs.com/package/@octokit/r",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "page"
+      },
+      "ts": 1773858652117
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nBuilding A Restful Api With Jwt Authentication In A Crud Application &ndash; peerdh.com Skip to content Other sign in options Sign in Other sign in options Sign in Total items in cart: 0 0 Your cart is empty Have an account? Log in to check out faster. Continue shopping Creating a RESTful API is a common task for developers, especially when building applications that require data management. In this article, we will focus on implementing JWT (JSON Web Token) authentication in a CRUD (Create, Read, Update, Delete) ",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "d89bba6a-923d-4b0b-9821-b77883fda450",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773858652275
+    },
+    {
+      "content": "[GOOGLE SEARCH — AI OVERVIEW & RESULTS] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[1] Building a Secure Spring Boot CRUD Application with JWT ...\nURL: https://medium.com/@muskanyadav02420/building-a-secure-spring-boot-crud-application-with-jwt-authentication-f74e4dfe34d9\nSnippet: ... build a real-world REST API project that implements: ✓ CRUD operations; ✓ JWT-based authentication ; ✓ Spring Security; ✓ PostgreSQL ...\n\n[2] Build CRUD REST APIs with ASP.NET Core 3.1 and Entity ...\nURL: https://stackoverflow.com/questions/75486822/correct-way-to-make-secured-crud-api-wi",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "google",
+        "kind": "search"
+      },
+      "ts": 1773858683377
+    },
+    {
+      "content": "[DUCKDUCKGO WEB RESULTS (articles, docs, tutorials)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[1] JWT Authentication in a Spring Boot REST API | Medium\nURL: https://medium.com/@AlexanderObregon/setting-up-jwt-based-authentication-in-a-spring-boot-rest-api-957c826cb4b3\nSnippet: Learn how to secure a Spring Boot REST API by issuing and validating JWTs without third-party tools like Keycloak or Auth0, step by step.\n\n[2] How to Secure REST APIs with Spring Security and JWT (2025 Edition)\nURL: https://www.javacodegeeks.com/2025/05/how-to-secure-rest-apis-with-spring-secur",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "search"
+      },
+      "ts": 1773858683394
+    },
+    {
+      "content": "[GITHUB REPOSITORIES (sorted by stars)] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nRepo: ivanalbizu/angular_wordpress_rest_api (★4, JavaScript)\nURL: https://github.com/ivanalbizu/angular_wordpress_rest_api\nDesc: Angular consuming Wordpress Rest Api.Authenticate with JWT. Crud for Posts and Custom content types. Accessing certain fields through Endpoints. Wordpress Editing fields from AngularJS\nTopics: n/a\n\nRepo: Hassenne/NestJSAPIRestPostgreSQL (★2, TypeScript)\nURL: https://github.com/Hassenne/NestJSAPIRestPostgreSQL\nDesc: Becoming familiar with the NestJS framework an",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "search"
+      },
+      "ts": 1773858683411
+    },
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n@octokit/request v10.0.8 (121901k/mo)\nURL: https://www.npmjs.com/package/@octokit/request\nDesc: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\n\n@octokit/types v16.0.0 (186867k/mo)\nURL: https://www.npmjs.com/package/@octokit/types\nDesc: Shared TypeScript definitions for Octokit projects\nKeywords: github, api, sdk, toolkit, typescript\n\n@octokit/plugin-rest-endpoint-methods v17.0.0 (92735k/mo)\nURL: https://www.npmjs.com/package/@octok",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "search"
+      },
+      "ts": 1773858683712
+    },
+    {
+      "content": "[STACK OVERFLOW TOP QUESTIONS] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n[2pts, 3 answers ✓] AWS Cognito + my own identity solution using DynamoDB?\nhttps://stackoverflow.com/questions/41658516/aws-cognito-my-own-identity-solution-using-dynamodb\nTags: node.js, amazon-web-services, lambda, amazon-dynamodb, amazon-cognito\n\n[2pts, 2 answers] Core 2 Authorize on API Controller\nhttps://stackoverflow.com/questions/46711593/core-2-authorize-on-api-controller\nTags: c#, asp.net-mvc, asp.net-core, asp.net-core-webapi, asp.net-core-2.0\n\n[1pts, 1 answers ✓] 401 when trying to auth",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "stackoverflow",
+        "kind": "search"
+      },
+      "ts": 1773858684010
+    },
+    {
+      "content": "[GOOGLE + AI OVERVIEW] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nBuilding a Secure Spring Boot CRUD Application with JWT Authentication | by Muskanyadav | Feb, 2026 | Medium Sitemap Open in app Sign up Sign in Medium Logo Get app Write Search Sign up Sign in Building a Secure Spring Boot CRUD Application with JWT Authentication Muskanyadav 2 min read · Feb 23, 2026 -- Listen Share As a backend developer working with Java and Spring Boot, I wanted to build a real-world REST API project that implements: ✅ CRUD operations ✅ JWT-based authentication ✅ Spring Security ✅ Po",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "google",
+        "kind": "page"
+      },
+      "ts": 1773858684172
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nJWT Authentication in a Spring Boot REST API | Medium Sitemap Open in app Sign up Sign in Medium Logo Get app Write Search Sign up Sign in Setting Up JWT-Based Authentication in a Spring Boot REST API Alexander Obregon 11 min read · Mar 27, 2025 -- 1 Listen Share Press enter or click to view image in full size Image Source Securing a REST API is a common task when working with backend systems. One way to do that is by using JWTs — short for JSON Web Tokens. These tokens let you pass around identity and authorizati",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773858684344
+    },
+    {
+      "content": "[DUCKDUCKGO] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nHow to Secure REST APIs with Spring Security and JWT (2025 Edition) - Java Code Geeks In 2025, stateless authentication remains the go-to approach for securing REST APIs. Spring Security combined with JWT (JSON Web Tokens) continues to be a powerful, scalable solution — but the practices around token handling, refresh flows, and endpoint protection have evolved. This guide walks you through securing your Spring Boot REST APIs using Spring Security and JWT, with updated approaches for 2025. ⚙️ Why JWT for REST API ",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "duckduckgo",
+        "kind": "page"
+      },
+      "ts": 1773858684491
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n# wpapi\n\nThis project is generated with [yo angular generator](https://github.com/yeoman/generator-angular)\nversion 0.14.0.\n\n## Build & development\n\nRun `grunt` for building and `grunt serve` for preview.\n\n## Testing\n\nRunning `grunt test` will run the unit tests with karma.\n# angular_wordpress_rest_api\n",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773858684640
+    },
+    {
+      "content": "[GITHUB REPOSITORIES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\n<p align=\"center\">\n  <a href=\"http://nestjs.com/\" target=\"blank\"><img src=\"https://nestjs.com/img/logo_text.svg\" width=\"320\" alt=\"Nest Logo\" /></a>\n</p>\n\n[travis-image]: https://api.travis-ci.org/nestjs/nest.svg?branch=master\n[travis-url]: https://travis-ci.org/nestjs/nest\n[linux-image]: https://img.shields.io/travis/nestjs/nest/master.svg?label=linux\n[linux-url]: https://travis-ci.org/nestjs/nest\n  \n  <p align=\"center\">A progressive <a href=\"http://nodejs.org\" target=\"blank\">Node.js</a> framework for bui",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "github",
+        "kind": "page"
+      },
+      "ts": 1773858684793
+    },
+    {
+      "content": "[NPM PACKAGES] (topic: Build a REST API with JWT authentication and CRUD endpoint)\nPackage: @octokit/request  Version: 10.0.8\nDescription: Send parameterized requests to GitHub's APIs with sensible defaults in browsers and Node\nKeywords: octokit, github, api, request\nHomepage: https://github.com/octokit/request.js#readme\nRepository: git+https://github.com/octokit/request.js.git\n\nREADME:\n# request.js\n\n> Send parameterized requests to GitHub’s APIs with sensible defaults in browsers and Node\n\n[![@latest](https://img.shields.io/npm/v/@octokit/request.svg)](https://www.npmjs.com/package/@octokit/r",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7",
+        "goal": "Build a REST API with JWT authentication and CRUD endpoint",
+        "sourceType": "npm",
+        "kind": "page"
+      },
+      "ts": 1773858684953
+    },
+    {
+      "content": "Goal: Build a REST API with JWT authentication and CRUD endpoint\nResult: ",
+      "metadata": {
+        "agentId": "researcher",
+        "sessionId": "bacbb425-a66f-4b26-b662-a3fd4218dda7"
+      },
+      "ts": 1773858688032
+    }
+  ]
+}
