@@ -17,8 +17,10 @@ const logger = createLogger('embedder');
 
 export const FALLBACK_DIM = 256;
 
-let _detectedDim  = null;
-let _useLMStudio  = true;  // set false after first failure; reset on server restart
+let _detectedDim    = null;
+let _useLMStudio    = true;   // set false after first failure
+let _retryAfter     = 0;      // timestamp (ms) when to retry LM Studio again
+const RETRY_DELAY   = 60_000; // retry every 60 s after a failure
 
 // ── Hash fallback ─────────────────────────────────────────────────────────────
 
@@ -45,10 +47,13 @@ async function _lmStudioEmbed(text) {
   const baseUrl = (row?.base_url || 'http://localhost:1234/v1').replace(/\/+$/, '');
   const apiKey  = row?.api_key  || 'lm-studio';
 
+  const body = { input: text };
+  if (row?.model_name) body.model = row.model_name;
+
   const res = await fetch(`${baseUrl}/embeddings`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body:    JSON.stringify({ input: text }),
+    body:    JSON.stringify(body),
     signal:  AbortSignal.timeout(10000),
   });
   if (!res.ok) throw new Error(`Embeddings API HTTP ${res.status}`);
@@ -65,20 +70,26 @@ async function _lmStudioEmbed(text) {
  * Uses LM Studio if available, otherwise falls back to hashEmbed.
  */
 export async function embed(text) {
-  if (_useLMStudio) {
-    try {
-      const vec = await _lmStudioEmbed(text);
-      if (!_detectedDim) {
-        _detectedDim = vec.length;
-        logger.info(`LM Studio embeddings: ${_detectedDim}-dim`);
-      }
-      return vec;
-    } catch (err) {
-      logger.warn(`LM Studio embeddings unavailable — using hash fallback: ${err.message}`);
-      _useLMStudio = false;
-    }
+  const now = Date.now();
+  if (!_useLMStudio && now < _retryAfter) {
+    return hashEmbed(text, _detectedDim || FALLBACK_DIM);
   }
-  return hashEmbed(text, FALLBACK_DIM);
+  try {
+    const vec = await _lmStudioEmbed(text);
+    if (!_detectedDim) {
+      _detectedDim = vec.length;
+      logger.info(`LM Studio embeddings: ${_detectedDim}-dim`);
+    }
+    _useLMStudio = true;
+    return vec;
+  } catch (err) {
+    if (_useLMStudio) {
+      logger.warn(`LM Studio embeddings unavailable — using hash fallback: ${err.message}`);
+    }
+    _useLMStudio = false;
+    _retryAfter  = now + RETRY_DELAY;
+    return hashEmbed(text, _detectedDim || FALLBACK_DIM);
+  }
 }
 
 /** Returns the embedding dimension (detected or fallback). */

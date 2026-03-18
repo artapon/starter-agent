@@ -106,10 +106,21 @@
             <v-icon size="15" color="#10B981">mdi-play-circle-outline</v-icon>
             <span class="card-title">Research Task</span>
           </div>
-          <span class="badge" :class="runBadgeClass">
-            <span class="dot" :class="runPulse ? 'dot-pulse' : ''"></span>
-            {{ runBadgeText }}
-          </span>
+          <div class="card-header-right">
+            <div class="mode-toggle-row">
+              <label class="toggle toggle--sm">
+                <input type="checkbox" :checked="researchOnly" @change="researchOnly = $event.target.checked" />
+                <span class="slider"></span>
+              </label>
+              <span class="mode-toggle-label" :style="researchOnly ? 'color:#22D3EE' : 'color:rgba(226,232,240,0.4)'">
+                {{ researchOnly ? 'Research only' : 'Full workflow' }}
+              </span>
+            </div>
+            <span class="badge" :class="runBadgeClass">
+              <span class="dot" :class="runPulse ? 'dot-pulse' : ''"></span>
+              {{ runBadgeText }}
+            </span>
+          </div>
         </div>
         <div class="input-row">
           <input
@@ -177,8 +188,164 @@
         </div>
       </div>
 
-      <!-- Section 5: Output Inspector -->
-      <div class="section-label">5 — Research Output Inspector</div>
+      <!-- Section 5: Search Result Summary -->
+      <div class="section-label">
+        5 — Search Result Summary
+        <span class="section-sub">(per-source breakdown)</span>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#A78BFA">mdi-chart-bar</v-icon>
+            <span class="card-title">What Was Found</span>
+          </div>
+          <span class="badge" :class="sourceGroups.length ? 'badge-cyan' : 'badge-grey'">
+            {{ sourceGroups.length ? `${sourceGroups.length} source type${sourceGroups.length > 1 ? 's' : ''}` : 'Waiting…' }}
+          </span>
+        </div>
+
+        <div v-if="!sourceGroups.length" class="empty-hint">
+          Run a research task — search result counts and snippets will appear here in real time.
+        </div>
+
+        <template v-else>
+          <!-- Stats row -->
+          <div class="srsum-stats">
+            <div class="srsum-stat">
+              <div class="srsum-stat__num" style="color:#22D3EE">{{ webSources.length }}</div>
+              <div class="srsum-stat__label">Total Sources</div>
+            </div>
+            <div class="srsum-stat">
+              <div class="srsum-stat__num" style="color:#10B981">{{ webSources.filter(s => s.snippet).length }}</div>
+              <div class="srsum-stat__label">Pages Read</div>
+            </div>
+            <div class="srsum-stat">
+              <div class="srsum-stat__num" style="color:#A78BFA">{{ sourceGroups.length }}</div>
+              <div class="srsum-stat__label">Source Types</div>
+            </div>
+            <div class="srsum-stat">
+              <div class="srsum-stat__num" style="color:#F59E0B">
+                {{ webSources.length ? Math.round(webSources.filter(s => s.snippet).length / webSources.length * 100) : 0 }}%
+              </div>
+              <div class="srsum-stat__label">Read Rate</div>
+            </div>
+          </div>
+
+          <!-- Per-type group rows -->
+          <div class="srsum-groups">
+            <div
+              v-for="g in sourceGroups" :key="g.type"
+              class="srsum-group"
+              :style="{ borderLeftColor: g.color }"
+            >
+              <div class="srsum-group__header">
+                <span class="srsum-group__icon">{{ sourceIcon(g.type) }}</span>
+                <span class="srsum-group__label" :style="{ color: g.color }">{{ g.label }}</span>
+                <span class="srsum-group__badge" :style="{ borderColor: g.color, color: g.color }">
+                  {{ g.count }} found
+                </span>
+                <span v-if="g.readCount" class="srsum-group__read">
+                  {{ g.readCount }} read
+                </span>
+                <span v-if="g.pending" class="source-loading">⏳ loading…</span>
+              </div>
+              <div v-if="g.snippet" class="srsum-group__snippet">{{ g.snippet.slice(0, 400) }}</div>
+              <div v-else-if="g.count" class="srsum-group__no-snippet">No content extracted</div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Section 6: Deep Research Phase -->
+      <div class="section-label">
+        6 — Deep Research Phase
+        <span class="section-sub">(what the LLM received · MCP only)</span>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#F59E0B">mdi-brain</v-icon>
+            <span class="card-title">Knowledge Context Sent to LLM</span>
+          </div>
+          <span class="badge" :class="deepSections.length ? 'badge-yellow' : 'badge-grey'">
+            {{ deepSections.length ? `${deepSections.length} section${deepSections.length > 1 ? 's' : ''}` : 'Waiting…' }}
+          </span>
+        </div>
+
+        <div v-if="!deepSections.length" class="empty-hint">
+          Enable MCP and run a research task — the compiled knowledge context sent to the LLM will appear here.
+        </div>
+
+        <template v-else>
+          <!-- Summary bar -->
+          <div class="deep-summary-bar">
+            <span class="deep-summary-item">
+              <span style="color:#F59E0B">{{ deepSections.filter(s => s.kind === 'search').length }}</span>
+              search results
+            </span>
+            <span class="deep-summary-sep">·</span>
+            <span class="deep-summary-item">
+              <span style="color:#22D3EE">{{ deepSections.filter(s => s.kind === 'page').length }}</span>
+              full pages
+            </span>
+            <span class="deep-summary-sep">·</span>
+            <span class="deep-summary-item">
+              <span style="color:#10B981">{{ deepSections.reduce((a, s) => a + s.content.length, 0).toLocaleString() }}</span>
+              chars total
+            </span>
+          </div>
+
+          <!-- Memory saved banner -->
+          <div v-if="memorySaved" class="deep-memory-banner">
+            <v-icon size="14" color="#10B981">mdi-database-check-outline</v-icon>
+            <span>Knowledge context saved to memory —</span>
+            <span class="deep-mem-pill deep-mem-pill--stm">STM {{ memorySaved.stm }} entry</span>
+            <span class="deep-mem-pill deep-mem-pill--ltm">LTM {{ memorySaved.ltm }} entries</span>
+          </div>
+          <div v-else-if="deepSections.length" class="deep-memory-banner deep-memory-banner--pending">
+            <v-icon size="14" color="rgba(226,232,240,0.3)">mdi-database-clock-outline</v-icon>
+            <span>Saving to memory…</span>
+          </div>
+
+          <!-- Context cards -->
+          <div class="deep-sections">
+            <div
+              v-for="(s, i) in deepSections" :key="i"
+              class="deep-section"
+              :style="{ borderLeftColor: sourceColor(s.type) }"
+            >
+              <!-- Header row — always visible, click to expand -->
+              <div class="deep-section__header" @click="expandedDeep[i] = !expandedDeep[i]">
+                <span class="deep-section__icon">{{ sourceIcon(s.type) }}</span>
+                <div class="deep-section__meta">
+                  <div class="deep-section__label" :style="{ color: sourceColor(s.type) }">
+                    {{ s.label }}
+                  </div>
+                  <div v-if="s.url" class="deep-section__url">{{ s.url }}</div>
+                </div>
+                <div class="deep-section__right">
+                  <span class="deep-section__kind" :class="s.kind === 'page' ? 'kind-page' : 'kind-search'">
+                    {{ s.kind === 'page' ? '📄 full page' : '🔍 search results' }}
+                  </span>
+                  <span class="deep-section__chars">{{ s.content.length.toLocaleString() }} chars</span>
+                  <v-icon size="14" style="color:rgba(226,232,240,0.3)">
+                    {{ expandedDeep[i] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                  </v-icon>
+                </div>
+              </div>
+
+              <!-- Expandable content -->
+              <div v-if="expandedDeep[i]" class="deep-section__content">
+                <pre class="deep-section__pre">{{ s.content }}</pre>
+              </div>
+              <div v-else class="deep-section__preview">{{ s.content.slice(0, 220) }}{{ s.content.length > 220 ? '…' : '' }}</div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Section 7: Output Inspector -->
+      <div class="section-label">7 — Research Output Inspector</div>
       <div class="card">
         <div class="card-header">
           <div class="card-header-left">
@@ -384,6 +551,7 @@ const mcpSaveOk     = ref(false);
 
 // ── Run ───────────────────────────────────────────────────────────────
 const goalInput     = ref('How to build a real-time chat app with Node.js and Socket.IO');
+const researchOnly  = ref(true);
 const running       = ref(false);
 const currentRunId  = ref(null);
 const runBadgeText  = ref('Idle');
@@ -403,10 +571,29 @@ const logStreamEl    = ref(null);
 const chatStreamEl   = ref(null);
 const backendLogEl   = ref(null);
 
-// ── Sources / findings ────────────────────────────────────────────────
-const webSources = ref([]);
-const findings   = ref(null);
-const showRaw    = ref(false);
+// ── Sources / findings / deep context ────────────────────────────────
+const webSources   = ref([]);
+const findings     = ref(null);
+const showRaw      = ref(false);
+const deepSections  = ref([]);  // structured context sent to LLM
+const expandedDeep  = ref({});  // { [index]: true } for expanded cards
+const memorySaved   = ref(null); // { stm, ltm } counts after save
+
+const sourceGroups = computed(() => {
+  const map = {};
+  for (const s of webSources.value) {
+    const t = s.type || 'web';
+    if (!map[t]) map[t] = { type: t, count: 0, readCount: 0, pending: 0, snippet: '' };
+    map[t].count++;
+    if (s.snippet) { map[t].readCount++; if (!map[t].snippet) map[t].snippet = s.snippet; }
+    else           { map[t].pending++; }
+  }
+  return Object.values(map).map(g => ({
+    ...g,
+    label: sourceLabel({ type: g.type, url: '' }),
+    color: sourceColor(g.type),
+  }));
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────
 function ts() {
@@ -500,29 +687,57 @@ async function runResearch() {
   if (!goal) return;
 
   // Reset state
-  agentLog.value    = [];
-  chatBuffer.value  = '';
-  webSources.value  = [];
-  findings.value    = null;
-  showRaw.value     = false;
-  running.value     = true;
+  agentLog.value     = [];
+  chatBuffer.value   = '';
+  webSources.value   = [];
+  findings.value     = null;
+  showRaw.value      = false;
+  deepSections.value = [];
+  expandedDeep.value = {};
+  memorySaved.value  = null;
+  running.value      = true;
   currentRunId.value = null;
   setRunBadge('cyan', '● Starting…', true);
   progressPct.value   = 5;
   progressIndet.value = false;
 
-  appendLog('🚀', 'tag-wf', `Starting workflow: "${goal}"`);
-
-  try {
-    const { data } = await axios.post('/api/workflow/start', { goal });
-    currentRunId.value = data.runId;
-    appendLog('🆔', 'tag-wf', `runId: ${data.runId}`);
-    appendLog('🆔', 'tag-wf', `sessionId: ${data.sessionId}`);
-    progressPct.value = 10;
-  } catch (e) {
-    appendLog('❌', 'tag-error', `Failed to start: ${e.message}`);
-    setRunBadge('red', '✗ Failed');
-    running.value = false;
+  if (researchOnly.value) {
+    // ── Research-only mode: run Researcher agent directly ──────────────
+    appendLog('🔬', 'tag-wf', `Research only: "${goal}"`);
+    try {
+      progressIndet.value = true;
+      const { data } = await axios.post('/api/researcher/research', { goal });
+      currentRunId.value = data.runId;
+      appendLog('🆔', 'tag-wf', `runId: ${data.runId}`);
+      appendLog('🆔', 'tag-wf', `sessionId: ${data.sessionId}`);
+      if (data.findings) findings.value = data.findings;
+      setRunBadge('green', '✓ Complete');
+      progressPct.value   = 100;
+      progressIndet.value = false;
+      running.value       = false;
+    } catch (e) {
+      if (e.response?.status !== 499) {
+        appendLog('❌', 'tag-error', `Research failed: ${e.message}`);
+      }
+      setRunBadge('red', '✗ Failed');
+      progressPct.value   = 0;
+      progressIndet.value = false;
+      running.value       = false;
+    }
+  } else {
+    // ── Full workflow mode ─────────────────────────────────────────────
+    appendLog('🚀', 'tag-wf', `Starting full workflow: "${goal}"`);
+    try {
+      const { data } = await axios.post('/api/workflow/start', { goal });
+      currentRunId.value = data.runId;
+      appendLog('🆔', 'tag-wf', `runId: ${data.runId}`);
+      appendLog('🆔', 'tag-wf', `sessionId: ${data.sessionId}`);
+      progressPct.value = 10;
+    } catch (e) {
+      appendLog('❌', 'tag-error', `Failed to start: ${e.message}`);
+      setRunBadge('red', '✗ Failed');
+      running.value = false;
+    }
   }
 }
 
@@ -574,14 +789,17 @@ function onAgentStatus(data) {
   if (data.agentId !== 'researcher') return;
   const isMCP = data.currentTask && (data.currentTask.includes('MCP') || data.currentTask.includes('Browsing') || data.currentTask.includes('Processing web'));
   appendLog(isMCP ? '🌐' : '⚡', isMCP ? 'tag-mcp' : 'tag-status', `[${data.agentId}] ${data.status}${data.currentTask ? ': ' + data.currentTask : ''}`);
-  if (data.status === 'idle') {
-    setRunBadge('green', '✓ Complete');
-    progressPct.value   = 100;
-    progressIndet.value = false;
-    running.value       = false;
-    setTimeout(tryParseFromChat, 300);
-  } else if (data.status === 'working') {
-    progressIndet.value = true;
+  // In research-only mode the HTTP response drives completion; only update progress indicator here
+  if (!researchOnly.value) {
+    if (data.status === 'idle') {
+      setRunBadge('green', '✓ Complete');
+      progressPct.value   = 100;
+      progressIndet.value = false;
+      running.value       = false;
+      setTimeout(tryParseFromChat, 300);
+    } else if (data.status === 'working') {
+      progressIndet.value = true;
+    }
   }
 }
 function onChatChunk(data) {
@@ -627,6 +845,14 @@ function onWorkflowError(data) {
 function onWebSources(data) {
   webSources.value = data.sources || [];
 }
+function onDeepContext(data) {
+  deepSections.value = data.sections || [];
+  appendLog('🧠', 'tag-wf', `Deep context ready — ${deepSections.value.length} section(s) compiled for LLM`);
+}
+function onMemorySaved(data) {
+  memorySaved.value = data;
+  appendLog('💾', 'tag-done', `Memory saved — STM: ${data.stm} entry, LTM: ${data.ltm} entries`);
+}
 function onLogEntry(entry) {
   const highlight = entry.agentId === 'researcher' || (entry.message || '').toLowerCase().includes('researcher') || (entry.message || '').toLowerCase().includes('mcp');
   appendBackendLog(entry.level, entry.agentId || '—', entry.message, highlight);
@@ -643,8 +869,10 @@ onMounted(async () => {
   socket.on('workflow:complete',     onWorkflowComplete);
   socket.on('workflow:stopped',      onWorkflowStopped);
   socket.on('workflow:error',        onWorkflowError);
-  socket.on('researcher:web_sources', onWebSources);
-  socket.on('log:entry',             onLogEntry);
+  socket.on('researcher:web_sources',  onWebSources);
+  socket.on('researcher:deep_context',  onDeepContext);
+  socket.on('researcher:memory_saved',  onMemorySaved);
+  socket.on('log:entry',               onLogEntry);
 
   if (socket.connected) onConnect();
 
@@ -665,8 +893,10 @@ onUnmounted(() => {
   socket.off('workflow:complete',     onWorkflowComplete);
   socket.off('workflow:stopped',      onWorkflowStopped);
   socket.off('workflow:error',        onWorkflowError);
-  socket.off('researcher:web_sources', onWebSources);
-  socket.off('log:entry',             onLogEntry);
+  socket.off('researcher:web_sources',  onWebSources);
+  socket.off('researcher:deep_context',  onDeepContext);
+  socket.off('researcher:memory_saved',  onMemorySaved);
+  socket.off('log:entry',               onLogEntry);
 });
 </script>
 
@@ -813,6 +1043,14 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
 .text-green { color: #10B981; }
 .text-red   { color: #EF4444; }
 
+/* ── Mode toggle (Research only / Full workflow) ─────────────────────── */
+.card-header-right { display: flex; align-items: center; gap: 12px; }
+.mode-toggle-row   { display: flex; align-items: center; gap: 8px; }
+.toggle--sm        { width: 32px; height: 18px; }
+.toggle--sm .slider::before { width: 12px; height: 12px; left: 3px; bottom: 3px; }
+.toggle--sm input:checked + .slider::before { transform: translateX(14px); }
+.mode-toggle-label { font-size: 11px; font-weight: 700; transition: color 0.2s; white-space: nowrap; }
+
 /* ── Research run ────────────────────────────────────────────────────── */
 .input-row { display: flex; gap: 8px; padding: 12px 16px; align-items: center; }
 .goal-input {
@@ -854,6 +1092,110 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
 .source-url { display: block; font-size: 11px; font-family: monospace; word-break: break-all; text-decoration: none; opacity: 0.85; line-height: 1.5; }
 .source-snippet { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 11px; color: rgba(226,232,240,0.5); line-height: 1.65; max-height: 80px; overflow: hidden; }
 .empty-hint { padding: 12px 16px; font-size: 12px; color: rgba(226,232,240,0.35); }
+
+/* ── Search Result Summary ───────────────────────────────────────────── */
+.srsum-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.srsum-stat {
+  padding: 14px 16px;
+  border-right: 1px solid rgba(255,255,255,0.04);
+  text-align: center;
+}
+.srsum-stat:last-child { border-right: none; }
+.srsum-stat__num   { font-size: 22px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
+.srsum-stat__label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(226,232,240,0.3); }
+
+.srsum-groups { display: flex; flex-direction: column; gap: 0; }
+.srsum-group {
+  padding: 12px 16px;
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.15s;
+}
+.srsum-group:last-child { border-bottom: none; }
+.srsum-group:hover { background: rgba(255,255,255,0.015); }
+.srsum-group__header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.srsum-group__icon   { font-size: 15px; }
+.srsum-group__label  { font-size: 13px; font-weight: 700; }
+.srsum-group__badge  {
+  font-size: 10px; font-weight: 700; padding: 2px 8px;
+  border: 1px solid; border-radius: 20px; opacity: 0.85;
+}
+.srsum-group__read   { font-size: 10px; color: #10B981; font-weight: 600; background: rgba(16,185,129,0.08); padding: 2px 7px; border-radius: 20px; }
+.srsum-group__snippet {
+  font-size: 11px; color: rgba(226,232,240,0.6); line-height: 1.65;
+  padding-left: 2px; border-left: 2px solid rgba(255,255,255,0.07);
+  padding-left: 10px; margin-left: 2px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.srsum-group__no-snippet { font-size: 10px; color: rgba(226,232,240,0.2); padding-left: 12px; font-style: italic; }
+
+/* ── Deep Research Phase ─────────────────────────────────────────────── */
+.deep-summary-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 12px; color: rgba(226,232,240,0.5);
+}
+.deep-summary-sep  { color: rgba(255,255,255,0.15); }
+.deep-summary-item { display: flex; align-items: center; gap: 5px; }
+.deep-summary-item span { font-weight: 800; font-size: 14px; }
+
+.deep-memory-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 16px;
+  background: rgba(16,185,129,0.06); border-bottom: 1px solid rgba(16,185,129,0.15);
+  font-size: 12px; color: rgba(226,232,240,0.6);
+}
+.deep-memory-banner--pending {
+  background: rgba(255,255,255,0.02); border-bottom-color: rgba(255,255,255,0.05);
+  color: rgba(226,232,240,0.3);
+}
+.deep-mem-pill {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+}
+.deep-mem-pill--stm { background: rgba(99,102,241,0.12); color: #818CF8; border: 1px solid rgba(99,102,241,0.25); }
+.deep-mem-pill--ltm { background: rgba(16,185,129,0.1);  color: #10B981; border: 1px solid rgba(16,185,129,0.25); }
+
+.deep-sections { display: flex; flex-direction: column; }
+.deep-section {
+  border-left: 2px solid transparent;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.deep-section:last-child { border-bottom: none; }
+
+.deep-section__header {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 11px 16px; cursor: pointer;
+  transition: background 0.15s;
+}
+.deep-section__header:hover { background: rgba(255,255,255,0.02); }
+.deep-section__icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.deep-section__meta { flex: 1; min-width: 0; }
+.deep-section__label { font-size: 12px; font-weight: 700; line-height: 1.4; }
+.deep-section__url   { font-size: 10px; font-family: monospace; color: rgba(226,232,240,0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.deep-section__right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.deep-section__kind  { font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; }
+.kind-page   { background: rgba(34,211,238,0.08); color: #22D3EE; }
+.kind-search { background: rgba(245,158,11,0.08); color: #F59E0B; }
+.deep-section__chars { font-size: 10px; color: rgba(226,232,240,0.25); font-family: monospace; }
+
+.deep-section__preview {
+  padding: 0 16px 12px 42px;
+  font-size: 11px; color: rgba(226,232,240,0.4); line-height: 1.65;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: pre-wrap; word-break: break-word;
+}
+.deep-section__content { padding: 0 16px 12px 16px; }
+.deep-section__pre {
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px; padding: 12px 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.65;
+  color: rgba(226,232,240,0.75); white-space: pre-wrap; word-break: break-word;
+  max-height: 500px; overflow-y: auto;
+}
 
 /* ── Findings ────────────────────────────────────────────────────────── */
 .findings-grid  { display: flex; flex-direction: column; gap: 16px; padding: 16px; }

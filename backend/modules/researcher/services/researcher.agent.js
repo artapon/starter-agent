@@ -271,19 +271,55 @@ export class ResearcherAgent {
       const sourceTypeToAdapter = Object.fromEntries(
         Object.values(SEARCH_ADAPTERS).map(a => [a.sourceType, a])
       );
-      const sections = [];
+      const sections    = [];
+      const deepContext = []; // structured for Debug UI
+
       for (const [key, adapter] of Object.entries(SEARCH_ADAPTERS)) {
         const results = searchResults[key];
         if (results?.length) {
-          sections.push(`=== ${adapter.contextLabel} ===\n${adapter.formatContext(results)}`);
+          const content = adapter.formatContext(results);
+          sections.push(`=== ${adapter.contextLabel} ===\n${content}`);
+          deepContext.push({ label: adapter.contextLabel, type: adapter.sourceType, kind: 'search', content });
         }
       }
       for (const { url, text, type } of pageContents) {
-        const label = sourceTypeToAdapter[type]?.label?.toUpperCase() || 'PAGE';
-        sections.push(`=== ${label}: ${url} ===\n${text.slice(0, 3000)}`);
+        const adapterLabel = sourceTypeToAdapter[type]?.label?.toUpperCase() || 'PAGE';
+        const content      = text.slice(0, 3000);
+        sections.push(`=== ${adapterLabel}: ${url} ===\n${content}`);
+        deepContext.push({ label: adapterLabel, type, kind: 'page', url, content });
       }
 
       const webContext = sections.join('\n\n---\n\n') || '(No web results — analyse from knowledge only)';
+
+      // Emit structured deep context so the Debug page can show what the LLM received
+      sm?.emit('researcher:deep_context', { sessionId, sections: deepContext });
+
+      // ── Save knowledge context to STM + LTM ───────────────────────────
+      sm?.emitAgentStatus('researcher', 'working', 'Saving knowledge context to memory…');
+
+      // STM: one compact entry capturing what was gathered (shows in Memory view)
+      const stmSummary = deepContext
+        .map(s => `[${s.label}]\n${s.content.slice(0, 300)}`)
+        .join('\n\n---\n\n')
+        .slice(0, 3000);
+      await memory.saveContext(
+        { input: `Web knowledge gathered for: ${goal.slice(0, 200)}` },
+        { output: stmSummary },
+      );
+
+      // LTM: one entry per section so each can be retrieved by future queries
+      const ltmPromises = deepContext
+        .filter(s => s.content.length > 50)
+        .map(s => memoryStore.storeToLTM(
+          'researcher',
+          `[${s.label}] (topic: ${goal.slice(0, 150)})\n${s.content.slice(0, 1200)}`,
+          { agentId: 'researcher', sessionId, goal: goal.slice(0, 150), sourceType: s.type, kind: s.kind },
+        ));
+      await Promise.allSettled(ltmPromises);
+
+      const ltmCount = ltmPromises.length;
+      logger.info(`Knowledge context saved — 1 STM entry, ${ltmCount} LTM entries`, { agentId: 'researcher' });
+      sm?.emit('researcher:memory_saved', { sessionId, stm: 1, ltm: ltmCount });
 
       // ── Phase 4: LLM expert analysis (all instructions from RESEARCHER.md) ──
       sm?.emitAgentStatus('researcher', 'working', 'Analysing...');
