@@ -29,6 +29,23 @@
           </span>
         </div>
         <div class="panel__body">
+          <v-select
+            v-model="projectId"
+            :items="projects"
+            item-title="title"
+            item-value="id"
+            label="Project (optional)"
+            variant="outlined"
+            density="compact"
+            clearable
+            hide-details
+            class="mb-3"
+            style="font-size:13px"
+          >
+            <template #prepend-inner>
+              <v-icon size="14" color="#A78BFA">mdi-folder-outline</v-icon>
+            </template>
+          </v-select>
           <v-textarea
             v-model="goal"
             label="Goal"
@@ -116,6 +133,13 @@
         <template #item.id="{ item }">
           <span class="font-mono" style="font-size:12px">{{ item.id.slice(0, 12) }}…</span>
         </template>
+        <template #item.project_id="{ item }">
+          <span v-if="item.project_id" class="proj-tag">
+            <v-icon size="11" color="#A78BFA">mdi-folder-outline</v-icon>
+            {{ projectMap[item.project_id] || item.project_id.slice(0, 8) }}
+          </span>
+          <span v-else style="font-size:11px;color:rgba(226,232,240,0.2)">—</span>
+        </template>
         <template #item.session_id="{ item }">
           <span class="font-mono" style="font-size:12px;color:rgba(226,232,240,0.45)">{{ item.session_id.slice(0, 12) }}…</span>
         </template>
@@ -150,16 +174,26 @@ import axios from 'axios';
 
 const socket = useSocket();
 const goal = ref('');
+const projectId = ref(null);
+const projects = ref([]);
 const starting = ref(false);
 const stopping = ref(false);
 const runs = ref([]);
 const activeRun = ref(null);
 const nodeEvents = ref([]);
 
+const projectMap = computed(() => Object.fromEntries(projects.value.map(p => [p.id, p.title])));
+
 const isRunning = computed(() => activeRun.value?.status === 'running');
+
+async function loadProjects() {
+  try { projects.value = await axios.get('/api/projects').then(r => r.data); }
+  catch { projects.value = []; }
+}
 
 const headers = [
   { title: 'Run ID',   key: 'id' },
+  { title: 'Project',  key: 'project_id', sortable: false },
   { title: 'Session',  key: 'session_id' },
   { title: 'Status',   key: 'status' },
   { title: 'Started',  key: 'started_at' },
@@ -185,7 +219,10 @@ async function startWorkflow() {
   starting.value = true;
   nodeEvents.value = [];
   try {
-    const { data } = await axios.post('/api/workflow/start', { goal: goal.value });
+    const { data } = await axios.post('/api/workflow/start', {
+      goal: goal.value,
+      projectId: projectId.value || null,
+    });
     activeRun.value = { runId: data.runId, status: 'running' };
     goal.value = '';
     fetchRuns();
@@ -213,6 +250,7 @@ async function fetchRuns() {
 
 onMounted(() => {
   fetchRuns();
+  loadProjects();
 
   socket.on('workflow:node_complete', (data) => {
     nodeEvents.value.push({ ...data.state, node: data.node, ts: data.ts, status: 'complete' });
@@ -378,4 +416,13 @@ onMounted(() => {
   transition: background 0.15s;
 }
 .report-btn:hover { background: rgba(34,211,238,0.15); }
+
+.proj-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; color: #A78BFA;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid rgba(167,139,250,0.2);
+  background: rgba(167,139,250,0.07);
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 </style>

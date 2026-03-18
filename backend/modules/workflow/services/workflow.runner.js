@@ -26,7 +26,7 @@ export class WorkflowRunner {
     this.db = getDb();
   }
 
-  async run(goal, sessionId, onRunId = null, presetRunId = null) {
+  async run(goal, sessionId, onRunId = null, presetRunId = null, projectId = null) {
     const runId = presetRunId || uuidv4();
     logger.info(`Starting workflow run ${runId}`, { goal, sessionId });
 
@@ -36,6 +36,7 @@ export class WorkflowRunner {
     this.db.table('workflow_runs').insert({
       id: runId,
       session_id: sessionId,
+      project_id: projectId || null,
       graph_state_json: JSON.stringify({ goal }),
       status: 'running',
       started_at: Math.floor(Date.now() / 1000),
@@ -81,6 +82,7 @@ export class WorkflowRunner {
       sessionId,
       userGoal: goal,
       runId,
+      projectId: projectId || null,
       status: 'running',
       currentStepIdx: 0,
       subtaskResults: [],

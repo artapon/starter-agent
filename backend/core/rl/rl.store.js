@@ -148,7 +148,7 @@ export class RLStore {
    * @param {number} loopNum    - Which improvement loop this is (1-based)
    * @returns {string} Full improvement task description
    */
-  buildImprovementContext(stepDesc, score, feedback, suggestions, loopNum = 1) {
+  buildImprovementContext(stepDesc, score, feedback, suggestions, loopNum = 1, userGoal = '') {
     const stats   = this.getStats();
     const target  = score < 8 ? 9 : 10;
     const similar = _findSimilar(
@@ -166,6 +166,13 @@ export class RLStore {
       `Improvement pass (loop ${loopNum}) — current score: ${score}/10, target: ${target}/10.`,
       '',
     ];
+
+    // Always include the original goal so the worker never loses context
+    if (userGoal) {
+      lines.push(`## ORIGINAL GOAL (never lose sight of this):`);
+      lines.push(userGoal);
+      lines.push('');
+    }
 
     // Section 1: Required fixes from this reviewer pass
     lines.push('## REQUIRED FIXES (apply all of these):');

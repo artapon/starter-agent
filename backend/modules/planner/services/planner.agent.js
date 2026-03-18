@@ -77,7 +77,8 @@ export class PlannerAgent {
 
     const compressedGoal = compressString(goal, 12000);
     const adapter = getAdapter('planner');
-    const memory = memoryStore.getMemory('planner', sessionId);
+    // Use run-scoped memory to prevent cross-run context contamination
+    const memory = memoryStore.getMemory('planner', runId || sessionId);
 
     let rawOutput = '';
 
@@ -152,7 +153,7 @@ export class PlannerAgent {
       created_at: Math.floor(Date.now() / 1000),
     });
 
-    await memoryStore.snapshotMemory('planner', sessionId);
+    await memoryStore.snapshotMemory('planner', runId || sessionId);
     this.socketManager?.emitAgentStatus('planner', 'idle');
     this.socketManager?.emit('memory:updated', { agentId: 'planner', sessionId });
 

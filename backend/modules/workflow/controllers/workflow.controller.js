@@ -8,15 +8,15 @@ export class WorkflowController {
 
   start = async (req, res, next) => {
     try {
-      const { goal, sessionId = uuidv4() } = req.body;
+      const { goal, sessionId = uuidv4(), projectId = null } = req.body;
       if (!goal) return res.status(400).json({ error: 'goal is required' });
 
       // Pre-generate runId so the client can use it immediately for stop
       const runId = uuidv4();
-      res.json({ runId, sessionId, status: 'started' });
+      res.json({ runId, sessionId, projectId, status: 'started' });
 
       // Execute in background with the pre-generated runId
-      this.runner.run(goal, sessionId, null, runId).catch((err) => {
+      this.runner.run(goal, sessionId, null, runId, projectId).catch((err) => {
         console.error('Workflow background error:', err.message);
       });
     } catch (e) { next(e); }

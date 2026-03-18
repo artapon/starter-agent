@@ -107,6 +107,10 @@ export function deleteSTM(agentId, sessionId) {
   _cache.delete(`${agentId}:${sessionId}`);
 }
 
+export function clearAllSTM() {
+  _cache.clear();
+}
+
 export function getSTMStats() {
   const stats = {};
   for (const [key, mem] of _cache.entries()) {

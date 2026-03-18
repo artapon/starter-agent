@@ -21,4 +21,5 @@ export const AgentStateAnnotation = Annotation.Root({
   loopCount: Annotation({ reducer: (_, b) => b, default: () => 0 }),
   workspaceContext: Annotation({ reducer: (_, b) => b, default: () => null }),
   workspaceSummary: Annotation({ reducer: (_, b) => b, default: () => null }),
+  projectId: Annotation({ reducer: (_, b) => b, default: () => null }),
 });

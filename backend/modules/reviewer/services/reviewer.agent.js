@@ -76,9 +76,10 @@ export class ReviewerAgent {
     logger.info(`Reviewing content for task: ${task}`, { agentId: 'reviewer', sessionId });
     this.socketManager?.emitAgentStatus('reviewer', 'working', `Reviewing: ${task}`);
 
-    const compressed = compressString(content, 4096);
+    const compressed = compressString(content, 6000);
     const adapter = getAdapter('reviewer');
-    const memory = memoryStore.getMemory('reviewer', sessionId);
+    // Use run-scoped memory to prevent cross-run context contamination
+    const memory = memoryStore.getMemory('reviewer', runId || sessionId);
 
     let rawOutput = '';
 
@@ -130,7 +131,7 @@ export class ReviewerAgent {
       });
     }
 
-    await memoryStore.snapshotMemory('reviewer', sessionId);
+    await memoryStore.snapshotMemory('reviewer', runId || sessionId);
     this.socketManager?.emitAgentStatus('reviewer', 'idle');
     this.socketManager?.emit('memory:updated', { agentId: 'reviewer', sessionId });
 

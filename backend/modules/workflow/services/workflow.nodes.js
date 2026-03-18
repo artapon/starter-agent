@@ -67,7 +67,9 @@ export function createNodes(socketManager) {
       researchContext ? `\n[Research Context]\n${researchContext}` : '',
     ].join('');
 
-    const plan = await plannerAgent.plan(goalWithContext, state.sessionId, state.runId);
+    // Use projectId-scoped memory key when a project is selected
+    const plannerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
+    const plan = await plannerAgent.plan(goalWithContext, state.sessionId, plannerMemKey);
 
     const stepList = (plan.steps || []).map((s, i) => `  ${i + 1}. ${s.description}`).join('\n');
     emitStatus(state.sessionId, 'planner', `\n\n✅ **Plan ready** — ${plan.steps?.length || 0} step(s):\n${stepList}\n`);
@@ -103,14 +105,26 @@ export function createNodes(socketManager) {
       findings.antiPatterns?.length ? `Avoid: ${findings.antiPatterns.join('; ')}` : '',
     ].filter(Boolean).join('\n');
 
+    // Build a summary of files already written in previous steps of this run
+    const previousResults = (state.subtaskResults || [])
+      .map((r, i) => r?.result ? `Step ${i + 1}: ${r.result}` : null)
+      .filter(Boolean);
+    const priorContext = previousResults.length
+      ? `\n[Previously completed in this run]\n${previousResults.join('\n')}\n`
+      : '';
+
     const enrichedTask = [
-      step.description,
+      `# Overall Goal: ${state.userGoal}\n`,
+      `# Current Task:\n${step.description}`,
       techHint ? `\n[Research Guidance]\n${techHint}` : '',
+      priorContext,
       state.workspaceContext ? `\n${state.workspaceContext}` : '',
     ].join('');
 
+    // Use projectId-scoped memory key when a project is selected
+    const workerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
     const result = await workerAgent.execute(
-      enrichedTask, state.sessionId, state.plan?.planId, state.runId,
+      enrichedTask, state.sessionId, state.plan?.planId, workerMemKey,
     );
 
     socketManager?.emitWorkflowNode(state.runId, 'worker', {
@@ -141,9 +155,14 @@ export function createNodes(socketManager) {
       ? `${lastResult.result || ''}\n\n${state.workspaceContext}`
       : (lastResult.result || '');
 
+    const reviewTask = state.userGoal
+      ? `Goal: ${state.userGoal}\nStep being reviewed: ${step?.description || 'Review task'}`
+      : (step?.description || 'Review task');
+    // Use projectId-scoped memory key when a project is selected
+    const reviewerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
     const review   = await reviewerAgent.review(
-      reviewContent, step?.description || 'Review task',
-      state.sessionId, lastResult.subtaskId, state.runId,
+      reviewContent, reviewTask,
+      state.sessionId, lastResult.subtaskId, reviewerMemKey,
     );
     const score    = review.score ?? 10;
 
@@ -194,6 +213,7 @@ export function createNodes(socketManager) {
         review.feedback || '',
         review.suggestions || [],
         nextLoop,
+        state.userGoal || '',
       );
 
       emitStatus(

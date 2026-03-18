@@ -106,7 +106,8 @@ export class WorkerAgent {
 
     const compressedTask = compressString(task, 8192);
     const adapter = getAdapter('worker');
-    const memory = memoryStore.getMemory('worker', sessionId);
+    // Use run-scoped memory to prevent cross-run context contamination
+    const memory = memoryStore.getMemory('worker', runId || sessionId);
 
     let result = '';
 
@@ -155,7 +156,7 @@ export class WorkerAgent {
       created_at: Math.floor(Date.now() / 1000),
     });
 
-    await memoryStore.snapshotMemory('worker', sessionId);
+    await memoryStore.snapshotMemory('worker', runId || sessionId);
     this.socketManager?.emitAgentStatus('worker', 'idle');
     this.socketManager?.emit('memory:updated', { agentId: 'worker', sessionId });
 

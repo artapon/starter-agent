@@ -13,6 +13,19 @@
       </div>
       <div class="d-flex align-center gap-2">
         <v-select
+          v-model="projectId"
+          :items="projectItems"
+          item-title="title"
+          item-value="id"
+          density="compact"
+          hide-details
+          variant="outlined"
+          style="max-width:160px;font-size:12px"
+          label="Project"
+          @update:model-value="onProjectChange"
+          prepend-inner-icon="mdi-folder-outline"
+        />
+        <v-select
           v-model="sessionId"
           :items="sessionItems"
           item-title="label"
@@ -20,7 +33,7 @@
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width:190px;font-size:12px"
+          style="max-width:160px;font-size:12px"
           label="Session"
         />
         <v-btn size="x-small" variant="text" icon="mdi-plus" @click="newSession"
@@ -216,7 +229,13 @@ const input = ref('');
 const sending = ref(false);
 const typing = ref(false);
 const messages = ref([]);
-const sessionId = ref(localStorage.getItem('chatSessionId') || uuidv4());
+const sessionId  = ref(localStorage.getItem('chatSessionId') || uuidv4());
+const projectId  = ref(null);
+const projects   = ref([]);
+const projectItems = computed(() => [
+  { id: null, title: 'No Project (global)' },
+  ...projects.value.map(p => ({ id: p.id, title: p.title })),
+]);
 const sessions = ref([]);
 const messagesEl = ref(null);
 const bottomAnchor = ref(null);
@@ -247,6 +266,22 @@ function formatTime(ts) { return ts ? new Date(Number(ts)).toLocaleTimeString() 
 async function scrollBottom() {
   await nextTick();
   bottomAnchor.value?.scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Projects ───────────────────────────────────────────────────────────────
+async function loadProjects() {
+  try { projects.value = await axios.get('/api/projects').then(r => r.data); }
+  catch { projects.value = []; }
+}
+
+function onProjectChange(id) {
+  projectId.value = id;
+  // Switch session to a project-scoped session so STM is isolated per project
+  const newSession = id ? `proj_${id}` : (localStorage.getItem('chatSessionId') || uuidv4());
+  sessionId.value = newSession;
+  if (!id) localStorage.setItem('chatSessionId', newSession);
+  messages.value = [];
+  streamingContent.value = '';
 }
 
 // ── Workspace ─────────────────────────────────────────────────────────────
@@ -310,7 +345,7 @@ async function sendMessage() {
   messages.value.push({ role: 'user', content, ts: Date.now() });
   await scrollBottom();
   try {
-    const { data } = await axios.post('/api/chat/message', { content, sessionId: sessionId.value });
+    const { data } = await axios.post('/api/chat/message', { content, sessionId: sessionId.value, projectId: projectId.value });
     localStorage.setItem('chatSessionId', sessionId.value);
     loadSessions();
     if (data?.content) {
@@ -342,6 +377,16 @@ watch(showWorkspace, v => { if (v) loadWorkspace(); });
 
 // ── Socket ────────────────────────────────────────────────────────────────
 onMounted(() => {
+  // Auto-select project from URL query param (linked from ProjectsView)
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlProjectId = urlParams.get('projectId');
+  if (urlProjectId) {
+    projectId.value = urlProjectId;
+    sessionId.value = `proj_${urlProjectId}`;
+    messages.value = [];
+  }
+
+  loadProjects();
   loadHistory();
   loadSessions();
 

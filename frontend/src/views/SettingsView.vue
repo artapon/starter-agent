@@ -33,6 +33,10 @@
         <v-icon size="15" color="#EF4444">mdi-delete-sweep-outline</v-icon>
         Clear Logs
       </button>
+      <button class="nav-item nav-item--danger" @click="confirmReset = true">
+        <v-icon size="15" color="#EF4444">mdi-restore-alert</v-icon>
+        Reset Application
+      </button>
     </nav>
 
     <!-- ── Content ───────────────────────────────────────────────────── -->
@@ -458,6 +462,35 @@
       </v-card>
     </v-dialog>
 
+    <!-- Reset Application confirm dialog -->
+    <v-dialog v-model="confirmReset" max-width="460" persistent>
+      <v-card style="background:#12121E;border:1px solid rgba(239,68,68,0.2);border-radius:14px">
+        <v-card-title class="d-flex align-center gap-2 pt-5 px-5" style="color:#EF4444">
+          <v-icon color="error" size="20">mdi-restore-alert</v-icon>
+          Reset Application
+        </v-card-title>
+        <v-card-text class="px-5 pb-2" style="font-size:13px;color:rgba(226,232,240,0.65)">
+          This will permanently delete:
+          <ul style="margin-top:10px;margin-bottom:4px;padding-left:18px;line-height:2">
+            <li>All <strong style="color:#E2E8F0">agent memory</strong> (STM snapshots + LTM vector indexes)</li>
+            <li>All <strong style="color:#E2E8F0">run history</strong> and workflow runs</li>
+            <li>All <strong style="color:#E2E8F0">reports</strong> (walkthrough HTML files)</li>
+            <li>All <strong style="color:#E2E8F0">logs</strong> and token usage stats</li>
+            <li>All <strong style="color:#E2E8F0">RL outcomes</strong> and learning history</li>
+            <li>All <strong style="color:#E2E8F0">chat messages</strong></li>
+          </ul>
+          <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#FCA5A5;font-size:12px">
+            ⚠️ This cannot be undone. Agent settings and projects are preserved.
+          </div>
+        </v-card-text>
+        <v-card-actions class="px-5 pb-5 pt-3 d-flex gap-2 justify-end">
+          <v-btn variant="tonal" size="small" @click="confirmReset = false">Cancel</v-btn>
+          <v-btn color="error" size="small" prepend-icon="mdi-restore-alert"
+            :loading="resetting" @click="doReset">Reset Everything</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Add / Edit Source dialog -->
     <v-dialog v-model="showSourceDialog" max-width="460" persistent>
       <v-card class="src-dialog-card">
@@ -547,6 +580,8 @@ const activeSubskill   = ref('default');
 const selectedSubskill = ref('default');
 const clearingLogs     = ref(false);
 const confirmClearLogs = ref(false);
+const confirmReset     = ref(false);
+const resetting        = ref(false);
 const loopEnabled      = ref(false);
 const maxLoops         = ref(3);
 const recursionLimit   = ref(200);
@@ -842,6 +877,16 @@ async function clearLogs() {
     showSnack('All logs cleared');
   } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
   finally { clearingLogs.value = false; }
+}
+
+async function doReset() {
+  resetting.value = true;
+  try {
+    await axios.post('/api/settings/reset');
+    confirmReset.value = false;
+    showSnack('Application reset — all data cleared', 'success');
+  } catch (e) { showSnack(`Reset failed: ${e.message}`, 'error'); }
+  finally { resetting.value = false; }
 }
 
 onMounted(async () => {

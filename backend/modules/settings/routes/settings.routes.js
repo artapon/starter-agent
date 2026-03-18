@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 export function createSettingsRouter(controller) {
   const router = Router();
+  router.post('/reset', controller.reset);
   router.get('/', controller.getAll);
 
   // Global settings — must be before /:agentId to avoid route conflict

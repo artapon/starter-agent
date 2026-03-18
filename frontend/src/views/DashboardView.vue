@@ -230,6 +230,10 @@
             <div v-for="run in recentRuns" :key="run.id" class="run-row">
               <div class="run-row__id font-mono">{{ run.id.slice(0, 10) }}</div>
               <div class="run-row__time">{{ new Date(run.started_at * 1000).toLocaleString() }}</div>
+              <span v-if="run.project_id" class="run-proj-tag">
+                <v-icon size="10" color="#A78BFA">mdi-folder-outline</v-icon>
+                {{ projectMap[run.project_id] || run.project_id.slice(0, 8) }}
+              </span>
               <v-chip :color="statusColor(run.status)" size="x-small" variant="tonal">{{ run.status }}</v-chip>
               <button v-if="run.status === 'running'"
                 class="run-stop-btn"
@@ -293,6 +297,8 @@ const agentStatuses = ref([]);
 const recentRuns = ref([]);
 const reportSessions = ref(new Set());
 const stoppingRunId = ref(null);
+const projects = ref([]);
+const projectMap = computed(() => Object.fromEntries(projects.value.map(p => [p.id, p.title])));
 
 async function stopRun(runId) {
   stoppingRunId.value = runId;
@@ -413,11 +419,13 @@ async function fetchTokenUsage() {
 async function fetchStats() {
   loading.value = true;
   try {
-    const [{ data }, { data: runs }, { data: rpt }] = await Promise.all([
+    const [{ data }, { data: runs }, { data: rpt }, { data: projs }] = await Promise.all([
       axios.get('/api/dashboard/stats'),
       axios.get('/api/workflow/runs'),
       axios.get('/api/reports/sessions'),
+      axios.get('/api/projects'),
     ]);
+    projects.value = projs || [];
     stats.value = data;
     const order = ['researcher', 'planner', 'worker', 'reviewer'];
     agentStatuses.value = (data.agents || []).sort((a, b) => {
@@ -788,6 +796,15 @@ onMounted(() => {
 .run-stop-btn:hover:not(:disabled) { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.45); }
 .run-stop-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .run-stop-btn--stopping { color: #F59E0B; border-color: rgba(245,158,11,0.25); background: rgba(245,158,11,0.07); }
+
+.run-proj-tag {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; color: #A78BFA;
+  padding: 1px 6px; border-radius: 4px;
+  border: 1px solid rgba(167,139,250,0.2);
+  background: rgba(167,139,250,0.07);
+  max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 /* Log feed */
 .log-feed {
