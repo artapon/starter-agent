@@ -1,6 +1,6 @@
 # Starter Agent
 
-A local multi-agent AI system powered by LM Studio. An analyzer, worker, and reviewer collaborate in an automated LangGraph workflow, with a Vue 3 dashboard to monitor and interact with them in real time.
+A local multi-agent AI system powered by LM Studio. Researcher, Planner, Worker, and Reviewer agents collaborate in an automated LangGraph workflow, organized by Projects, with a Vue 3 dashboard to monitor and interact with them in real time.
 
 ---
 
@@ -13,7 +13,7 @@ A local multi-agent AI system powered by LM Studio. An analyzer, worker, and rev
 | **Frontend** | Vue 3 + Vuetify 3 + Vite |
 | **Agents / Workflow** | LangChain.js + LangGraph.js |
 | **LLM Provider** | LM Studio (local, OpenAI-compatible API) |
-| **Database** | Custom JSON file store (`node:sqlite`-compatible, no native addons) |
+| **Database** | Custom JSON file store (no native addons) |
 | **Realtime** | Socket.IO |
 | **Logging** | Winston (streams live to frontend) |
 | **Web Search** | Google (AI Overview), DuckDuckGo, GitHub API, URL browse — configurable via Settings |
@@ -33,11 +33,12 @@ starter-agent/
 │   │   ├── tools/             # Tool definitions, implementations, registry
 │   │   ├── socket/            # Socket.IO manager + events
 │   │   ├── logger/            # Winston logger + socket transport
-│   │   ├── memory/            # Memory store (STM / LTM / working)
+│   │   ├── memory/            # STM / LTM / Working memory stores
 │   │   ├── browser/           # Web search tools (Google, DuckDuckGo, GitHub, fetch)
 │   │   ├── rl/                # Reinforcement learning store (outcome replay)
 │   │   ├── reports/           # HTML report generator
 │   │   ├── mcp/               # MCP tool manager (Puppeteer web search bridge)
+│   │   ├── projects/          # Project store (JSON file)
 │   │   └── skills/            # Skill profile system
 │   └── modules/               # HMVC feature modules
 │       ├── workflow/          # LangGraph StateGraph + runner
@@ -47,19 +48,21 @@ starter-agent/
 │       ├── reviewer/          # Reviewer agent (RL-calibrated)
 │       ├── chat/              # Direct chat API
 │       ├── memory/            # Memory API routes
+│       ├── projects/          # Projects CRUD API
 │       ├── settings/          # Global + per-agent + browser tools settings
 │       └── dashboard/         # Stats aggregation
 ├── frontend/
 │   └── src/
 │       ├── views/             # Page components
-│       │   ├── DashboardView  # Live stats, graph, agent status
-│       │   ├── WorkflowView   # Run + monitor pipelines
-│       │   ├── ChatView       # Direct agent chat
-│       │   ├── MemoryView     # STM / LTM / working memory
+│       │   ├── DashboardView  # Live stats, workflow graph, agent status, recent runs
+│       │   ├── ProjectsView   # Project management — 3-column grid with quick links
+│       │   ├── WorkflowView   # Run + monitor pipelines, project selector, run history
+│       │   ├── ChatView       # Real-time chat with typing animation + agent avatars
+│       │   ├── MemoryView     # STM / LTM / working memory per agent, project-filtered
 │       │   ├── WalkthroughView # Embedded workflow report viewer
 │       │   ├── DebugView      # Researcher debug tool
 │       │   ├── LogsView       # Live log stream
-│       │   └── SettingsView   # Global + per-agent + MCP Browser config
+│       │   └── SettingsView   # Global + per-agent + MCP Browser config + App Reset
 │       ├── components/        # Shared UI components
 │       └── plugins/           # Router, Vuetify, Socket.IO
 ├── workspace/                 # Agent file sandbox (read/write)
@@ -71,32 +74,41 @@ starter-agent/
 
 ### Workflow Pipeline
 
-3-node LangGraph pipeline — each node is a merged unit:
+4-agent LangGraph pipeline:
 
 ```
-User Goal
+User Goal  (+ optional Project)
    │
    ▼
-[Analyze]   → research (web search + MCP) + generate step-by-step plan
+[Researcher + Planner]  → web search (MCP or native) + step-by-step plan
    │
    ▼
 [Worker]    → executes each plan step; RL patterns injected into system prompt
    │
    ▼
-[Reviewer]  → quality checks output; RL calibration injected into system prompt
-             on fail: retry or RL-guided improvement loop (target score ≥ 9/10)
-             on pass: assembles final answer + HTML report
+[Reviewer]  → quality checks output (0–10 score, 4 dimensions)
+             score ≥ 7 → approved → final answer + HTML report
+             score < 7 → RL-guided improvement loop (target ≥ 9/10, up to N retries)
    │
-   ▼ (loop up to N times if score < 10/10)
+   ▼
 Final Answer + HTML Report
 ```
+
+### Projects
+
+Each project provides an isolated context for agents:
+
+- **Chat** sessions are scoped to a project (`session_id = proj_<id>`)
+- **Workflow runs** record their `project_id` and appear in run history with a project badge
+- **Memory** view can be filtered by project — shows Chat vs Workflow session type automatically
+- **Delete** a project cascades: removes chat messages, workflow runs, memory snapshots, STM cache, and report files
 
 ### Reinforcement Learning Loop
 
 After every review the outcome is stored (`rl_outcomes` table: score, feedback, suggestions, goal, loop count). On subsequent runs:
 
-- **Worker** receives a `## REINFORCEMENT LEARNING` block in its system prompt with top-3 high-scoring past examples (≥ 8/10) and bottom-3 anti-patterns (< 6/10).
-- **Reviewer** receives a `## REVIEWER CALIBRATION` block with historical avg score, trend, and excellent/failure examples to keep scoring consistent.
+- **Worker** receives a `## PAST QUALITY PATTERNS` block with top-2 high-scoring past examples (≥ 8/10) and bottom-2 anti-patterns (< 6/10).
+- **Reviewer** receives a single-line historical average score for consistent calibration.
 - **Improvement loops** get a targeted task description built from RL data: required fixes + score target + similar past high-scoring examples + patterns from prior improvement passes.
 
 Stats are available at `GET /api/rl/stats`.
@@ -107,9 +119,9 @@ When **MCP Browser** is enabled for the Researcher agent, web search runs throug
 
 1. **Parallel search** — all enabled sources queried simultaneously (Google AI Overview first, then DuckDuckGo, GitHub, and any custom URL-template sources).
 2. **Selective browse** — top N pages per source fetched and read (browse depth configurable per source).
-3. **LLM analysis** — all gathered content sent to the Researcher LLM together with the skill prompt.
+3. **LLM analysis** — all gathered content sent to the Researcher LLM with the skill prompt.
 
-Sources are fully configurable from the **Settings → MCP Browser** panel: enable/disable, set browse depth, add custom URL-template sources, or remove them.
+Sources are fully configurable from **Settings → MCP Browser**: enable/disable, set browse depth, add custom URL-template sources.
 
 ---
 
@@ -213,36 +225,49 @@ cd frontend && npm run dev
 
 | Feature | Description |
 |---|---|
-| **Dashboard** | Live 2-column layout: workflow graph, token usage, agent status, recent runs, live logs |
-| **Workflow** | Run multi-agent pipelines with a single goal prompt; stop anytime |
-| **Chat** | Talk directly to any agent with streaming responses |
-| **Memory** | View / manage Short-Term, Long-Term, and Working memory per agent; save STM → LTM |
-| **Settings** | Sidebar-nav layout: configure LLM model, tools, workflow loop, and MCP Browser sources per agent |
+| **Projects** | Create/edit/delete projects; each project isolates chat sessions, workflow runs, and agent memory. Cascade-delete removes all related data. |
+| **Dashboard** | Live stats: workflow graph, token usage, agent status, recent runs with project badges, live logs |
+| **Workflow** | Run multi-agent pipelines; select a project, enter a goal, monitor progress; stop anytime. Run history shows project name. |
+| **Chat** | Real-world chat UI — agent avatars, message grouping, date separators, character-by-character typing animation, project selector |
+| **Memory** | View / manage STM / LTM / Working memory per agent; filter by project; save STM → LTM |
+| **Settings** | Sidebar-nav layout: configure LLM model, tools, workflow loop, MCP Browser sources per agent; Reset Application clears all data |
 | **MCP Browser** | Enable/disable and tune browse depth per search source; add custom URL-template sources; Google AI Overview prioritized first |
 | **Reinforcement Learning** | Worker + Reviewer automatically improve over runs via experience replay — past scores, patterns, and calibration injected into prompts |
 | **Logs** | Live log stream from the backend with level filtering |
 | **Debug** | Interactive Researcher Agent walkthrough and backend connection tester |
 | **Reports** | Auto-generated HTML walkthrough after each workflow run, viewable in-app |
 | **Skill Profiles** | Switchable system prompt bundles per agent (default, software_house) |
+| **Reset Application** | One-click wipe of all memory, logs, token stats, run history, and reports — agent settings and projects are preserved |
 
 ---
 
 ## Key API Endpoints
 
 ```
-POST   /api/workflow/start              Start a workflow run
+# Projects
+GET    /api/projects                     List all projects
+POST   /api/projects                     Create a project { title, description }
+PUT    /api/projects/:id                 Update a project
+DELETE /api/projects/:id                 Delete project + all related data
+
+# Workflow
+POST   /api/workflow/start              Start a workflow run { goal, projectId? }
 POST   /api/workflow/stop/:runId        Stop a running workflow
 GET    /api/workflow/runs               List workflow run history
 
-POST   /api/chat/message                Send a message to an agent
+# Chat
+POST   /api/chat/message                Send a message { content, sessionId, projectId? }
 POST   /api/chat/stop/:sessionId        Stop a running chat session
 GET    /api/chat/history/:sessionId     Get chat history
+GET    /api/chat/sessions               List sessions
 
+# Memory
 GET    /api/memory/stm/:agentId         Short-term memory snapshots
 GET    /api/memory/ltm/:agentId/query   Query long-term memory
 POST   /api/memory/ltm/:agentId/store   Store to long-term memory
 GET    /api/memory/wm/:agentId          Working memory context
 
+# Settings
 GET    /api/settings/:agentId/tools     Get agent tool config
 PUT    /api/settings/:agentId/tools     Update agent tools
 GET    /api/settings/global             Get global settings
@@ -252,12 +277,14 @@ PUT    /api/settings/browser/tools      Bulk update source enable/browse-count
 POST   /api/settings/browser/tools      Add a custom search source
 PUT    /api/settings/browser/tools/:sourceName   Edit a custom source
 DELETE /api/settings/browser/tools/:sourceName   Delete a custom source
+POST   /api/settings/reset              Reset application data (preserves settings + projects)
 
+# Other
 GET    /api/rl/stats                    Reinforcement learning outcome stats
-
 GET    /api/reports/sessions            List sessions with reports
 GET    /api/reports/:sessionId/content  Get parsed report HTML + styles
 GET    /api/agents/researcher/status    Researcher agent status
+GET    /api/health                      Backend health check
 ```
 
 ---
@@ -271,7 +298,7 @@ GET    /api/agents/researcher/status    Researcher agent status
 → Check the backend terminal for errors. Verify the LM Studio server URL is reachable at `http://localhost:1234/v1`.
 
 **Web search returns no results**
-→ The researcher uses native fetch — Google scraping, DuckDuckGo HTML, and the GitHub public API — no API keys required. Check that the backend has outbound internet access. Google AI Overview requires JavaScript rendering by Google; the scraper uses static HTML fallback strategies.
+→ The researcher uses native fetch — Google scraping, DuckDuckGo HTML, and the GitHub public API — no API keys required. Check that the backend has outbound internet access.
 
 **MCP Browser not searching**
 → Ensure **MCP Browser** is toggled on in Settings for the Researcher agent, and at least one source is enabled in the MCP Browser panel.
