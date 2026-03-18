@@ -60,7 +60,7 @@ export async function* rawLMStream(settings, messages, signal) {
           messages,
           stream:      true,
           temperature: settings.temperature ?? 0.2,
-          max_tokens:  settings.max_tokens  ?? 8192,
+          max_tokens:  settings.max_tokens  ?? 32768,
         }),
         signal,
       });
@@ -123,11 +123,65 @@ export async function* rawLMStream(settings, messages, signal) {
 }
 
 /**
- * Strip <think>…</think> reasoning blocks emitted by some models (DeepSeek, QwQ, etc.).
+ * Strip <think>…</think> reasoning blocks emitted by some models (DeepSeek, QwQ, Qwen3, etc.).
+ * Also strips unclosed <think> blocks (truncated responses when max_tokens is hit mid-think).
  * Applied to the final output so downstream JSON parsing is not disrupted.
  */
 function stripThinkBlocks(text) {
-  return (text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  // Strip complete <think>...</think> blocks first
+  let result = (text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  // Strip any remaining unclosed <think> block (model ran out of tokens mid-think)
+  result = result.replace(/<think>[\s\S]*/gi, '').trim();
+  return result;
+}
+
+/**
+ * Robustly extract and parse the first valid JSON object from model output.
+ *
+ * Strategy (ordered by confidence):
+ *  1. Markdown code fences  — ```json ... ``` or ``` ... ```
+ *  2. Brace-depth scanning  — last block first (most recent = actual answer,
+ *     not a reasoning artifact or code example embedded earlier in the text)
+ *  3. Newline normalisation — each candidate is retried with \r?\n → space
+ *     (some models emit literal newlines inside JSON string values)
+ *
+ * Returns the parsed object, or null if nothing is parseable.
+ */
+export function extractJSON(text) {
+  if (!text) return null;
+
+  const candidates = [];
+
+  // ── Pass 1: markdown code fence extraction ─────────────────────────────────
+  // Handles ```json\n{...}\n``` and ```\n{...}\n```
+  const fenceRe = /```(?:json)?\s*\n?([\s\S]*?)\n?```/g;
+  let m;
+  while ((m = fenceRe.exec(text)) !== null) {
+    const inner = m[1].trim();
+    if (inner.startsWith('{') || inner.startsWith('[')) candidates.push(inner);
+  }
+
+  // ── Pass 2: brace-depth scanning (collected last → first) ─────────────────
+  // Iterating from the end means the model's actual answer (always last)
+  // is tried before any JSON-like fragments in the reasoning preamble.
+  const blocks = [];
+  let depth = 0, start = -1;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') { if (depth === 0) start = i; depth++; }
+    else if (text[i] === '}' && depth > 0) {
+      depth--;
+      if (depth === 0 && start !== -1) { blocks.push(text.slice(start, i + 1)); start = -1; }
+    }
+  }
+  for (let i = blocks.length - 1; i >= 0; i--) candidates.push(blocks[i]);
+
+  // ── Pass 3: try each candidate ─────────────────────────────────────────────
+  for (const raw of candidates) {
+    try { return JSON.parse(raw); } catch { /* try normalised */ }
+    try { return JSON.parse(raw.replace(/\r?\n/g, ' ')); } catch { /* next */ }
+  }
+
+  return null;
 }
 
 /**

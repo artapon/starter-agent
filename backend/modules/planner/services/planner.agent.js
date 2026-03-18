@@ -5,7 +5,7 @@ import { compressString } from '../../../core/middleware/prompt.compression.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
-import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -116,15 +116,8 @@ export class PlannerAgent {
 
     let plan;
     try {
-      const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-      const raw = jsonMatch ? jsonMatch[0] : rawOutput;
-      let parsed;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        // Some models embed literal newlines inside JSON string values — replace with space
-        parsed = JSON.parse(raw.replace(/\r?\n/g, ' '));
-      }
+      const parsed = extractJSON(rawOutput);
+      if (!parsed) throw new Error('No JSON found');
       plan = parsed;
       plan.steps = (plan.steps || []).map((s) => ({
         ...s,

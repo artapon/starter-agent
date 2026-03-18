@@ -15,7 +15,7 @@ export class LMStudioAdapter {
       modelName: s.model_name,
       openAIApiKey: s.api_key || 'lm-studio',
       temperature: s.temperature ?? 0.7,
-      maxTokens: s.max_tokens ?? 4096,
+      maxTokens: s.max_tokens ?? 32768,
       configuration: {
         baseURL: s.base_url || 'http://localhost:1234/v1',
       },

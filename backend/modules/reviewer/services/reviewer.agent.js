@@ -5,7 +5,7 @@ import { compressString } from '../../../core/middleware/prompt.compression.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
-import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
 
@@ -117,8 +117,9 @@ export class ReviewerAgent {
 
     let review;
     try {
-      const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-      review = JSON.parse(jsonMatch ? jsonMatch[0] : rawOutput);
+      const parsed = extractJSON(rawOutput);
+      if (!parsed) throw new Error('No JSON found');
+      review = parsed;
     } catch {
       review = { approved: true, score: 7, feedback: rawOutput, suggestions: [] };
     }

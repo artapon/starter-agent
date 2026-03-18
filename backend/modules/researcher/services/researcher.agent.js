@@ -5,7 +5,7 @@ import { compressString } from '../../../core/middleware/prompt.compression.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
-import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
 import { getRawSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { extractKeywords, SEARCH_ADAPTERS } from '../../../core/browser/web.search.tools.js';
 
@@ -43,24 +43,10 @@ function buildMessages(goal, histMessages = [], webContext = null, ltmContext = 
 function parseFindings(rawOutput, goal) {
   if (!rawOutput) return _emptyFindings(goal);
   try {
-    const blocks = [];
-    let braceCount = 0, startIdx = -1;
-    for (let i = 0; i < rawOutput.length; i++) {
-      if (rawOutput[i] === '{') { if (braceCount === 0) startIdx = i; braceCount++; }
-      else if (rawOutput[i] === '}') {
-        braceCount--;
-        if (braceCount === 0 && startIdx !== -1) { blocks.push(rawOutput.slice(startIdx, i + 1)); startIdx = -1; }
-      }
-    }
-    for (let i = blocks.length - 1; i >= 0; i--) {
-      try {
-        const parsed = JSON.parse(blocks[i]);
-        if (parsed.topic || parsed.summary || parsed.approaches) return _fillMissing(parsed, goal);
-      } catch { /* ignore */ }
-    }
-    const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-    if (jsonMatch) { try { return _fillMissing(JSON.parse(jsonMatch[0]), goal); } catch { /* ignore */ } }
-    throw new Error('No valid JSON found');
+    const parsed = extractJSON(rawOutput);
+    if (!parsed) throw new Error('No valid JSON found');
+    if (parsed.topic || parsed.summary || parsed.approaches) return _fillMissing(parsed, goal);
+    throw new Error('JSON found but missing expected fields');
   } catch {
     return _emptyFindings(goal, rawOutput);
   }

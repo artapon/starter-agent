@@ -6,7 +6,7 @@ import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { writeFileTool } from '../../../core/tools/tool.implementations.js';
-import { toLMStudioMessages, streamAndEmit } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -83,9 +83,11 @@ export class WorkerAgent {
   async _applyBlueprint(output, sessionId) {
     const written = [];
     try {
-      const jsonMatch = output.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) return written;
-      const blueprint = JSON.parse(jsonMatch[0]);
+      const blueprint = extractJSON(output);
+      if (!blueprint) {
+        logger.warn(`No JSON found in worker output (${output.length} chars). Model may have used all tokens for thinking — increase max_tokens in Settings.`, { agentId: 'worker' });
+        return written;
+      }
       const files = Array.isArray(blueprint.files) ? blueprint.files : [];
       for (const { path: filePath, content } of files) {
         if (!filePath || content == null) continue;
