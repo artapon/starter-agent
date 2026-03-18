@@ -76,7 +76,7 @@ export class ReviewerAgent {
     logger.info(`Reviewing content for task: ${task}`, { agentId: 'reviewer', sessionId });
     this.socketManager?.emitAgentStatus('reviewer', 'working', `Reviewing: ${task}`);
 
-    const compressed = compressString(content, 6000);
+    const compressed = compressString(content, 12000);
     const adapter = getAdapter('reviewer');
     // Use run-scoped memory to prevent cross-run context contamination
     const memory = memoryStore.getMemory('reviewer', runId || sessionId);
@@ -89,11 +89,12 @@ export class ReviewerAgent {
         new MessagesPlaceholder('chat_history'),
         ['human', 'Task: {task}\n\nSubmission:\n{content}'],
       ]);
-      const histVars = await memory.loadMemoryVariables({});
+      // Workflow runs (runId set): skip STM history — reviews are self-contained.
+      const chatHistory = runId ? [] : (await memory.loadMemoryVariables({})).chat_history || [];
       const langchainMessages = await prompt.formatMessages({
         task,
         content: compressed,
-        chat_history: histVars.chat_history || [],
+        chat_history: chatHistory,
       });
 
       const signal = runId ? getAbortSignal(runId) : undefined;

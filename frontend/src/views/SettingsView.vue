@@ -29,10 +29,6 @@
       </button>
 
       <div class="nav-divider"></div>
-      <button class="nav-item nav-item--danger" @click="confirmClearLogs = true">
-        <v-icon size="15" color="#EF4444">mdi-delete-sweep-outline</v-icon>
-        Clear Logs
-      </button>
       <button class="nav-item nav-item--danger" @click="confirmReset = true">
         <v-icon size="15" color="#EF4444">mdi-restore-alert</v-icon>
         Reset Application
@@ -445,23 +441,6 @@
     </main>
 
     <!-- ── Confirm clear logs ──────────────────────────────────────── -->
-    <v-dialog v-model="confirmClearLogs" max-width="400" persistent>
-      <v-card style="background:#12121E;border:1px solid rgba(255,255,255,0.08);border-radius:14px">
-        <v-card-title class="d-flex align-center gap-2 pt-5 px-5">
-          <v-icon color="error" size="20">mdi-alert-circle-outline</v-icon>
-          Clear All Logs
-        </v-card-title>
-        <v-card-text class="px-5 pb-2" style="font-size:13px;color:rgba(226,232,240,0.6)">
-          Permanently delete <strong style="color:#E2E8F0">all log entries</strong> from the database. This cannot be undone.
-        </v-card-text>
-        <v-card-actions class="px-5 pb-5 pt-3 d-flex gap-2 justify-end">
-          <v-btn variant="tonal" size="small" @click="confirmClearLogs = false">Cancel</v-btn>
-          <v-btn color="error" size="small" prepend-icon="mdi-delete-sweep"
-            :loading="clearingLogs" @click="clearLogs">Yes, Clear Logs</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
     <!-- Reset Application confirm dialog -->
     <v-dialog v-model="confirmReset" max-width="460" persistent>
       <v-card style="background:#12121E;border:1px solid rgba(239,68,68,0.2);border-radius:14px">
@@ -578,8 +557,6 @@ const workspacePath = ref('./workspace');
 const subskillProfiles = ref([]);
 const activeSubskill   = ref('default');
 const selectedSubskill = ref('default');
-const clearingLogs     = ref(false);
-const confirmClearLogs = ref(false);
 const confirmReset     = ref(false);
 const resetting        = ref(false);
 const loopEnabled      = ref(false);
@@ -868,15 +845,6 @@ async function testConnection(agentId) {
     connectionStatus[agentId] = false;
     showSnack(`${agentId}: Connection failed`, 'error');
   } finally { testing[agentId] = false; }
-}
-async function clearLogs() {
-  clearingLogs.value = true;
-  try {
-    await axios.delete('/api/logs');
-    confirmClearLogs.value = false;
-    showSnack('All logs cleared');
-  } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
-  finally { clearingLogs.value = false; }
 }
 
 async function doReset() {

@@ -68,29 +68,25 @@ export class RLStore {
    * Returns empty string if no history yet.
    */
   buildWorkerContext() {
-    const top  = this.getTopPatterns(3);
-    const weak = this.getWeakPatterns(3);
+    const top  = this.getTopPatterns(2);
+    const weak = this.getWeakPatterns(2);
     if (!top.length && !weak.length) return '';
 
-    const lines = ['\n\n## REINFORCEMENT LEARNING — QUALITY PATTERNS\n'];
-    lines.push('Use past outcomes to guide this implementation.\n');
+    const lines = ['\n\n## PAST QUALITY PATTERNS\n'];
 
     if (top.length) {
-      lines.push('### ✅ High-Quality Patterns (score ≥ 8) — follow these approaches:');
+      lines.push('✅ Approaches that scored well:');
       for (const r of top) {
-        lines.push(`- [Score ${r.score}/10] Task: "${_esc(r.step_desc)}"`);
-        if (r.worker_summary) lines.push(`  Result: ${_esc(r.worker_summary)}`);
-        if (r.feedback) lines.push(`  Reviewer: ${_esc(r.feedback)}`);
+        const fb = r.feedback ? ` — ${_esc(r.feedback).slice(0, 120)}` : '';
+        lines.push(`- [${r.score}/10] ${_esc(r.step_desc).slice(0, 120)}${fb}`);
       }
     }
 
     if (weak.length) {
-      lines.push('\n### ❌ Anti-Patterns (score < 6) — avoid these mistakes:');
+      lines.push('❌ Mistakes to avoid:');
       for (const r of weak) {
-        lines.push(`- [Score ${r.score}/10] Task: "${_esc(r.step_desc)}"`);
-        if (r.feedback) lines.push(`  Problem: ${_esc(r.feedback)}`);
-        const suggestions = _parseSuggestions(r.suggestions);
-        if (suggestions.length) lines.push(`  Fix: ${suggestions.slice(0, 2).map(_esc).join('; ')}`);
+        const fb = r.feedback ? ` — ${_esc(r.feedback).slice(0, 120)}` : '';
+        lines.push(`- [${r.score}/10] ${_esc(r.step_desc).slice(0, 120)}${fb}`);
       }
     }
 
@@ -102,35 +98,9 @@ export class RLStore {
    * Returns empty string if no history yet.
    */
   buildReviewerContext() {
-    const stats     = this.getStats();
-    const excellent = this.getExcellentPatterns(2);
-    const failures  = this.getFailurePatterns(2);
+    const stats = this.getStats();
     if (stats.totalRuns === 0) return '';
-
-    const lines = ['\n\n## REVIEWER CALIBRATION\n'];
-    lines.push(`Historical baseline: ${stats.totalRuns} reviews, avg score ${stats.avgScore}/10, approval rate ${stats.approvalRate}%.`);
-    if (stats.recentAvg !== null) {
-      lines.push(`Recent trend (last 10): avg ${stats.recentAvg}/10.`);
-    }
-    lines.push('Calibrate your score consistently with past reviews.\n');
-
-    if (excellent.length) {
-      lines.push('### Examples of excellent work (scored ≥ 9):');
-      for (const r of excellent) {
-        lines.push(`- Task: "${_esc(r.step_desc)}" → Score ${r.score}/10`);
-        if (r.feedback) lines.push(`  Why high: ${_esc(r.feedback)}`);
-      }
-    }
-
-    if (failures.length) {
-      lines.push('\n### Examples of poor work (scored < 5):');
-      for (const r of failures) {
-        lines.push(`- Task: "${_esc(r.step_desc)}" → Score ${r.score}/10`);
-        if (r.feedback) lines.push(`  Why low: ${_esc(r.feedback)}`);
-      }
-    }
-
-    return lines.join('\n');
+    return `\n\nHistorical avg score: ${stats.avgScore}/10 over ${stats.totalRuns} reviews. Score consistently with this baseline.`;
   }
 
   /**

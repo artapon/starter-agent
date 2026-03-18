@@ -310,11 +310,9 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useSocket } from '../plugins/socket.js';
-import { useRoute } from 'vue-router';
 import axios from 'axios';
 
 const socket = useSocket();
-const route  = useRoute();
 
 const agents      = ['researcher', 'planner', 'worker', 'reviewer'];
 const activeAgent = ref('researcher');
@@ -598,7 +596,7 @@ let _wmPoll = null;
 onMounted(async () => {
   await loadProjects();
   // Auto-select project from URL query param (?projectId=xxx)
-  const urlProjId = route.query.projectId;
+  const urlProjId = new URLSearchParams(window.location.search).get('projectId');
   if (urlProjId) {
     const found = projects.value.find(p => p.id === urlProjId);
     if (found) selectedProject.value = found;

@@ -88,10 +88,12 @@ export class PlannerAgent {
         new MessagesPlaceholder('chat_history'),
         ['human', '{goal}'],
       ]);
-      const histVars = await memory.loadMemoryVariables({});
+      // Workflow runs (runId set): skip STM history — each plan is independent.
+      // Chat/direct calls: load history for continuity.
+      const chatHistory = runId ? [] : (await memory.loadMemoryVariables({})).chat_history || [];
       const langchainMessages = await prompt.formatMessages({
         goal: compressedGoal,
-        chat_history: histVars.chat_history || [],
+        chat_history: chatHistory,
       });
 
       const signal = runId ? getAbortSignal(runId) : undefined;

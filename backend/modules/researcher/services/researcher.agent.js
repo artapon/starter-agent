@@ -120,8 +120,10 @@ export class ResearcherAgent {
     const memory  = memoryStore.getMemory('researcher', sessionId);
     let rawOutput = '';
     try {
-      const histVars     = await memory.loadMemoryVariables({});
-      const histMessages = toLMStudioMessages(histVars.chat_history || []);
+      // Workflow runs: skip STM history so previous research doesn't bias the current goal.
+      const histMessages = runId
+        ? []
+        : toLMStudioMessages((await memory.loadMemoryVariables({})).chat_history || []);
       const ltmContext   = await memoryStore.getLTMContext('researcher', goal, 3);
       const messages     = buildMessages(compressString(goal, 4096), histMessages, null, ltmContext || null);
       const signal      = runId ? getAbortSignal(runId) : undefined;
@@ -325,8 +327,9 @@ export class ResearcherAgent {
       // ── Phase 4: LLM expert analysis (all instructions from RESEARCHER.md) ──
       sm?.emitAgentStatus('researcher', 'working', 'Analysing...');
       const adapter      = getAdapter('researcher');
-      const histVars     = await memory.loadMemoryVariables({});
-      const histMessages = toLMStudioMessages(histVars.chat_history || []);
+      const histMessages = runId
+        ? []
+        : toLMStudioMessages((await memory.loadMemoryVariables({})).chat_history || []);
       const ltmContext   = await memoryStore.getLTMContext('researcher', goal, 3);
       const messages     = buildMessages(compressString(goal, 2048), histMessages, webContext, ltmContext || null);
 

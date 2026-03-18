@@ -50,7 +50,11 @@
             style="color:rgba(239,68,68,0.5)" @click="confirmDelete(project)" />
           <router-link :to="`/chat?projectId=${project.id}`" class="proj-open-btn">
             <v-icon size="13">mdi-chat-outline</v-icon>
-            Open in Chat
+            Chat
+          </router-link>
+          <router-link :to="`/memory?projectId=${project.id}`" class="proj-open-btn proj-open-btn--mem">
+            <v-icon size="13">mdi-brain</v-icon>
+            Memory
           </router-link>
         </div>
       </div>
@@ -242,6 +246,12 @@ onMounted(fetchProjects);
   transition: background 0.15s;
 }
 .proj-open-btn:hover { background: rgba(99,102,241,0.15); }
+.proj-open-btn--mem {
+  color: #14B8A6;
+  border-color: rgba(20,184,166,0.3);
+  background: rgba(20,184,166,0.08);
+}
+.proj-open-btn--mem:hover { background: rgba(20,184,166,0.15); }
 
 /* Dialogs */
 .dialog-title {

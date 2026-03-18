@@ -117,10 +117,12 @@ export class WorkerAgent {
         new MessagesPlaceholder('chat_history'),
         ['human', 'Task: {task}'],
       ]);
-      const histVars = await memory.loadMemoryVariables({});
+      // Workflow runs (runId set): skip STM history — previous step JSON blobs
+      // in chat history confuse the model. Context is already injected via enrichedTask.
+      const chatHistory = runId ? [] : (await memory.loadMemoryVariables({})).chat_history || [];
       const langchainMessages = await prompt.formatMessages({
         task: compressedTask,
-        chat_history: histVars.chat_history || [],
+        chat_history: chatHistory,
       });
 
       const signal = runId ? getAbortSignal(runId) : undefined;
