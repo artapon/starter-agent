@@ -123,19 +123,78 @@ export async function* rawLMStream(settings, messages, signal) {
 }
 
 /**
+ * Strip <think>…</think> reasoning blocks emitted by some models (DeepSeek, QwQ, etc.).
+ * Applied to the final output so downstream JSON parsing is not disrupted.
+ */
+function stripThinkBlocks(text) {
+  return (text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+}
+
+/**
  * Run rawLMStream, emit each token via socketManager, and record token usage.
- * Returns the full accumulated output string.
+ * <think>…</think> blocks are silently suppressed from socket emission and
+ * stripped from the returned string so agents only see the actual response.
+ * Returns the cleaned accumulated output string.
  */
 export async function streamAndEmit(settings, messages, signal, socketManager, sessionId, agentId) {
   const inputText = messages.map(m => m.content).join(' ');
-  let output = '';
+  let rawOutput = '';  // full unmodified output (for strip regex at end)
+  let buf      = '';   // lookahead buffer for tag boundary detection
+  let inThink  = false;
 
   for await (const token of rawLMStream(settings, messages, signal)) {
-    output += token;
-    socketManager?.emitChatChunk(sessionId, token, agentId);
+    rawOutput += token;
+    buf       += token;
+
+    // ── Inside a <think> block ─────────────────────────────────────────────
+    if (inThink) {
+      const closeIdx = buf.indexOf('</think>');
+      if (closeIdx !== -1) {
+        // Found closing tag — exit think mode, keep whatever follows
+        inThink = false;
+        buf = buf.slice(closeIdx + 8).replace(/^\s*\n?/, '');
+      } else {
+        // Still thinking — retain only the last 9 chars as partial-tag lookahead
+        buf = buf.length > 9 ? buf.slice(-9) : buf;
+      }
+    }
+
+    // ── Outside a <think> block ────────────────────────────────────────────
+    if (!inThink) {
+      const openIdx = buf.indexOf('<think>');
+      if (openIdx !== -1) {
+        // Emit everything before the opening tag, then enter think mode
+        if (openIdx > 0) socketManager?.emitChatChunk(sessionId, buf.slice(0, openIdx), agentId);
+        inThink = true;
+        buf = buf.slice(openIdx + 7);
+
+        // Handle edge case: </think> already present in the same buffer chunk
+        const closeIdx = buf.indexOf('</think>');
+        if (closeIdx !== -1) {
+          inThink = false;
+          buf = buf.slice(closeIdx + 8).replace(/^\s*\n?/, '');
+        } else {
+          buf = buf.length > 9 ? buf.slice(-9) : buf;
+        }
+      } else {
+        // No think tag detected — emit safely, holding back 7 chars as lookahead
+        // (length of '<think>' so a partial tag never leaks through)
+        const safeLen = buf.length > 7 ? buf.length - 7 : 0;
+        if (safeLen > 0) {
+          socketManager?.emitChatChunk(sessionId, buf.slice(0, safeLen), agentId);
+          buf = buf.slice(safeLen);
+        }
+      }
+    }
   }
 
-  recordTokenUsage(agentId, estimateTokens(inputText), estimateTokens(output));
+  // Flush any remaining buffered content
+  if (buf && !inThink) {
+    socketManager?.emitChatChunk(sessionId, buf, agentId);
+  }
 
+  // Strip all think blocks from the raw output for clean downstream processing
+  const output = stripThinkBlocks(rawOutput);
+  recordTokenUsage(agentId, estimateTokens(inputText), estimateTokens(output));
   return output;
 }

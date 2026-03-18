@@ -177,13 +177,28 @@ function phaseResearch(r) {
   </div>`;
 }
 
+function truncateDesc(text = '', max = 600) {
+  const t = text.trim();
+  return t.length > max ? t.slice(0, max) + '…' : t;
+}
+
 function phasePlan(plan) {
   if (!plan) return '';
-  const steps = (plan.steps || []).map((s, i) => `
+  const steps = (plan.steps || []).map((s, i) => {
+    const raw = (s.description || s.task || '').trim();
+    // Strip LLM-injected context blocks that shouldn't appear in the report
+    const clean = raw
+      .replace(/\[Research Context\][\s\S]*/i, '')
+      .replace(/=== EXISTING WORKSPACE PROJECT ===[\s\S]*/i, '')
+      .replace(/##\s+REQUIRED FIXES[\s\S]*/i, '')
+      .replace(/##\s+RL SCORE TARGET[\s\S]*/i, '')
+      .trim();
+    return `
     <div class="step-row">
       <div class="step-num">${i + 1}</div>
-      <div class="step-desc">${esc(s.description || s.task || '')}</div>
-    </div>`).join('');
+      <div class="step-desc">${md(truncateDesc(clean || raw))}</div>
+    </div>`;
+  }).join('');
   return `
   <div class="phase">
     <div class="phase__label"><span class="phase__icon">📋</span> Plan <span class="badge badge--indigo">planner</span> <span class="meta">${plan.steps?.length || 0} step(s)</span></div>
@@ -442,7 +457,8 @@ function buildHtml({ state, runId, sessionId, startedAt, endedAt, status, loopIt
   .step-row{display:flex;align-items:flex-start;gap:16px;padding:12px 0;border-bottom:1px solid var(--border)}
   .step-row:last-child{border-bottom:none}
   .step-num{flex-shrink:0;width:28px;height:28px;border-radius:8px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:#A5B4FC;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
-  .step-desc{font-size:14px;padding-top:4px;color:rgba(255,255,255,0.9); font-weight: 500;}
+  .step-desc{font-size:14px;padding-top:4px;color:rgba(255,255,255,0.9); font-weight: 500; word-break: break-word;}
+  .step-desc p{margin:0 0 4px}
 
   /* Worker */
   .dev-step{margin-bottom:24px}

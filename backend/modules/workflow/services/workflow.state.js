@@ -19,4 +19,6 @@ export const AgentStateAnnotation = Annotation.Root({
   loopEnabled: Annotation({ reducer: (_, b) => b, default: () => false }),
   maxLoops: Annotation({ reducer: (_, b) => b, default: () => 3 }),
   loopCount: Annotation({ reducer: (_, b) => b, default: () => 0 }),
+  workspaceContext: Annotation({ reducer: (_, b) => b, default: () => null }),
+  workspaceSummary: Annotation({ reducer: (_, b) => b, default: () => null }),
 });

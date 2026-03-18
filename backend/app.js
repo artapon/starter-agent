@@ -90,6 +90,30 @@ export function createApp() {
     } catch { res.json({ sessions: [] }); }
   });
 
+  // Reports — regenerate walkthrough HTML from stored DB state
+  app.post('/api/reports/:sessionId/regenerate', async (req, res) => {
+    try {
+      const { getDb } = await import('./core/database/db.js');
+      const { generateReport } = await import('./core/reports/report.generator.js');
+      const db = getDb();
+      // Find the most recent run for this session
+      const runs = db.table('workflow_runs').all({ session_id: req.params.sessionId }, { orderBy: 'started_at', order: 'desc', limit: 1 });
+      const run = runs?.[0];
+      if (!run) return res.status(404).json({ error: 'No run found for this session' });
+      const state = JSON.parse(run.graph_state_json || '{}');
+      generateReport({
+        state,
+        runId: run.id,
+        sessionId: req.params.sessionId,
+        startedAt: run.started_at,
+        endedAt: run.ended_at,
+        status: run.status,
+        loopIterations: [],
+      });
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   // Reports — return <style> and <main> content for a session's walkthrough
   app.get('/api/reports/:sessionId/content', (req, res) => {
     try {

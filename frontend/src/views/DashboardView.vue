@@ -28,12 +28,13 @@
     <div class="stat-grid">
       <div v-for="stat in statCards" :key="stat.label" class="stat-card card-hover">
         <div class="stat-card__icon" :style="`background:${stat.bg}`">
-          <v-icon :color="stat.color" size="20">{{ stat.icon }}</v-icon>
+          <v-icon :color="stat.color" size="18">{{ stat.icon }}</v-icon>
         </div>
         <div class="stat-card__body">
           <div class="stat-number">{{ stat.value }}</div>
           <div class="stat-card__label">{{ stat.label }}</div>
         </div>
+        <div class="stat-card__accent" :style="`background:${stat.color}`" />
       </div>
     </div>
 
@@ -230,7 +231,15 @@
               <div class="run-row__id font-mono">{{ run.id.slice(0, 10) }}</div>
               <div class="run-row__time">{{ new Date(run.started_at * 1000).toLocaleString() }}</div>
               <v-chip :color="statusColor(run.status)" size="x-small" variant="tonal">{{ run.status }}</v-chip>
-              <router-link v-if="reportSessions.has(run.session_id)"
+              <button v-if="run.status === 'running'"
+                class="run-stop-btn"
+                :class="{ 'run-stop-btn--stopping': stoppingRunId === run.id }"
+                :disabled="stoppingRunId === run.id"
+                @click="stopRun(run.id)">
+                <v-icon size="11">mdi-stop-circle-outline</v-icon>
+                {{ stoppingRunId === run.id ? 'Stopping…' : 'Stop' }}
+              </button>
+              <router-link v-else-if="reportSessions.has(run.session_id)"
                 :to="`/report/${run.session_id}`"
                 class="report-btn">
                 <v-icon size="12">mdi-file-chart-outline</v-icon> Walkthrough
@@ -283,6 +292,15 @@ const stats = ref({});
 const agentStatuses = ref([]);
 const recentRuns = ref([]);
 const reportSessions = ref(new Set());
+const stoppingRunId = ref(null);
+
+async function stopRun(runId) {
+  stoppingRunId.value = runId;
+  try {
+    await axios.post(`/api/workflow/stop/${runId}`);
+  } catch { /* best-effort */ }
+  finally { stoppingRunId.value = null; }
+}
 const logs = ref([]);
 const tokenUsage = ref({ today: 0, weekly: 0, monthly: 0, total: 0, byAgent: {} });
 const agentLiveStatus = ref({});
@@ -571,6 +589,9 @@ onMounted(() => {
     graphNodeStatus['done']      = 'complete';
     graphCurrentNode.value = null;
     fetchTokenUsage();
+    // Update run status in-place so stop button disappears without full refetch
+    const run = recentRuns.value.find(r => r.id === data.runId);
+    if (run) run.status = 'complete';
   });
 
   socket.on('workflow:stopped', (data) => {
@@ -578,6 +599,8 @@ onMounted(() => {
     graphOverallStatus.value = 'stopped';
     GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'idle'; });
     graphCurrentNode.value = null;
+    const run = recentRuns.value.find(r => r.id === data.runId);
+    if (run) run.status = 'stopped';
   });
 
   socket.on('workflow:error', (data) => {
@@ -585,6 +608,8 @@ onMounted(() => {
     graphOverallStatus.value = 'error';
     GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'error'; });
     graphCurrentNode.value = null;
+    const run = recentRuns.value.find(r => r.id === data.runId);
+    if (run) run.status = 'error';
   });
 
   const interval = setInterval(fetchStats, 30000);
@@ -631,12 +656,17 @@ onMounted(() => {
   border-radius: 12px;
   padding: 16px;
   display: flex; align-items: center; gap: 14px;
+  position: relative;
+  overflow: hidden;
 }
 .stat-card__icon {
-  width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.stat-card__label { font-size: 12px; color: rgba(226,232,240,0.45) !important; margin-top: 3px; }
+.stat-card__label { font-size: 11px; color: rgba(226,232,240,0.4) !important; margin-top: 3px; letter-spacing: 0.2px; }
+.stat-card__accent {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 2px; opacity: 0.25;
+}
 
 /* Main 2-column grid */
 .dash-main-grid {
@@ -743,6 +773,21 @@ onMounted(() => {
   transition: background 0.15s;
 }
 .report-btn:hover { background: rgba(34,211,238,0.15); }
+
+.run-stop-btn {
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+  font-size: 11px; font-weight: 600;
+  color: #EF4444;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid rgba(239,68,68,0.25);
+  background: rgba(239,68,68,0.07);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  outline: none;
+}
+.run-stop-btn:hover:not(:disabled) { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.45); }
+.run-stop-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.run-stop-btn--stopping { color: #F59E0B; border-color: rgba(245,158,11,0.25); background: rgba(245,158,11,0.07); }
 
 /* Log feed */
 .log-feed {

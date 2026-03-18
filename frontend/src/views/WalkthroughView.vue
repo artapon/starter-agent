@@ -11,6 +11,10 @@
         <v-icon size="14" color="#22D3EE" class="mr-1">mdi-file-chart-outline</v-icon>
         Walkthrough Report
       </span>
+      <button class="wt-regen" :class="{ 'wt-regen--loading': regenerating }" @click="regenerate" :disabled="regenerating">
+        <v-icon size="13">{{ regenerating ? 'mdi-loading' : 'mdi-refresh' }}</v-icon>
+        {{ regenerating ? 'Regenerating…' : 'Regenerate' }}
+      </button>
       <a :href="reportUrl" target="_blank" rel="noopener" class="wt-open">
         <v-icon size="13">mdi-open-in-new</v-icon>
         Open raw
@@ -50,8 +54,21 @@ const route = useRoute();
 const sessionId = computed(() => route.params.sessionId);
 const reportUrl = computed(() => `/reports/${sessionId.value}/walkthrough.html`);
 
-const loading  = ref(true);
-const notFound = ref(false);
+const loading      = ref(true);
+const notFound     = ref(false);
+const regenerating = ref(false);
+const frameEl      = ref(null);
+
+async function regenerate() {
+  regenerating.value = true;
+  try {
+    await axios.post(`/api/reports/${sessionId.value}/regenerate`);
+    // Force iframe to reload the freshly generated HTML
+    const iframe = document.querySelector('.wt-frame');
+    if (iframe) iframe.src = iframe.src;
+  } catch { /* best-effort */ }
+  finally { regenerating.value = false; }
+}
 
 onMounted(async () => {
   try {
@@ -115,6 +132,24 @@ onMounted(async () => {
   transition: color 0.15s;
 }
 .wt-open:hover { color: #22D3EE; }
+
+.wt-regen {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(99,102,241,0.7);
+  background: rgba(99,102,241,0.07);
+  border: 1px solid rgba(99,102,241,0.2);
+  padding: 3px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.wt-regen:hover:not(:disabled) { color: #6366F1; border-color: rgba(99,102,241,0.45); background: rgba(99,102,241,0.12); }
+.wt-regen:disabled { opacity: 0.5; cursor: not-allowed; }
+.wt-regen--loading .v-icon { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .wt-frame {
   flex: 1;

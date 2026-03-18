@@ -296,6 +296,7 @@ export class ResearcherAgent {
 
       // ── Save knowledge context to STM + LTM ───────────────────────────
       sm?.emitAgentStatus('researcher', 'working', 'Saving knowledge context to memory…');
+      const memory = memoryStore.getMemory('researcher', sessionId);
 
       // STM: one compact entry capturing what was gathered (shows in Memory view)
       const stmSummary = deepContext
@@ -324,7 +325,6 @@ export class ResearcherAgent {
       // ── Phase 4: LLM expert analysis (all instructions from RESEARCHER.md) ──
       sm?.emitAgentStatus('researcher', 'working', 'Analysing...');
       const adapter      = getAdapter('researcher');
-      const memory       = memoryStore.getMemory('researcher', sessionId);
       const histVars     = await memory.loadMemoryVariables({});
       const histMessages = toLMStudioMessages(histVars.chat_history || []);
       const ltmContext   = await memoryStore.getLTMContext('researcher', goal, 3);

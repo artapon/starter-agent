@@ -4,6 +4,7 @@ import { WorkerAgent }     from '../../worker/services/worker.agent.js';
 import { ReviewerAgent }   from '../../reviewer/services/reviewer.agent.js';
 import { memoryStore }     from '../../memory/services/memory.store.js';
 import { getRLStore }      from '../../../core/rl/rl.store.js';
+import { buildWorkspaceContext, buildWorkspaceSummary } from '../../../core/workspace/workspace.reader.js';
 
 export function createNodes(socketManager) {
   const researcherAgent = new ResearcherAgent(socketManager);
@@ -17,6 +18,16 @@ export function createNodes(socketManager) {
 
   // ── Node 1: Analyze (researcher + planner) ──────────────────────────────
   async function analyzeNode(state) {
+    // Scan the workspace once — full context for worker/reviewer, compact summary for planner
+    const ws = buildWorkspaceContext();
+    const wsSummary = buildWorkspaceSummary();
+    const workspaceContext = ws.isEmpty ? null : ws.context;
+    const workspaceSummary = wsSummary.isEmpty ? null : wsSummary.summary;
+    if (!ws.isEmpty) {
+      emitStatus(state.sessionId, 'planner',
+        `\n📂 **Workspace scanned** — ${ws.fileCount} file${ws.fileCount !== 1 ? 's' : ''} found. Agents will extend the existing project.\n`);
+    }
+
     // Research phase
     memoryStore.setWorkingContext('researcher', state.runId, { goal: state.userGoal, sessionId: state.sessionId });
     socketManager?.emitWorkflowNode(state.runId, 'analyze', { status: 'running', phase: 'research' });
@@ -39,14 +50,30 @@ export function createNodes(socketManager) {
     socketManager?.emitWorkflowNode(state.runId, 'analyze', { status: 'running', phase: 'plan' });
     emitStatus(state.sessionId, 'planner', `\n📋 **Planning:** ${state.userGoal}\n\n`);
 
-    const goalWithContext = `${state.userGoal}\n\n[Research findings]\nSummary: ${findings.summary || ''}\nRecommended approach: ${findings.recommendedApproach || ''}\nTech stack: ${(findings.techStack || []).join(', ')}\nChallenges: ${(findings.potentialChallenges || []).join(', ')}`;
+    const researchContext = [
+      `Summary: ${findings.summary || ''}`,
+      findings.recommendedApproach ? `Recommended approach: ${findings.recommendedApproach}` : '',
+      findings.techStack?.length ? `Tech stack: ${findings.techStack.join(', ')}` : '',
+      findings.recommendedPackages?.length ? `Recommended packages: ${findings.recommendedPackages.join(', ')}` : '',
+      findings.antiPatterns?.length ? `Anti-patterns to avoid: ${findings.antiPatterns.join('; ')}` : '',
+      findings.potentialChallenges?.length ? `Key challenges: ${findings.potentialChallenges.join('; ')}` : '',
+      findings.productionConsiderations?.length ? `Production notes: ${findings.productionConsiderations.join('; ')}` : '',
+    ].filter(Boolean).join('\n');
+
+    // Workspace summary comes FIRST so compression never truncates it
+    const goalWithContext = [
+      workspaceSummary ? `${workspaceSummary}\n` : '',
+      state.userGoal,
+      researchContext ? `\n[Research Context]\n${researchContext}` : '',
+    ].join('');
+
     const plan = await plannerAgent.plan(goalWithContext, state.sessionId, state.runId);
 
     const stepList = (plan.steps || []).map((s, i) => `  ${i + 1}. ${s.description}`).join('\n');
     emitStatus(state.sessionId, 'planner', `\n\n✅ **Plan ready** — ${plan.steps?.length || 0} step(s):\n${stepList}\n`);
 
     socketManager?.emitWorkflowNode(state.runId, 'analyze', { status: 'complete', findings, plan });
-    return { researchFindings: findings, plan, currentStepIdx: 0, status: 'running' };
+    return { researchFindings: findings, plan, currentStepIdx: 0, status: 'running', workspaceContext, workspaceSummary };
   }
 
   // ── Node 2: Worker ───────────────────────────────────────────────────────
@@ -67,8 +94,23 @@ export function createNodes(socketManager) {
     });
     emitStatus(state.sessionId, 'worker', `\n---\n💻 **${label}:** ${step.description}\n\n`);
 
+    // Enrich task with research context + existing workspace project
+    const findings = state.researchFindings || {};
+    const techHint = [
+      findings.recommendedApproach ? `Approach: ${findings.recommendedApproach}` : '',
+      findings.techStack?.length ? `Tech stack: ${findings.techStack.join(', ')}` : '',
+      findings.recommendedPackages?.length ? `Packages to use: ${findings.recommendedPackages.join(', ')}` : '',
+      findings.antiPatterns?.length ? `Avoid: ${findings.antiPatterns.join('; ')}` : '',
+    ].filter(Boolean).join('\n');
+
+    const enrichedTask = [
+      step.description,
+      techHint ? `\n[Research Guidance]\n${techHint}` : '',
+      state.workspaceContext ? `\n${state.workspaceContext}` : '',
+    ].join('');
+
     const result = await workerAgent.execute(
-      step.description, state.sessionId, state.plan?.planId, state.runId,
+      enrichedTask, state.sessionId, state.plan?.planId, state.runId,
     );
 
     socketManager?.emitWorkflowNode(state.runId, 'worker', {
@@ -94,8 +136,13 @@ export function createNodes(socketManager) {
     socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'running' });
     emitStatus(state.sessionId, 'reviewer', `\n---\n🔍 **Reviewing:** ${step?.description || 'output'}\n\n`);
 
+    // Build review content: worker result + workspace context for completeness checks
+    const reviewContent = state.workspaceContext
+      ? `${lastResult.result || ''}\n\n${state.workspaceContext}`
+      : (lastResult.result || '');
+
     const review   = await reviewerAgent.review(
-      lastResult.result || '', step?.description || 'Review task',
+      reviewContent, step?.description || 'Review task',
       state.sessionId, lastResult.subtaskId, state.runId,
     );
     const score    = review.score ?? 10;
@@ -170,10 +217,20 @@ export function createNodes(socketManager) {
     }
 
     // All done — final assembly (was assembler node)
-    const results     = (Array.isArray(state.subtaskResults) ? state.subtaskResults : [])
-      .map((r, i) => `Step ${i + 1}:\n${r.result}`)
+    const results = (Array.isArray(state.subtaskResults) ? state.subtaskResults : [])
+      .map((r, i) => {
+        const stepLabel = steps[i]?.description ? `**Step ${i + 1}:** ${steps[i].description}` : `**Step ${i + 1}**`;
+        return `### ${stepLabel}\n\n${r.result}`;
+      })
       .join('\n\n---\n\n');
-    const finalAnswer = `# Completed: ${state.userGoal}\n\n${results}`;
+
+    const loopSummary = state.loopCount > 0
+      ? `\n\n> ✨ Refined through ${state.loopCount} improvement loop${state.loopCount > 1 ? 's' : ''}.`
+      : '';
+
+    const scoreInfo = score > 0 ? `\n\n> **Quality score:** ${score}/10` : '';
+
+    const finalAnswer = `# ✅ Completed: ${state.userGoal}${loopSummary}${scoreInfo}\n\n---\n\n${results}`;
     socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'assembled' });
     return { finalAnswer, status: 'complete' };
   }

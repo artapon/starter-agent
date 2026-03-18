@@ -4,8 +4,12 @@
     <!-- Toolbar -->
     <div class="chat-toolbar">
       <div class="d-flex align-center gap-2">
-        <v-icon size="16" color="#6366F1">mdi-chat-outline</v-icon>
+        <div class="toolbar-icon">
+          <v-icon size="14" color="#6366F1">mdi-chat-processing-outline</v-icon>
+        </div>
         <span class="chat-toolbar__title">Realtime Chat</span>
+        <span class="chat-toolbar__sep" />
+        <span class="chat-toolbar__hint">Multi-agent pipeline</span>
       </div>
       <div class="d-flex align-center gap-2">
         <v-select
@@ -16,17 +20,17 @@
           density="compact"
           hide-details
           variant="outlined"
-          style="max-width:200px;font-size:12px"
+          style="max-width:190px;font-size:12px"
           label="Session"
         />
-        <v-btn size="small" variant="text" icon="mdi-plus" @click="newSession"
-          style="color:rgba(226,232,240,0.5)" />
-        <v-btn size="small" variant="text" icon="mdi-delete-outline" @click="clearSession"
-          style="color:rgba(226,232,240,0.5)" />
-        <div style="width:1px;height:20px;background:rgba(255,255,255,0.08)" />
-        <v-btn size="small" variant="text"
+        <v-btn size="x-small" variant="text" icon="mdi-plus" @click="newSession"
+          style="color:rgba(226,232,240,0.45)" title="New session" />
+        <v-btn size="x-small" variant="text" icon="mdi-delete-outline" @click="clearSession"
+          style="color:rgba(226,232,240,0.45)" title="Clear session" />
+        <div style="width:1px;height:18px;background:rgba(255,255,255,0.08)" />
+        <v-btn size="x-small" variant="text"
           :icon="showWorkspace ? 'mdi-folder-open-outline' : 'mdi-folder-outline'"
-          :color="showWorkspace ? '#6366F1' : undefined"
+          :color="showWorkspace ? '#6366F1' : 'rgba(226,232,240,0.45)'"
           @click="showWorkspace = !showWorkspace" title="Toggle workspace"
         />
       </div>
@@ -118,21 +122,31 @@
 
     <!-- Input bar -->
     <div class="chat-input-bar">
-      <v-textarea
-        v-model="input"
-        placeholder="Describe your goal… (Enter to send, Shift+Enter for newline)"
-        rows="2" max-rows="5" auto-grow hide-details variant="outlined" density="compact"
-        :disabled="sending"
-        @keydown.enter.exact.prevent="sendMessage"
-        @keydown.shift.enter.exact="insertNewline"
-        style="font-size:14px"
-      />
-      <v-btn
-        color="error" variant="tonal" icon="mdi-stop-circle-outline" size="40"
-        :disabled="!sending && !isStreaming && !typing"
-        @click="stopChat" title="Stop" />
-      <v-btn color="primary" :loading="sending" :disabled="!input.trim() || sending"
-        @click="sendMessage" icon="mdi-send" size="40" />
+      <div class="chat-input-wrap">
+        <v-textarea
+          v-model="input"
+          placeholder="Describe your goal… (Enter to send, Shift+Enter for newline)"
+          rows="2" max-rows="6" auto-grow hide-details variant="outlined" density="compact"
+          :disabled="sending"
+          @keydown.enter.exact.prevent="sendMessage"
+          @keydown.shift.enter.exact="insertNewline"
+          style="font-size:14px"
+        />
+        <div class="chat-input-hint">
+          <span>Enter to send</span>
+          <span>·</span>
+          <span>Shift+Enter for newline</span>
+        </div>
+      </div>
+      <div class="chat-input-actions">
+        <v-btn
+          color="error" variant="tonal" icon="mdi-stop-circle-outline" size="38"
+          :disabled="!sending && !isStreaming && !typing"
+          @click="stopChat" title="Stop generation" />
+        <v-btn color="primary" :loading="sending" :disabled="!input.trim() || sending"
+          @click="sendMessage" icon="mdi-send" size="38"
+          style="box-shadow:0 2px 12px rgba(99,102,241,0.25)" />
+      </div>
     </div>
 
     <!-- File viewer dialog -->
@@ -399,12 +413,19 @@ onMounted(() => {
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
 .chat-toolbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 16px;
-  height: 48px; flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  background: #0D0D1A;
+  padding: 0 14px;
+  height: 46px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: #0C0C18;
 }
-.chat-toolbar__title { font-size: 13px; font-weight: 600; }
+.toolbar-icon {
+  width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0;
+  background: rgba(99,102,241,0.12);
+  display: flex; align-items: center; justify-content: center;
+}
+.chat-toolbar__title { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; }
+.chat-toolbar__sep { width: 1px; height: 14px; background: rgba(255,255,255,0.08); }
+.chat-toolbar__hint { font-size: 11px; color: rgba(226,232,240,0.3) !important; }
 
 /* ── Body ─────────────────────────────────────────────────────────────────── */
 .chat-body { flex: 1; display: flex; overflow: hidden; }
@@ -429,30 +450,57 @@ onMounted(() => {
   border-radius: 14px;
   padding: 10px 14px;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.65;
   word-break: break-word;
 }
 .msg-bubble--user {
-  background: #6366F1;
+  background: linear-gradient(135deg, #6366F1 0%, #7C3AED 100%);
   border-bottom-right-radius: 4px;
   color: #fff !important;
+  box-shadow: 0 2px 12px rgba(99,102,241,0.2);
 }
 .msg-bubble--agent {
-  background: #12121E;
-  border: 1px solid rgba(255,255,255,0.06);
+  background: #13131F;
+  border: 1px solid rgba(255,255,255,0.07);
   border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.2);
 }
 .msg-bubble--streaming {
-  border-color: rgba(99,102,241,0.2) !important;
+  border-color: rgba(99,102,241,0.25) !important;
+  box-shadow: 0 0 0 1px rgba(99,102,241,0.08) !important;
 }
 
 /* Markdown inside bubbles */
-.msg-bubble :deep(p)    { margin: 0 0 6px; }
+.msg-bubble :deep(p)    { margin: 0 0 8px; }
 .msg-bubble :deep(p:last-child) { margin-bottom: 0; }
-.msg-bubble :deep(pre)  { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; margin: 6px 0; overflow-x:auto; }
-.msg-bubble :deep(code) { font-family: monospace; font-size: 13px; }
-.msg-bubble :deep(ul), .msg-bubble :deep(ol) { padding-left: 20px; margin: 4px 0; }
-.msg-bubble :deep(hr)   { border-color: rgba(255,255,255,0.08); margin: 10px 0; }
+.msg-bubble :deep(pre)  {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.07);
+  padding: 12px 14px; border-radius: 8px; margin: 8px 0; overflow-x: auto;
+}
+.msg-bubble :deep(code) { font-family: 'JetBrains Mono','Fira Code',monospace; font-size: 12.5px; }
+.msg-bubble :deep(:not(pre) > code) {
+  background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px;
+  font-size: 12.5px;
+}
+.msg-bubble :deep(h1), .msg-bubble :deep(h2), .msg-bubble :deep(h3) {
+  margin: 10px 0 6px; font-weight: 700; line-height: 1.3;
+}
+.msg-bubble :deep(h1) { font-size: 16px; }
+.msg-bubble :deep(h2) { font-size: 14px; }
+.msg-bubble :deep(h3) { font-size: 13px; }
+.msg-bubble :deep(ul), .msg-bubble :deep(ol) { padding-left: 20px; margin: 6px 0; }
+.msg-bubble :deep(li) { margin-bottom: 3px; }
+.msg-bubble :deep(hr)   { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0; }
+.msg-bubble :deep(blockquote) {
+  border-left: 3px solid rgba(99,102,241,0.5); margin: 8px 0;
+  padding: 4px 12px; color: rgba(226,232,240,0.7) !important;
+}
+.msg-bubble :deep(table) { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 13px; }
+.msg-bubble :deep(th), .msg-bubble :deep(td) {
+  padding: 6px 10px; border: 1px solid rgba(255,255,255,0.08); text-align: left;
+}
+.msg-bubble :deep(th) { background: rgba(99,102,241,0.1); font-weight: 600; }
 
 .msg-time {
   font-size: 10px;
@@ -495,11 +543,17 @@ onMounted(() => {
 
 /* ── Input bar ───────────────────────────────────────────────────────────── */
 .chat-input-bar {
-  display: flex; align-items: flex-end; gap: 8px;
-  padding: 12px 16px;
-  background: #0D0D1A;
-  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex; align-items: flex-end; gap: 10px;
+  padding: 10px 14px 12px;
+  background: #0C0C18;
+  border-top: 1px solid rgba(255,255,255,0.06);
 }
+.chat-input-wrap { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.chat-input-hint {
+  display: flex; gap: 6px; padding: 0 2px;
+  font-size: 10px; color: rgba(226,232,240,0.2) !important;
+}
+.chat-input-actions { display: flex; flex-direction: column; gap: 6px; padding-bottom: 2px; }
 
 /* ── Workspace panel ─────────────────────────────────────────────────────── */
 .workspace-panel {

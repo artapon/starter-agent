@@ -7,6 +7,10 @@
         <div class="page-title">Workflow</div>
         <div class="page-subtitle">Run and monitor multi-agent pipelines</div>
       </div>
+      <v-btn variant="text" size="small" prepend-icon="mdi-refresh"
+        @click="fetchRuns" style="color:rgba(226,232,240,0.45);font-size:12px">
+        Refresh
+      </v-btn>
     </div>
 
     <!-- Top row -->
@@ -15,27 +19,36 @@
       <!-- Start workflow -->
       <div class="panel card-hover">
         <div class="panel__header">
-          <v-icon size="15" color="#6366F1">mdi-play-circle-outline</v-icon>
-          <span class="section-title">New Workflow</span>
+          <div class="d-flex align-center gap-2">
+            <v-icon size="15" color="#6366F1">mdi-play-circle-outline</v-icon>
+            <span class="section-title">New Workflow</span>
+          </div>
+          <span v-if="isRunning" class="running-pill">
+            <span class="running-pill__dot" />
+            Running
+          </span>
         </div>
         <div class="panel__body">
           <v-textarea
             v-model="goal"
             label="Goal"
-            placeholder="e.g. Build a REST API with authentication..."
-            rows="3" variant="outlined" hide-details
+            placeholder="e.g. Build a REST API with JWT authentication and CRUD endpoints..."
+            rows="4" variant="outlined" hide-details
+            style="font-size:14px"
           />
-          <div class="d-flex gap-2 mt-3">
+          <div class="wf-action-row mt-3">
             <v-btn color="primary" :loading="starting"
               :disabled="!goal.trim() || isRunning"
-              prepend-icon="mdi-play" @click="startWorkflow">
+              prepend-icon="mdi-play-circle-outline" @click="startWorkflow"
+              style="box-shadow:0 2px 12px rgba(99,102,241,0.2)">
               Run Workflow
             </v-btn>
             <v-btn v-if="isRunning && activeRun?.runId"
               color="error" variant="tonal" :loading="stopping"
-              prepend-icon="mdi-stop" @click="stopWorkflow">
+              prepend-icon="mdi-stop-circle-outline" @click="stopWorkflow">
               Stop
             </v-btn>
+            <span class="wf-tip">Researcher → Planner → Worker → Reviewer</span>
           </div>
         </div>
       </div>
@@ -44,8 +57,13 @@
       <div class="panel card-hover" v-if="activeRun">
         <div class="panel__header">
           <div class="d-flex align-center gap-2">
-            <v-icon size="15" color="#6366F1">mdi-run-fast</v-icon>
+            <div class="run-status-dot" :class="`run-status-dot--${activeRun.status}`" />
             <span class="section-title">Active Run</span>
+            <button v-if="isRunning" class="inline-stop-btn" :class="{ 'inline-stop-btn--stopping': stopping }"
+              @click="stopWorkflow" :disabled="stopping">
+              <v-icon size="11">mdi-stop-circle-outline</v-icon>
+              {{ stopping ? 'Stopping…' : 'Stop' }}
+            </button>
             <span class="run-id font-mono">{{ activeRun.runId?.slice(0, 8) }}</span>
           </div>
           <v-chip :color="runStatusColor(activeRun.status)" size="x-small" variant="tonal">
@@ -53,10 +71,15 @@
           </v-chip>
         </div>
         <div class="timeline-wrap">
-          <div v-for="event in nodeEvents" :key="event.ts" class="timeline-item">
-            <div class="timeline-dot" :style="`background:${nodeColorHex(event.status)}`" />
+          <div v-for="(event, idx) in nodeEvents" :key="event.ts" class="timeline-item">
+            <div class="timeline-line" v-if="idx < nodeEvents.length - 1" />
+            <div class="timeline-dot-wrap">
+              <div class="timeline-dot" :style="`background:${nodeColorHex(event.status)}`" />
+            </div>
             <div class="timeline-content">
-              <div class="timeline-node">{{ event.node }}
+              <div class="timeline-node">
+                <span class="timeline-node-icon">{{ nodeEmoji(event.node) }}</span>
+                {{ event.node }}
                 <span class="timeline-badge" :style="`background:${nodeColorBg(event.status)};color:${nodeColorHex(event.status)}`">
                   {{ event.status }}
                 </span>
@@ -64,12 +87,16 @@
               <div class="timeline-time">{{ formatTime(event.ts) }}</div>
             </div>
           </div>
-          <div v-if="!nodeEvents.length" class="empty-state">Waiting to start…</div>
+          <div v-if="!nodeEvents.length" class="empty-state">
+            <v-icon size="28" style="color:rgba(226,232,240,0.15);display:block;margin-bottom:6px">mdi-timer-sand</v-icon>
+            Waiting to start…
+          </div>
         </div>
       </div>
       <div v-else class="panel panel--placeholder">
-        <v-icon size="40" style="color:rgba(226,232,240,0.1)">mdi-graph-outline</v-icon>
-        <div style="font-size:13px;color:rgba(226,232,240,0.25);margin-top:10px">No active run</div>
+        <v-icon size="36" style="color:rgba(226,232,240,0.1)">mdi-graph-outline</v-icon>
+        <div style="font-size:13px;color:rgba(226,232,240,0.2);margin-top:8px;font-weight:500">No active run</div>
+        <div style="font-size:11px;color:rgba(226,232,240,0.12);margin-top:3px">Start a workflow to see live progress</div>
       </div>
     </div>
 
@@ -148,6 +175,9 @@ function nodeColorHex(s) {
 }
 function nodeColorBg(s) {
   return { complete: 'rgba(16,185,129,0.1)', running: 'rgba(245,158,11,0.1)', error: 'rgba(239,68,68,0.1)' }[s] || 'rgba(255,255,255,0.05)';
+}
+function nodeEmoji(node) {
+  return { researcher: '🔬', planner: '📋', worker: '💻', reviewer: '🔍', loop_reset: '🔄', assembler: '✅', analyze: '🧠' }[node] || '⚙️';
 }
 function formatTime(ts) { return ts ? new Date(ts).toLocaleTimeString() : ''; }
 
@@ -250,31 +280,65 @@ onMounted(() => {
   background: rgba(255,255,255,0.04); border-radius: 4px;
 }
 
+.inline-stop-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 4px;
+  border: 1px solid rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.08);
+  color: #EF4444;
+  font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  outline: none;
+}
+.inline-stop-btn:hover:not(:disabled) { background: rgba(239,68,68,0.16); border-color: rgba(239,68,68,0.5); }
+.inline-stop-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.inline-stop-btn--stopping { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.08); color: #F59E0B; }
+
+/* Run status dot */
+.run-status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.run-status-dot--running  { background: #F59E0B; animation: pulse-wf 1.2s ease-in-out infinite; }
+.run-status-dot--complete { background: #10B981; }
+.run-status-dot--error    { background: #EF4444; }
+.run-status-dot--stopped  { background: rgba(226,232,240,0.3); }
+@keyframes pulse-wf {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(245,158,11,0.4); }
+  50%       { opacity: 0.7; box-shadow: 0 0 0 4px rgba(245,158,11,0); }
+}
+
 /* Timeline */
 .timeline-wrap { padding: 12px 14px; display: flex; flex-direction: column; gap: 0; }
 .timeline-item {
-  display: flex; align-items: flex-start; gap: 10px;
+  display: flex; align-items: flex-start; gap: 12px;
   padding: 8px 0;
-  border-left: 1px solid rgba(255,255,255,0.06);
-  padding-left: 14px;
   position: relative;
-  margin-left: 6px;
+}
+.timeline-dot-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  flex-shrink: 0; width: 20px;
 }
 .timeline-dot {
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-  position: absolute; left: -5px; top: 12px;
   border: 2px solid #08080F;
+  margin-top: 4px;
+}
+.timeline-line {
+  position: absolute; left: 9px; top: 22px; bottom: -8px;
+  width: 1px; background: rgba(255,255,255,0.07);
 }
 .timeline-content { flex: 1; }
 .timeline-node {
   font-size: 13px; font-weight: 500; text-transform: capitalize;
   display: flex; align-items: center; gap: 8px;
 }
+.timeline-node-icon { font-size: 14px; }
 .timeline-badge {
-  font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px;
-  text-transform: uppercase;
+  font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: 0.3px;
 }
-.timeline-time { font-size: 11px; color: rgba(226,232,240,0.35) !important; margin-top: 2px; }
+.timeline-time { font-size: 11px; color: rgba(226,232,240,0.3) !important; margin-top: 2px; }
 
 /* History table */
 .history-table :deep(.v-data-table__td) { border-bottom: 1px solid rgba(255,255,255,0.04) !important; }
@@ -284,8 +348,25 @@ onMounted(() => {
   color: rgba(226,232,240,0.4) !important;
 }
 
-.empty-state { font-size: 13px; color: rgba(226,232,240,0.3) !important; padding: 8px 0; }
+.empty-state { font-size: 13px; color: rgba(226,232,240,0.3) !important; padding: 12px 0; text-align: center; }
 .gap-2 { gap: 8px; }
+
+.running-pill {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; color: #F59E0B !important;
+  background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2);
+  padding: 2px 8px; border-radius: 20px;
+}
+.running-pill__dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #F59E0B;
+  animation: pulse-wf 1.2s ease-in-out infinite;
+}
+
+.wf-action-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wf-tip {
+  font-size: 11px; color: rgba(226,232,240,0.25) !important;
+  margin-left: auto;
+}
 
 .report-btn {
   display: inline-flex; align-items: center; gap: 4px;

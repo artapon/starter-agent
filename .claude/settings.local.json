@@ -9,7 +9,9 @@
       "Bash(cd D:/Projects/starter-agent && grep -n \"handleLLMNewToken\" backend/modules/*/services/*.js)",
       "Bash(start D:/Projects/starter-agent/walkthrough.html)",
       "Bash(cd D:/Projects/starter-agent/backend && npx -y @modelcontextprotocol/server-puppeteer --version 2>&1 | head -20)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find D:Projectsstarter-agentfrontendsrccomponents -type f -name *.vue -o -name *.js)",
+      "Bash(ls:*)"
     ]
   }
 }

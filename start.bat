@@ -11,22 +11,6 @@ echo.
 
 set "ROOT=%~dp0"
 
-:: Auto-install if node_modules missing
-set "NEED_INSTALL=0"
-if not exist "%ROOT%backend\node_modules"  set "NEED_INSTALL=1"
-if not exist "%ROOT%frontend\node_modules" set "NEED_INSTALL=1"
-
-if "%NEED_INSTALL%"=="1" (
-    color 0E
-    echo  [WARN] Dependencies not found. Running install first...
-    echo.
-    color 0B
-    :: Call install.bat without its trailing pause
-    call "%ROOT%install.bat" nopause
-    if %errorlevel% neq 0 exit /b 1
-    color 0B
-    echo.
-)
 
 :: Ensure .env exists
 if not exist "%ROOT%backend\.env" (

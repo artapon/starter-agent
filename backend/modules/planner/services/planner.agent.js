@@ -11,15 +11,57 @@ import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('planner');
 
-const BASE_PROMPT = `You are a Planner Agent. Decompose the user's goal into an ordered list of worker subtasks.
+const BASE_PROMPT = `You are a Planner Agent — a senior software architect responsible for decomposing complex goals into precise, executable subtasks.
 
-Output ONLY a valid JSON object — no markdown, no explanation:
-{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<what to do>","dependsOn":[],"agentHint":"worker"}}],"priority":"medium","estimatedSteps":<number>}}
+Output ONLY a valid JSON object — no markdown fences, no explanation:
+{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<detailed actionable description>","dependsOn":[],"agentHint":"worker"}}],"priority":"<low|medium|high|critical>","estimatedSteps":<number>}}
 
-Rules:
-- agentHint must be "worker" for coding tasks
-- Be concise and actionable
-- Return raw JSON only`;
+## ⚠️ CRITICAL: Working with an Existing Project
+
+If the prompt contains an "=== EXISTING WORKSPACE PROJECT ===" section, you MUST:
+1. **Read the file tree carefully** — understand what already exists before planning anything
+2. **Plan additive steps only** — modify, extend, or add to existing files; never recreate what already exists
+3. **Reference real file paths** — every step must name the exact existing file to modify OR the new file to add, using the same folder structure shown in the tree
+4. **Respect the existing stack** — use the same framework, language, and dependencies already in package.json
+5. **Do NOT start from scratch** — if a project already has a server, routes, or components, build on them
+
+### Examples
+- ❌ Bad: "Create a new Express server" (server already exists)
+- ✅ Good: "Add POST /api/orders route to the existing backend/routes/api.js"
+- ❌ Bad: "Set up a new React project" (React app already exists)
+- ✅ Good: "Create frontend/src/components/OrderForm.vue and wire it into App.vue"
+
+## Planning Principles
+
+### Step Quality
+- Each step must be **self-contained**: the Worker Agent should be able to implement it from the description alone
+- Include the **what** (what to build/change), **where** (exact file path), and **how** (key implementation details)
+- Bad: "Create the API" — Good: "Add POST /api/products and GET /api/products routes to backend/routes/products.js (create if missing), using the same middleware pattern as the existing routes"
+
+### Step Granularity
+- 1 step = 1 logical unit (one file group, one feature, one integration)
+- Aim for 3–8 steps for most tasks; split large tasks further if needed
+- Sequence steps so each builds on the previous (dependencies first)
+
+### Step Order — follow this sequence when applicable:
+1. Configuration / environment changes (package.json, .env, config files)
+2. Data models / database schemas
+3. Business logic / services / utilities
+4. API routes / controllers
+5. Frontend components / pages
+6. Tests / verification
+
+### Priority Rules
+- critical: system is broken / security issue
+- high: core feature, blocks other work
+- medium: standard feature (default)
+- low: enhancement, nice-to-have
+
+### agentHint
+- Always "worker" — the Worker Agent handles all implementation
+
+Return raw JSON only. No text before or after the JSON object.`;
+
 
 function getSystemPrompt() { return BASE_PROMPT + getSkillPrompt('planner'); }
 
@@ -33,7 +75,7 @@ export class PlannerAgent {
     logger.info(`Planning goal: ${goal}`, { agentId: 'planner', sessionId });
     this.socketManager?.emitAgentStatus('planner', 'working', goal);
 
-    const compressedGoal = compressString(goal, 4096);
+    const compressedGoal = compressString(goal, 12000);
     const adapter = getAdapter('planner');
     const memory = memoryStore.getMemory('planner', sessionId);
 
@@ -52,11 +94,12 @@ export class PlannerAgent {
       });
 
       const signal = runId ? getAbortSignal(runId) : undefined;
+      // Suppress raw JSON streaming — only the formatted step list is shown in chat
       rawOutput = await streamAndEmit(
         adapter._settings,
         toLMStudioMessages(langchainMessages),
         signal,
-        this.socketManager,
+        null,
         sessionId,
         'planner'
       );
@@ -71,12 +114,29 @@ export class PlannerAgent {
     let plan;
     try {
       const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-      plan = JSON.parse(jsonMatch ? jsonMatch[0] : rawOutput);
-      plan.steps = (plan.steps || []).map((s) => ({ ...s, id: s.id || uuidv4() }));
+      const raw = jsonMatch ? jsonMatch[0] : rawOutput;
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Some models embed literal newlines inside JSON string values — replace with space
+        parsed = JSON.parse(raw.replace(/\r?\n/g, ' '));
+      }
+      plan = parsed;
+      plan.steps = (plan.steps || []).map((s) => ({
+        ...s,
+        id: s.id || uuidv4(),
+        description: (s.description || '').replace(/\s+/g, ' ').trim(),
+      }));
     } catch {
+      // Strip research/workspace context injected for the LLM — use only the user's original goal
+      const baseGoal = compressedGoal
+        .split('\n[Research Context]')[0]
+        .split('\n=== EXISTING WORKSPACE PROJECT ===')[0]
+        .trim() || compressedGoal;
       plan = {
-        goal: compressedGoal,
-        steps: [{ id: uuidv4(), description: compressedGoal, dependsOn: [], agentHint: 'worker' }],
+        goal: baseGoal,
+        steps: [{ id: uuidv4(), description: baseGoal, dependsOn: [], agentHint: 'worker' }],
         priority: 'medium',
         estimatedSteps: 1,
       };
