@@ -249,6 +249,10 @@ async function fetchRuns() {
 }
 
 onMounted(() => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlProjectId = urlParams.get('projectId');
+  if (urlProjectId) projectId.value = urlProjectId;
+
   fetchRuns();
   loadProjects();
 

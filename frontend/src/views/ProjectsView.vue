@@ -48,14 +48,20 @@
             style="color:rgba(226,232,240,0.4)" @click="openEdit(project)" />
           <v-btn size="x-small" variant="text" icon="mdi-delete-outline"
             style="color:rgba(239,68,68,0.5)" @click="confirmDelete(project)" />
-          <router-link :to="`/chat?projectId=${project.id}`" class="proj-open-btn">
-            <v-icon size="13">mdi-chat-outline</v-icon>
-            Chat
-          </router-link>
-          <router-link :to="`/memory?projectId=${project.id}`" class="proj-open-btn proj-open-btn--mem">
-            <v-icon size="13">mdi-brain</v-icon>
-            Memory
-          </router-link>
+          <div class="proj-card__btns">
+            <router-link :to="`/chat?projectId=${project.id}`" class="proj-open-btn">
+              <v-icon size="13">mdi-chat-outline</v-icon>
+              Chat
+            </router-link>
+            <router-link :to="`/memory?projectId=${project.id}`" class="proj-open-btn proj-open-btn--mem">
+              <v-icon size="13">mdi-brain</v-icon>
+              Memory
+            </router-link>
+            <router-link :to="`/workflow?projectId=${project.id}`" class="proj-open-btn proj-open-btn--wf">
+              <v-icon size="13">mdi-graph-outline</v-icon>
+              Workflow
+            </router-link>
+          </div>
         </div>
       </div>
     </div>
@@ -100,23 +106,34 @@
     </v-dialog>
 
     <!-- Delete confirm dialog -->
-    <v-dialog v-model="deleteDialog.show" max-width="380">
+    <v-dialog v-model="deleteDialog.show" max-width="420">
       <v-card rounded="lg" style="background:#12121E">
         <div class="dialog-title">
           <v-icon size="16" color="#EF4444">mdi-delete-outline</v-icon>
           <span>Delete Project</span>
         </div>
         <div class="dialog-body">
-          <p style="font-size:14px;color:rgba(226,232,240,0.7)">
+          <p style="font-size:14px;color:rgba(226,232,240,0.8);margin-bottom:12px">
             Delete <strong style="color:#E2E8F0">{{ deleteDialog.project?.title }}</strong>?
-            This cannot be undone.
           </p>
+          <div class="delete-warn">
+            <v-icon size="13" color="#F87171" style="flex-shrink:0;margin-top:1px">mdi-alert-circle-outline</v-icon>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:#F87171;margin-bottom:5px">This will permanently delete:</div>
+              <ul class="delete-list">
+                <li>All chat messages in this project</li>
+                <li>All workflow runs &amp; their results</li>
+                <li>All agent memory snapshots</li>
+                <li>All reports tied to this project</li>
+              </ul>
+            </div>
+          </div>
         </div>
         <div class="dialog-footer">
           <v-btn variant="text" size="small" @click="deleteDialog.show = false"
             style="color:rgba(226,232,240,0.4)">Cancel</v-btn>
           <v-btn color="error" size="small" :loading="deleteDialog.deleting"
-            @click="doDelete">Delete</v-btn>
+            @click="doDelete">Delete Everything</v-btn>
         </div>
       </v-card>
     </v-dialog>
@@ -199,7 +216,7 @@ onMounted(fetchProjects);
 
 .proj-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 
@@ -236,8 +253,12 @@ onMounted(fetchProjects);
   background: rgba(255,255,255,0.01);
 }
 
+.proj-card__btns {
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+}
+
 .proj-open-btn {
-  display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
+  display: inline-flex; align-items: center; gap: 4px;
   font-size: 11px; font-weight: 600; color: #6366F1;
   text-decoration: none;
   padding: 3px 10px; border-radius: 5px;
@@ -252,6 +273,25 @@ onMounted(fetchProjects);
   background: rgba(20,184,166,0.08);
 }
 .proj-open-btn--mem:hover { background: rgba(20,184,166,0.15); }
+.proj-open-btn--wf {
+  color: #C084FC;
+  border-color: rgba(192,132,252,0.3);
+  background: rgba(192,132,252,0.08);
+}
+.proj-open-btn--wf:hover { background: rgba(192,132,252,0.15); }
+
+/* Delete warning */
+.delete-warn {
+  display: flex; gap: 8px;
+  background: rgba(239,68,68,0.06);
+  border: 1px solid rgba(239,68,68,0.18);
+  border-radius: 8px; padding: 10px 12px;
+}
+.delete-list {
+  margin: 0; padding-left: 16px;
+  font-size: 12px; color: rgba(226,232,240,0.55);
+  line-height: 1.8;
+}
 
 /* Dialogs */
 .dialog-title {
