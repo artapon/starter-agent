@@ -15,6 +15,21 @@
 
     <div class="nav-divider" />
 
+    <!-- Active project pill -->
+    <div class="nav-project" v-if="activeProject">
+      <div class="nav-project__pill">
+        <v-icon size="11" color="#A78BFA">mdi-folder-check</v-icon>
+        <span class="nav-project__name">{{ activeProject.title }}</span>
+        <button class="nav-project__clear" @click="clearActiveProject" title="Deselect project">
+          <v-icon size="11">mdi-close</v-icon>
+        </button>
+      </div>
+    </div>
+    <router-link v-else to="/projects" class="nav-project nav-project--empty">
+      <v-icon size="11" color="rgba(226,232,240,0.3)">mdi-folder-plus-outline</v-icon>
+      <span>Select a project</span>
+    </router-link>
+
     <!-- Nav items -->
     <div class="nav-list">
       <router-link
@@ -49,6 +64,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useActiveProject } from '../../composables/useActiveProject.js';
 
 const model = defineModel({ type: Boolean });
 const router = useRouter();
@@ -56,6 +72,8 @@ const route  = useRoute();
 
 const currentPath = computed(() => route.path);
 const navRoutes   = computed(() => router.options.routes.filter(r => r.meta?.title && r.meta?.nav !== false));
+
+const { activeProject, clearActiveProject } = useActiveProject();
 </script>
 
 <style scoped>
@@ -121,6 +139,45 @@ const navRoutes   = computed(() => router.options.routes.filter(r => r.meta?.tit
   width: 3px; border-radius: 2px 0 0 2px;
   background: linear-gradient(180deg, #6366F1, #A78BFA);
 }
+
+/* Active project */
+.nav-project {
+  padding: 0 10px 6px;
+}
+.nav-project__pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: rgba(167,139,250,0.08);
+  border: 1px solid rgba(167,139,250,0.18);
+}
+.nav-project__name {
+  flex: 1; min-width: 0;
+  font-size: 11px; font-weight: 600;
+  color: #C4B5FD !important;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nav-project__clear {
+  display: flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: none; background: transparent; cursor: pointer;
+  color: rgba(167,139,250,0.5);
+  border-radius: 3px;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-project__clear:hover { color: #C4B5FD; background: rgba(167,139,250,0.15); }
+
+.nav-project--empty {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  border: 1px dashed rgba(255,255,255,0.1);
+  font-size: 11px; color: rgba(226,232,240,0.3) !important;
+  text-decoration: none;
+  margin: 0 10px 6px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.nav-project--empty:hover { border-color: rgba(167,139,250,0.3); color: rgba(167,139,250,0.6) !important; }
 
 /* Footer */
 .nav-footer {

@@ -19,8 +19,9 @@ export function createNodes(socketManager) {
   // ── Node 1: Analyze (researcher + planner) ──────────────────────────────
   async function analyzeNode(state) {
     // Scan the workspace once — full context for worker/reviewer, compact summary for planner
-    const ws = buildWorkspaceContext();
-    const wsSummary = buildWorkspaceSummary();
+    // Use the project's subfolder when a project is active, otherwise fall back to root workspace
+    const ws = buildWorkspaceContext(state.workspaceFolder || undefined);
+    const wsSummary = buildWorkspaceSummary(state.workspaceFolder || undefined);
     const workspaceContext = ws.isEmpty ? null : ws.context;
     const workspaceSummary = wsSummary.isEmpty ? null : wsSummary.summary;
     if (!ws.isEmpty) {

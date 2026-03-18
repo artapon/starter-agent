@@ -238,6 +238,10 @@
                 {{ job.type }}
               </v-chip>
               <div class="queue-row__label" :title="job.label">{{ job.label }}</div>
+              <span v-if="job.projectId" class="q-proj-tag">
+                <v-icon size="10" color="#A78BFA">mdi-folder-outline</v-icon>
+                {{ projectMap[job.projectId] || job.projectId.slice(0, 8) }}
+              </span>
               <div class="queue-row__status">
                 <span v-if="job.status === 'running'" class="q-running-badge">
                   <svg viewBox="0 0 16 16" style="width:11px;height:11px;flex-shrink:0">
@@ -749,8 +753,12 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 55fr 45fr;
   gap: 12px;
+  align-items: stretch;
 }
 .dash-col { display: flex; flex-direction: column; gap: 12px; }
+.dash-col:first-child { height: 100%; }
+.dash-col:first-child > .panel { flex: 1; display: flex; flex-direction: column; }
+.dash-col:first-child > .panel .graph-body { flex: 1; display: flex; align-items: center; }
 @media (max-width: 900px) { .dash-main-grid { grid-template-columns: 1fr; } }
 
 /* Panel */
@@ -875,13 +883,14 @@ onMounted(() => {
 .run-stop-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .run-stop-btn--stopping { color: #F59E0B; border-color: rgba(245,158,11,0.25); background: rgba(245,158,11,0.07); }
 
-.run-proj-tag {
+.run-proj-tag, .q-proj-tag {
   display: inline-flex; align-items: center; gap: 3px;
   font-size: 10px; font-weight: 600; color: #A78BFA;
   padding: 1px 6px; border-radius: 4px;
   border: 1px solid rgba(167,139,250,0.2);
   background: rgba(167,139,250,0.07);
   max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Log feed */

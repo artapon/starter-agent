@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { projectStore } from '../../core/projects/project.store.js';
 import { getDb } from '../../core/database/db.js';
 import { deleteSTM } from '../../core/memory/stm.store.js';
-import { rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getWorkspacePath, toFolderName } from '../../core/workspace/workspace.path.js';
 
 const REPORTS_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../reports');
 const AGENTS = ['researcher', 'planner', 'worker', 'reviewer'];
@@ -49,10 +50,25 @@ export const ProjectsModule = {
         } catch (e) { res.status(500).json({ error: e.message }); }
       });
 
+      // Recreate workspace folder if missing
+      router.post('/:id/ensure-folder', (req, res) => {
+        try {
+          const p = projectStore.get(req.params.id);
+          if (!p) return res.status(404).json({ error: 'Not found' });
+          const folderName    = p.folderName || toFolderName(p.title);
+          const projectFolder = join(getWorkspacePath(), folderName);
+          const existed = existsSync(projectFolder);
+          mkdirSync(projectFolder, { recursive: true });
+          res.json({ ok: true, folder: projectFolder, created: !existed });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+      });
+
       // Delete project + all related data
       router.delete('/:id', (req, res) => {
         try {
           const { id } = req.params;
+          // Retrieve before deleting so we can clean up the workspace folder
+          const projectToDelete = projectStore.get(id);
           const ok = projectStore.delete(id);
           if (!ok) return res.status(404).json({ error: 'Not found' });
 
@@ -84,6 +100,15 @@ export const ProjectsModule = {
           const reportFolder = join(REPORTS_DIR, chatSessionId);
           if (existsSync(reportFolder)) {
             try { rmSync(reportFolder, { recursive: true, force: true }); } catch { /* ignore */ }
+          }
+
+          // 6. Delete project workspace folder
+          if (projectToDelete) {
+            const folderName    = projectToDelete.folderName || toFolderName(projectToDelete.title);
+            const projectFolder = join(getWorkspacePath(), folderName);
+            if (existsSync(projectFolder)) {
+              try { rmSync(projectFolder, { recursive: true, force: true }); } catch { /* ignore */ }
+            }
           }
 
           res.json({ ok: true });

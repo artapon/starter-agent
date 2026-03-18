@@ -20,9 +20,16 @@ const logger = createLogger('tools');
 
 const DEFAULT_WORKSPACE = path.join(PROJECT_ROOT, 'workspace');
 
+// Per-run workspace override — set by WorkflowRunner when a project is active.
+// Cleared in the run's finally block. Safe because the queue runs jobs sequentially.
+let _activeRunWorkspace = null;
+export function setActiveRunWorkspace(absPath) { _activeRunWorkspace = absPath; }
+export function clearActiveRunWorkspace()      { _activeRunWorkspace = null; }
+
 // Workspace root — read dynamically from global_settings so it can be changed at runtime.
 // Relative values in the DB are resolved against PROJECT_ROOT, not process.cwd().
 function getWorkspace() {
+  if (_activeRunWorkspace) return _activeRunWorkspace;
   try {
     const row = getDb().table('global_settings').first({ key: 'workspace_path' });
     const val = row?.value;

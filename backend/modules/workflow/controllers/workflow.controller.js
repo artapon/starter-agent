@@ -32,6 +32,7 @@ export class WorkflowController {
         () => this.runner.run(goal, sessionId, null, runId, projectId),
         runId,
         (id) => { jobId = id; },
+        projectId,
       ).catch(err => {
         if (!err.cancelled) console.error('Workflow queue error:', err.message);
       });

@@ -7,9 +7,9 @@ export class ChatController {
 
   sendMessage = async (req, res, next) => {
     try {
-      const { content, sessionId } = req.body;
+      const { content, sessionId, projectId } = req.body;
       if (!content) return res.status(400).json({ error: 'content is required' });
-      const result = await this.service.handleMessage(sessionId, content);
+      const result = await this.service.handleMessage(sessionId, content, projectId || null);
       res.json(result);
     } catch (e) { next(e); }
   };

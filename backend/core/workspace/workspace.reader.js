@@ -9,7 +9,7 @@ const logger = createLogger('workspace-reader');
 const PROJECT_ROOT    = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const DEFAULT_WORKSPACE = path.join(PROJECT_ROOT, 'workspace');
 
-function getWorkspacePath() {
+export function getWorkspacePath() {
   try {
     const row = getDb().table('global_settings').first({ key: 'workspace_path' });
     const val = row?.value;
@@ -136,8 +136,8 @@ function isReadable(relPath) {
  *   2. Content of priority files (package.json, README, config, etc.)
  *   3. Content of remaining readable files (within char budget)
  */
-export function buildWorkspaceContext() {
-  const wsPath = getWorkspacePath();
+export function buildWorkspaceContext(wsPathOverride) {
+  const wsPath = wsPathOverride || getWorkspacePath();
 
   if (!fs.existsSync(wsPath)) {
     return { context: '', fileCount: 0, isEmpty: true };
@@ -208,8 +208,8 @@ export function buildWorkspaceContext() {
  * (package.json, README, tsconfig, main entry points) — kept well under 8 000 chars
  * so it fits comfortably inside the planner's prompt budget.
  */
-export function buildWorkspaceSummary() {
-  const wsPath = getWorkspacePath();
+export function buildWorkspaceSummary(wsPathOverride) {
+  const wsPath = wsPathOverride || getWorkspacePath();
   if (!fs.existsSync(wsPath)) return { summary: '', fileCount: 0, isEmpty: true };
 
   const entries = walkTree(wsPath);

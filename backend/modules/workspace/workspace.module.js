@@ -3,6 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
 import { getDb } from '../../core/database/db.js';
+import { projectStore } from '../../core/projects/project.store.js';
+import { toFolderName } from '../../core/workspace/workspace.path.js';
 
 const router = Router();
 
@@ -21,6 +23,15 @@ function getWorkspacePath() {
   }
 }
 
+function resolveWorkspace(projectId) {
+  const base = getWorkspacePath();
+  if (!projectId) return base;
+  const project = projectStore.get(projectId);
+  if (!project) return base;
+  const folderName = project.folderName || toFolderName(project.title);
+  return path.join(base, folderName);
+}
+
 function buildTree(dir, base) {
   if (!fs.existsSync(dir)) return [];
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -35,10 +46,10 @@ function buildTree(dir, base) {
   });
 }
 
-// GET /api/workspace/files — returns file tree
+// GET /api/workspace/files?projectId=<id> — returns file tree
 router.get('/files', (req, res, next) => {
   try {
-    const workspace = getWorkspacePath();
+    const workspace = resolveWorkspace(req.query.projectId || null);
     if (!fs.existsSync(workspace)) {
       return res.json({ workspace, tree: [] });
     }
@@ -46,10 +57,10 @@ router.get('/files', (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// GET /api/workspace/file?path=relative/path — returns file content
+// GET /api/workspace/file?path=relative/path&projectId=<id> — returns file content
 router.get('/file', (req, res, next) => {
   try {
-    const workspace = getWorkspacePath();
+    const workspace = resolveWorkspace(req.query.projectId || null);
     const relPath = (req.query.path || '').replace(/^\/+/, '');
     const abs = path.resolve(workspace, relPath);
     if (!abs.startsWith(workspace)) return res.status(400).json({ error: 'Path traversal denied' });

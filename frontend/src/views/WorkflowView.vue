@@ -34,10 +34,9 @@
             :items="projects"
             item-title="title"
             item-value="id"
-            label="Project (optional)"
+            label="Project"
             variant="outlined"
             density="compact"
-            clearable
             hide-details
             class="mb-3"
             style="font-size:13px"
@@ -170,9 +169,11 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSocket } from '../plugins/socket.js';
+import { useActiveProject } from '../composables/useActiveProject.js';
 import axios from 'axios';
 
 const socket = useSocket();
+const { activeProject } = useActiveProject();
 const goal = ref('');
 const projectId = ref(null);
 const projects = ref([]);
@@ -252,6 +253,7 @@ onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const urlProjectId = urlParams.get('projectId');
   if (urlProjectId) projectId.value = urlProjectId;
+  else if (activeProject.value?.id) projectId.value = activeProject.value.id;
 
   fetchRuns();
   loadProjects();

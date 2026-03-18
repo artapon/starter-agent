@@ -1,3 +1,5 @@
+import fs                     from 'node:fs';
+import path                   from 'node:path';
 import { buildWorkflowGraph } from './workflow.graph.js';
 import { getDb }              from '../../../core/database/db.js';
 import { createLogger }       from '../../../core/logger/winston.logger.js';
@@ -5,6 +7,9 @@ import { SocketEvents }       from '../../../core/socket/socket.events.js';
 import { createAbortController, abortById, clearAbortController } from '../../../core/abort/abort.registry.js';
 import { generateReport }     from '../../../core/reports/report.generator.js';
 import { memoryStore }        from '../../memory/services/memory.store.js';
+import { setActiveRunWorkspace, clearActiveRunWorkspace } from '../../../core/tools/tool.implementations.js';
+import { projectStore }       from '../../../core/projects/project.store.js';
+import { getWorkspacePath, toFolderName } from '../../../core/workspace/workspace.path.js';
 import { v4 as uuidv4 }       from 'uuid';
 
 const logger = createLogger('workflow');
@@ -31,6 +36,19 @@ export class WorkflowRunner {
     logger.info(`Starting workflow run ${runId}`, { goal, sessionId });
 
     onRunId?.(runId);
+
+    // Resolve the project's workspace subfolder (if a project is selected)
+    let workspaceFolder = null;
+    if (projectId) {
+      const project = projectStore.get(projectId);
+      if (project) {
+        const folderName = project.folderName || toFolderName(project.title);
+        workspaceFolder  = path.join(getWorkspacePath(), folderName);
+        fs.mkdirSync(workspaceFolder, { recursive: true });
+        setActiveRunWorkspace(workspaceFolder);
+        logger.info(`Project workspace: ${workspaceFolder}`, { runId });
+      }
+    }
 
     // Persist run
     this.db.table('workflow_runs').insert({
@@ -83,6 +101,7 @@ export class WorkflowRunner {
       userGoal: goal,
       runId,
       projectId: projectId || null,
+      workspaceFolder,
       status: 'running',
       currentStepIdx: 0,
       subtaskResults: [],
@@ -171,6 +190,7 @@ export class WorkflowRunner {
       _activeRuns.delete(runId);
       clearAbortController(runId);
       memoryStore.clearWorkingMemory(runId);
+      clearActiveRunWorkspace();
     }
   }
 

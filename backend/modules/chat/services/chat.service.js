@@ -49,7 +49,7 @@ export class ChatService {
     }));
   }
 
-  async handleMessage(sessionId, content) {
+  async handleMessage(sessionId, content, projectId = null) {
     sessionId = this.createOrGetSession(sessionId);
 
     // Save user message
@@ -70,12 +70,13 @@ export class ChatService {
           const entry = this._active.get(sessionId);
           if (entry) entry.runId = runId;
           agentQueue.setRunId(this._active.get(sessionId)?.jobId, runId);
-        }),
+        }, null, projectId),
         null,
         (jobId) => {
           // Fired synchronously as soon as the job is registered in the queue
           this._active.set(sessionId, { jobId, runId: null });
         },
+        projectId,
       );
 
       this._active.delete(sessionId);

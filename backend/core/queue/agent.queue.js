@@ -30,13 +30,14 @@ class AgentQueue {
    * @param {Function} [onEnqueued] - sync callback(jobId) fired immediately after the job is registered
    * @returns {Promise<any>}        - resolves/rejects when the job finishes
    */
-  enqueue(type, label, runFn, runId = null, onEnqueued = null) {
+  enqueue(type, label, runFn, runId = null, onEnqueued = null, projectId = null) {
     return new Promise((resolve, reject) => {
       const job = {
         id:        uuidv4(),
         type,
         label:     label.slice(0, 120),
         runId:     runId || null,
+        projectId: projectId || null,
         runFn,
         resolve,
         reject,
@@ -88,6 +89,7 @@ class AgentQueue {
         type:      j.type,
         label:     j.label,
         runId:     j.runId,
+        projectId: j.projectId,
         status:    j.status,                            // 'queued' | 'running'
         position:  j.status === 'queued' ? queuePos : null,
         queuedAt:  j.queuedAt,

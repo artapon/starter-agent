@@ -232,6 +232,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch, defineComponent, h } from 'vue';
 import { useSocket } from '../plugins/socket.js';
+import { useActiveProject } from '../composables/useActiveProject.js';
 import { marked } from 'marked';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
@@ -274,6 +275,7 @@ const WorkspaceNode = defineComponent({
 
 // ── State ──────────────────────────────────────────────────────────────────
 const socket = useSocket();
+const { activeProject } = useActiveProject();
 const input       = ref('');
 const inputFocused = ref(false);
 const sending     = ref(false);
@@ -416,7 +418,8 @@ function onProjectChange(id) {
 async function loadWorkspace() {
   loadingWorkspace.value = true;
   try {
-    const { data } = await axios.get('/api/workspace/files');
+    const params = projectId.value ? { projectId: projectId.value } : {};
+    const { data } = await axios.get('/api/workspace/files', { params });
     workspaceTree.value = data.tree || [];
     workspacePath.value = data.workspace || './workspace';
   } catch { workspaceTree.value = []; }
@@ -424,7 +427,8 @@ async function loadWorkspace() {
 }
 async function openFile(node) {
   try {
-    const { data } = await axios.get('/api/workspace/file', { params: { path: node.path } });
+    const params = { path: node.path, ...(projectId.value ? { projectId: projectId.value } : {}) };
+    const { data } = await axios.get('/api/workspace/file', { params });
     fileDialog.value = { show: true, path: node.path, content: data.content };
   } catch (e) { fileDialog.value = { show: true, path: node.path, content: `Error: ${e.message}` }; }
 }
@@ -516,9 +520,10 @@ watch(showWorkspace, v => { if (v) loadWorkspace(); });
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const urlProjectId = urlParams.get('projectId');
-  if (urlProjectId) {
-    projectId.value = urlProjectId;
-    sessionId.value = `proj_${urlProjectId}`;
+  const initialProjectId = urlProjectId || activeProject.value?.id || null;
+  if (initialProjectId) {
+    projectId.value = initialProjectId;
+    sessionId.value = `proj_${initialProjectId}`;
     messages.value = [];
   }
 
