@@ -112,9 +112,9 @@
             <!-- reviewer → assembler -->
             <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
             <!-- reviewer → loop_reset -->
-            <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
+            <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('reviewer','loop_reset')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
             <!-- loop_reset → worker -->
-            <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke="edgeColor('loop_reset','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','worker')})`"/>
+            <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('loop_reset','worker')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('loop_reset','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','worker')})`"/>
             <!-- assembler → done -->
             <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
             <!-- Edge labels -->
@@ -146,7 +146,7 @@
               <text x="496" y="56" class="node-label" text-anchor="middle">Reviewer</text>
             </g>
             <!-- loop_reset -->
-            <g :class="['graph-node-g', nodeClass('loop_reset')]">
+            <g :class="['graph-node-g', nodeClass('loop_reset')]" :opacity="nodeClass('loop_reset') === 'node-loop-active' ? loopNodeOpacity : 1">
               <rect x="297" y="148" width="112" height="44" rx="8" :fill="nodeFill('loop_reset')" :stroke="nodeStroke('loop_reset')" stroke-width="1.5"/>
               <text x="353" y="166" class="node-icon" text-anchor="middle">🔄</text>
               <text x="353" y="184" class="node-label" text-anchor="middle">Loop Reset</text>
@@ -218,7 +218,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSocket } from '../plugins/socket.js';
 import axios from 'axios';
 
@@ -245,6 +245,29 @@ const graphMaxLoops      = ref(3);
 const graphCurrentNode   = ref(null);
 const graphDevStep       = ref(null);
 const graphTotalSteps    = ref(null);
+const isLoopResetting    = ref(false);
+const loopDashOffset     = ref(0);
+const loopNodeOpacity    = ref(1);
+let   _loopAnimInterval  = null;
+
+watch([graphLoopCount, graphOverallStatus], ([count, status]) => {
+  if (count > 0 && status === 'running') {
+    if (_loopAnimInterval) return;
+    let offset = 0, tick = 0;
+    _loopAnimInterval = setInterval(() => {
+      offset -= 1;
+      if (offset < -16) offset = 0;
+      loopDashOffset.value = offset;
+      tick++;
+      loopNodeOpacity.value = 0.35 + 0.65 * (0.5 + 0.5 * Math.cos(tick / 26.7 * 2 * Math.PI));
+    }, 30);
+  } else {
+    clearInterval(_loopAnimInterval);
+    _loopAnimInterval = null;
+    loopDashOffset.value = 0;
+    loopNodeOpacity.value = 1;
+  }
+});
 
 const NODE_COLORS = {
   idle:     { fill: 'rgba(255,255,255,0.03)', stroke: 'rgba(255,255,255,0.08)' },
@@ -264,9 +287,25 @@ const markerIds = computed(() => [
   { id: 'arr-done',     color: '#10B981' },
 ]);
 
-function nodeFill(n)   { return (NODE_COLORS[graphNodeStatus[n]] || NODE_COLORS.idle).fill; }
-function nodeStroke(n) { return (NODE_COLORS[graphNodeStatus[n]] || NODE_COLORS.idle).stroke; }
-function nodeClass(n)  { return graphNodeStatus[n] === 'running' ? 'node-running' : ''; }
+function nodeFill(n) {
+  if (n === 'loop_reset' && graphLoopCount.value > 0 && graphNodeStatus[n] !== 'idle' && graphNodeStatus[n] !== 'pending')
+    return 'rgba(245,158,11,0.15)';
+  return (NODE_COLORS[graphNodeStatus[n]] || NODE_COLORS.idle).fill;
+}
+function nodeStroke(n) {
+  if (n === 'loop_reset' && graphLoopCount.value > 0 && graphNodeStatus[n] !== 'idle' && graphNodeStatus[n] !== 'pending')
+    return '#F59E0B';
+  return (NODE_COLORS[graphNodeStatus[n]] || NODE_COLORS.idle).stroke;
+}
+function nodeClass(n)  {
+  if (n === 'loop_reset' && graphLoopCount.value > 0 && graphOverallStatus.value === 'running')
+    return 'node-loop-active';
+  if (graphNodeStatus[n] !== 'running') return '';
+  return 'node-running';
+}
+function edgeClass(from, to) {
+  return edgeStatus(from, to) === 'loop' ? 'edge-loop-active' : '';
+}
 
 function edgeStatus(from, to) {
   const loopEdges = new Set(['reviewer->loop_reset','loop_reset->worker']);
@@ -275,7 +314,7 @@ function edgeStatus(from, to) {
   const ts2 = graphNodeStatus[to];
   if (fs === 'idle' && ts2 === 'idle') return 'idle';
   if (loopEdges.has(key)) {
-    if (fs === 'complete' && (ts2 === 'running' || ts2 === 'complete')) return 'loop';
+    if (graphLoopCount.value > 0 && graphOverallStatus.value === 'running') return 'loop';
     return 'idle';
   }
   if (from === 'assembler' && to === 'done') return fs === 'complete' ? 'done' : 'idle';
@@ -424,11 +463,19 @@ onMounted(() => {
       } else if (st === 'loop') {
         graphNodeStatus['reviewer'] = 'complete';
         graphLoopCount.value = data.state?.loop ?? (graphLoopCount.value + 1);
-        graphNodeStatus['loop_reset'] = 'complete';
-        graphNodeStatus['worker']     = 'pending';
-        graphNodeStatus['reviewer']   = 'pending';
-        graphDevStep.value = null;
-        graphCurrentNode.value = null;
+        graphNodeStatus['loop_reset'] = 'running';
+        graphCurrentNode.value = 'loop_reset';
+        isLoopResetting.value = true;
+        setTimeout(() => {
+          isLoopResetting.value = false;
+          graphNodeStatus['loop_reset'] = 'complete';
+          if (graphNodeStatus['worker'] !== 'running' && graphNodeStatus['worker'] !== 'complete')
+            graphNodeStatus['worker'] = 'pending';
+          if (graphNodeStatus['reviewer'] !== 'running' && graphNodeStatus['reviewer'] !== 'complete')
+            graphNodeStatus['reviewer'] = 'pending';
+          if (graphNodeStatus['worker'] !== 'running') graphDevStep.value = null;
+          if (graphCurrentNode.value === 'loop_reset') graphCurrentNode.value = null;
+        }, 800);
       } else if (st === 'assembled') {
         graphNodeStatus['assembler'] = 'complete';
         graphNodeStatus['done']      = 'complete';
@@ -446,12 +493,7 @@ onMounted(() => {
     if (acceptRun(data)) {
       if (activeRun.value?.runId === data.runId) activeRun.value.status = 'complete';
       graphOverallStatus.value = 'complete';
-      // Mark every node that didn't finish on its own as complete
-      GRAPH_NODES.forEach(n => {
-        if (graphNodeStatus[n] === 'running' || graphNodeStatus[n] === 'pending')
-          graphNodeStatus[n] = 'complete';
-      });
-      graphNodeStatus['done'] = 'complete';
+      GRAPH_NODES.forEach(n => { graphNodeStatus[n] = 'complete'; });
       graphCurrentNode.value = null;
     }
     patchRunStatus(data.runId, 'complete');
@@ -491,7 +533,7 @@ onMounted(() => {
     const gNode = AGENT_NODE[data.agentId];
     if (!gNode) return;
     if (data.status === 'working') {
-      // Auto-start graph tracking if workflow:started was missed
+      if (isLoopResetting.value) return; // keep loop_reset display until timeout
       if (graphOverallStatus.value === 'idle') {
         graphOverallStatus.value = 'running';
         if (!graphRunId.value) resetGraph();
@@ -526,6 +568,7 @@ onMounted(() => {
     // Agent node active → mark as running
     if (AGENT_LOG_NODES.has(agentId)) {
       if (graphOverallStatus.value === 'complete' || graphOverallStatus.value === 'stopped') return;
+      if (isLoopResetting.value) return; // keep loop_reset display until timeout
       if (graphOverallStatus.value !== 'running') graphOverallStatus.value = 'running';
       graphNodeStatus[agentId] = 'running';
       graphCurrentNode.value = agentId;
@@ -557,11 +600,7 @@ onMounted(() => {
       }
       if (/Workflow .+ complete$/i.test(message)) {
         graphOverallStatus.value = 'complete';
-        GRAPH_NODES.forEach(n => {
-          if (graphNodeStatus[n] === 'running' || graphNodeStatus[n] === 'pending')
-            graphNodeStatus[n] = 'complete';
-        });
-        graphNodeStatus['done'] = 'complete';
+        GRAPH_NODES.forEach(n => { graphNodeStatus[n] = 'complete'; });
         graphCurrentNode.value = null;
       }
       if (/Workflow .+ (stopped|aborted)/i.test(message)) {
@@ -573,6 +612,7 @@ onMounted(() => {
   });
 
   onUnmounted(() => {
+    clearInterval(_loopAnimInterval);
     socket.off('log:entry');
     socket.off('workflow:started');
     socket.off('workflow:node_complete');
@@ -662,6 +702,9 @@ onMounted(() => {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.6; }
 }
+
+
+
 
 .graph-active-bar {
   display: flex; align-items: center; gap: 8px;
