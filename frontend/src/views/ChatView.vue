@@ -202,6 +202,11 @@
             class="stop-btn" @click="stopChat" title="Stop">
             <v-icon size="16">mdi-stop-circle-outline</v-icon>
           </button>
+          <button v-if="canContinue"
+            class="continue-btn" @click="continueChat" title="Force LLM to continue from where it left off">
+            <v-icon size="15">mdi-play-circle-outline</v-icon>
+            Continue
+          </button>
           <button class="send-btn" :class="{ 'send-btn--active': input.trim() && !sending }"
             :disabled="!input.trim() || sending" @click="sendMessage" title="Send (Enter)">
             <v-icon size="18">mdi-send</v-icon>
@@ -466,6 +471,25 @@ async function stopChat() {
   isStreaming.value = false;
   streamingContent.value = '';
   displayContent.value = '';
+}
+
+const canContinue = computed(() =>
+  !sending.value && !isStreaming.value && !typing.value &&
+  messages.value.length > 0 &&
+  messages.value[messages.value.length - 1].role === 'assistant'
+);
+
+async function continueChat() {
+  if (sending.value || isStreaming.value) return;
+  const lastMsg = messages.value[messages.value.length - 1];
+  if (!lastMsg || lastMsg.role !== 'assistant') return;
+  const lastChars = lastMsg.content.slice(-120);
+  const continuationPrompt =
+    `Continue your previous response from exactly where it left off.\n` +
+    `The last characters were: ...${lastChars}\n\n` +
+    `Output ONLY the remaining content — do not repeat anything already written.`;
+  input.value = continuationPrompt;
+  await sendMessage();
 }
 
 async function sendMessage() {
@@ -882,6 +906,14 @@ onMounted(() => {
   color: #FCA5A5; cursor: pointer; transition: all 0.15s;
 }
 .stop-btn:hover { background: rgba(239,68,68,0.2); }
+
+.continue-btn {
+  height: 36px; padding: 0 10px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500;
+  border: 1px solid rgba(99,102,241,0.35); background: rgba(99,102,241,0.12);
+  color: #A5B4FC; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.continue-btn:hover { background: rgba(99,102,241,0.22); color: #C7D2FE; }
 
 .input-hint {
   font-size: 10px; color: rgba(226,232,240,0.18) !important;

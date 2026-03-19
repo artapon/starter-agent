@@ -11,9 +11,34 @@ import { getRLStore } from '../../../core/rl/rl.store.js';
 
 const logger = createLogger('reviewer');
 
+/**
+ * Regex-based fallback for when the reviewer output is truncated JSON.
+ * Extracts known fields (score, approved, feedback) from partial JSON text.
+ */
+function parseReviewFallback(text) {
+  const scoreMatch   = text.match(/"score"\s*:\s*(\d+)/);
+  const approvedMatch = text.match(/"approved"\s*:\s*(true|false)/);
+  const feedbackMatch = text.match(/"feedback"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 7;
+  const feedback = feedbackMatch
+    ? feedbackMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"')
+    : '';
+  return {
+    approved:    approvedMatch ? approvedMatch[1] === 'true' : score >= 7,
+    score,
+    feedback,
+    suggestions: [],
+  };
+}
+
 const BASE_PROMPT = `You are a Reviewer Agent — a senior engineer and code quality expert. Review the implementation critically and objectively.
 
-Output ONLY a valid JSON object — no markdown, no explanation:
+## ⚠️ OUTPUT INSTRUCTION (most important rule)
+After you finish reasoning, you MUST emit the JSON object below as your final output.
+The JSON must appear OUTSIDE and AFTER any reasoning/thinking block — never inside <think> tags.
+Close all thinking first, then immediately output the JSON on the very next line.
+
+Output format — a single valid JSON object, nothing else:
 {{"approved":<bool>,"score":<0-10>,"feedback":"<concise overall assessment>","suggestions":["<specific actionable improvement>"],"dimensions":{{"correctness":<0-10>,"codeQuality":<0-10>,"security":<0-10>,"completeness":<0-10>}}}}
 
 ## Scoring Rubric (0–10)
@@ -59,7 +84,7 @@ Output ONLY a valid JSON object — no markdown, no explanation:
 - suggestions: 2–5 specific, actionable items (not vague advice like "improve error handling" — say exactly what to add)
 - If score < 7, the first suggestion must describe the most critical fix needed
 
-Return raw JSON only. No text before or after the JSON object.`;
+Your final output MUST be the JSON object — output it immediately after closing any thinking block.`;
 
 
 function getSystemPrompt() {
@@ -81,7 +106,8 @@ export class ReviewerAgent {
     // Use run-scoped memory to prevent cross-run context contamination
     const memory = memoryStore.getMemory('reviewer', runId || sessionId);
 
-    let rawOutput = '';
+    let reviewOutput = '';
+    let fullRawOutput = '';
 
     try {
       const prompt = ChatPromptTemplate.fromMessages([
@@ -98,16 +124,19 @@ export class ReviewerAgent {
       });
 
       const signal = runId ? getAbortSignal(runId) : undefined;
-      rawOutput = await streamAndEmit(
+      const streamResult = await streamAndEmit(
         adapter._settings,
         toLMStudioMessages(langchainMessages),
         signal,
         this.socketManager,
         sessionId,
-        'reviewer'
+        'reviewer',
+        true  // returnRaw — needed so we can search inside think blocks as fallback
       );
+      reviewOutput    = streamResult.output;
+      fullRawOutput   = streamResult.rawOutput;
 
-      await memory.saveContext({ input: `${task}: ${content}` }, { output: rawOutput });
+      await memory.saveContext({ input: `${task}: ${content}` }, { output: reviewOutput });
     } catch (err) {
       if (err.name === 'AbortError') throw err;
       logger.error(`Reviewer LLM unavailable, skipping: ${err.message}`, { agentId: 'reviewer' });
@@ -116,12 +145,21 @@ export class ReviewerAgent {
     }
 
     let review;
-    try {
-      const parsed = extractJSON(rawOutput);
-      if (!parsed) throw new Error('No JSON found');
+    // Try stripped output first, then full raw (catches JSON inside <think> blocks)
+    const parsed = extractJSON(reviewOutput) || extractJSON(fullRawOutput);
+    if (parsed) {
       review = parsed;
-    } catch {
-      review = { approved: true, score: 7, feedback: rawOutput, suggestions: [] };
+    } else {
+      // Last resort: regex extraction from partial/truncated JSON
+      const regexResult = parseReviewFallback(reviewOutput) || parseReviewFallback(fullRawOutput);
+      if (regexResult.score !== 7 || regexResult.feedback) {
+        // Regex found something useful
+        review = regexResult;
+        logger.warn(`Reviewer JSON truncated — extracted via regex: score=${regexResult.score}`, { agentId: 'reviewer' });
+      } else {
+        logger.warn(`Reviewer produced no parseable JSON (${reviewOutput.length} chars)`, { agentId: 'reviewer' });
+        review = { approved: true, score: 7, feedback: reviewOutput.slice(0, 500) || 'Review output could not be parsed.', suggestions: [] };
+      }
     }
 
     if (subtaskId) {

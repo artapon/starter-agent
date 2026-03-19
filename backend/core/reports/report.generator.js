@@ -225,8 +225,47 @@ function phaseWorker(subtaskResults, planSteps) {
   </div>`;
 }
 
-function phaseReview(review) {
-  if (!review) return '';
+/**
+ * If feedback is a raw JSON string (reviewer fallback path — output was truncated
+ * or could not be parsed), try to recover the human-readable feedback text and
+ * the actual score from the partial JSON rather than displaying it verbatim.
+ */
+function normalizeReview(review) {
+  if (!review) return review;
+  const feedback = review.feedback || '';
+  if (!feedback.trim().startsWith('{')) return review;
+
+  // Looks like raw JSON was stored as feedback — try to extract fields
+  let extracted = null;
+  try { extracted = JSON.parse(feedback); } catch { /* truncated */ }
+  if (!extracted) {
+    // Regex for truncated JSON
+    const sm = feedback.match(/"score"\s*:\s*(\d+)/);
+    const am = feedback.match(/"approved"\s*:\s*(true|false)/);
+    const fm = feedback.match(/"feedback"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (sm) {
+      const score = parseInt(sm[1], 10);
+      extracted = {
+        score,
+        approved: am ? am[1] === 'true' : score >= 7,
+        feedback: fm ? fm[1].replace(/\\n/g, '\n').replace(/\\"/g, '"') : '',
+        suggestions: [],
+      };
+    }
+  }
+  if (!extracted) return review;
+  return {
+    ...review,
+    score:       extracted.score    ?? review.score,
+    approved:    extracted.approved ?? review.approved,
+    feedback:    extracted.feedback ?? '',
+    suggestions: extracted.suggestions?.length ? extracted.suggestions : (review.suggestions || []),
+  };
+}
+
+function phaseReview(rawReview) {
+  if (!rawReview) return '';
+  const review = normalizeReview(rawReview);
   const score = review.score ?? 0;
   const color = score >= 10 ? 'var(--green)' : score >= 7 ? 'var(--amber)' : 'var(--red)';
   return `
@@ -247,7 +286,8 @@ function phaseReview(review) {
 
 function renderIteration({ loopIdx, researchFindings, plan, subtaskResults, reviewFeedback }, iterNum, totalIters) {
   const isFirst = iterNum === 1;
-  const score = reviewFeedback?.score ?? '?';
+  const review = normalizeReview(reviewFeedback);
+  const score = review?.score ?? '?';
   const scoreColor = score >= 10 ? '#10B981' : score >= 7 ? '#F59E0B' : '#EF4444';
   const iterLabel = isFirst ? 'Initial Run' : `Improvement Loop ${iterNum - 1}`;
   const scoreTag = reviewFeedback ? `<span class="iter-score" style="background:${scoreColor}22;border-color:${scoreColor}55;color:${scoreColor}">${score}/10</span>` : '';

@@ -13,7 +13,12 @@ const logger = createLogger('planner');
 
 const BASE_PROMPT = `You are a Planner Agent — a senior software architect responsible for decomposing complex goals into precise, executable subtasks.
 
-Output ONLY a valid JSON object — no markdown fences, no explanation:
+## ⚠️ OUTPUT INSTRUCTION (most important rule)
+After you finish reasoning, you MUST emit the JSON object below as your final output.
+The JSON must appear OUTSIDE and AFTER any reasoning/thinking block — never inside <think> tags.
+Close all thinking first, then immediately output the JSON on the very next line.
+
+Output format — a single valid JSON object, nothing else:
 {{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<detailed actionable description>","dependsOn":[],"agentHint":"worker"}}],"priority":"<low|medium|high|critical>","estimatedSteps":<number>}}
 
 ## ⚠️ CRITICAL: Working with an Existing Project
@@ -60,7 +65,7 @@ If the prompt contains an "=== EXISTING WORKSPACE PROJECT ===" section, you MUST
 ### agentHint
 - Always "worker" — the Worker Agent handles all implementation
 
-Return raw JSON only. No text before or after the JSON object.`;
+Your final output MUST be the JSON object — output it immediately after closing any thinking block.`;
 
 
 function getSystemPrompt() { return BASE_PROMPT + getSkillPrompt('planner'); }

@@ -22,7 +22,7 @@ export class SettingsService {
   }
 
   update(agentId, data) {
-    const allowed = ['model_name', 'base_url', 'api_key', 'temperature', 'max_tokens', 'context_window', 'system_prompt', 'compression_enabled'];
+    const allowed = ['model_name', 'base_url', 'api_key', 'temperature', 'max_tokens', 'unlimited_tokens', 'thinking_model', 'context_window', 'system_prompt', 'compression_enabled'];
     const patch = {};
     for (const key of allowed) {
       if (data[key] !== undefined) patch[key] = data[key];

@@ -41,7 +41,7 @@ export function createLogger(agentId = 'app') {
     }),
     new winston.transports.File({
       filename: path.join(logDir, 'error.log'),
-      level: 'error',
+      level: 'warn',
       format: combine(timestamp(), errors({ stack: true }), json()),
     }),
     new winston.transports.File({

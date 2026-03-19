@@ -13,7 +13,8 @@
       "Bash(find D:Projectsstarter-agentfrontendsrccomponents -type f -name *.vue -o -name *.js)",
       "Bash(ls:*)",
       "WebFetch(domain:localhost)",
-      "Bash(curl -s \"http://localhost:3000/api/reports/45e37735-0a73-452c-a0bb-fc2d03d1b6cf/content\")"
+      "Bash(curl -s \"http://localhost:3000/api/reports/45e37735-0a73-452c-a0bb-fc2d03d1b6cf/content\")",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -18,10 +18,10 @@ export function runMigrations(db) {
 
   // Seed default agent settings if not present
   const agents = [
-    { agent_id: 'researcher', model_name: 'qwen2.5-7b-instruct',       temperature: 0.4, max_tokens: 4096 },
-    { agent_id: 'planner',    model_name: 'qwen2.5-7b-instruct',       temperature: 0.3, max_tokens: 4096 },
-    { agent_id: 'worker',     model_name: 'qwen2.5-coder-7b-instruct', temperature: 0.2, max_tokens: 8192 },
-    { agent_id: 'reviewer',   model_name: 'qwen2.5-7b-instruct',       temperature: 0.1, max_tokens: 4096 },
+    { agent_id: 'researcher', model_name: 'qwen2.5-7b-instruct',       temperature: 0.4, max_tokens: 4096, thinking_model: 1 },
+    { agent_id: 'planner',    model_name: 'qwen2.5-7b-instruct',       temperature: 0.3, max_tokens: 4096, thinking_model: 1 },
+    { agent_id: 'worker',     model_name: 'qwen2.5-coder-7b-instruct', temperature: 0.2, max_tokens: 8192, thinking_model: 1 },
+    { agent_id: 'reviewer',   model_name: 'qwen2.5-7b-instruct',       temperature: 0.1, max_tokens: 4096, thinking_model: 1 },
   ];
 
   const agentSettingsTable = db.table('agent_settings');

@@ -226,13 +226,35 @@
                     <v-slider v-model="forms[agent.agent_id].temperature" min="0" max="2" step="0.05"
                       thumb-label :color="agentAccent(agent.agent_id)" class="mb-2" hide-details />
 
-                    <v-text-field v-model.number="forms[agent.agent_id].max_tokens" label="Max Tokens"
-                      density="compact" variant="outlined" type="number"
-                      hide-details class="mb-3" prepend-inner-icon="mdi-counter" />
+                    <div class="d-flex align-center gap-2 mb-3">
+                      <v-text-field v-model.number="forms[agent.agent_id].max_tokens" label="Max Tokens"
+                        density="compact" variant="outlined" type="number"
+                        hide-details prepend-inner-icon="mdi-counter"
+                        :disabled="forms[agent.agent_id].unlimited_tokens"
+                        style="flex:1" />
+                      <v-tooltip text="Remove max_tokens limit — let the model use its full context window" location="top">
+                        <template #activator="{ props: tip }">
+                          <v-btn v-bind="tip" :variant="forms[agent.agent_id].unlimited_tokens ? 'flat' : 'outlined'"
+                            :color="forms[agent.agent_id].unlimited_tokens ? agentAccent(agent.agent_id) : 'grey'"
+                            size="small" density="compact" style="height:40px;white-space:nowrap"
+                            @click="forms[agent.agent_id].unlimited_tokens = !forms[agent.agent_id].unlimited_tokens">
+                            <v-icon start size="16">mdi-infinity</v-icon>
+                            Unlimited
+                          </v-btn>
+                        </template>
+                      </v-tooltip>
+                    </div>
 
                     <v-textarea v-model="forms[agent.agent_id].system_prompt" label="System Prompt Override"
                       density="compact" variant="outlined" rows="3" hide-details class="mb-3"
                       placeholder="Leave empty to use default" />
+
+                    <v-switch v-model="forms[agent.agent_id].thinking_model"
+                      label="Thinking Model" color="warning" hide-details density="compact" inset class="mb-1" />
+                    <div class="text-caption text-medium-emphasis mb-2" style="padding-left:52px">
+                      Enable for models that use &lt;think&gt; blocks (Qwen3, DeepSeek-R1, QwQ).
+                      Disables JSON schema constraint; uses prompt + fallback parser instead.
+                    </div>
 
                     <v-switch v-model="forms[agent.agent_id].compression_enabled"
                       label="Prompt Compression" color="primary" hide-details density="compact" inset />
@@ -810,6 +832,8 @@ async function fetchSettings() {
       api_key:             s.api_key,
       temperature:         s.temperature,
       max_tokens:          s.max_tokens,
+      unlimited_tokens:    Boolean(s.unlimited_tokens),
+      thinking_model:      s.thinking_model !== undefined ? Boolean(s.thinking_model) : true,
       system_prompt:       s.system_prompt || '',
       compression_enabled: Boolean(s.compression_enabled),
     };

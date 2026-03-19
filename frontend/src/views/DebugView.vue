@@ -25,6 +25,14 @@
         </div>
       </div>
 
+      <!-- Debug workspace banner -->
+      <div class="debug-workspace-banner">
+        <v-icon size="14" color="#22D3EE">mdi-folder-outline</v-icon>
+        <span>Debug workspace:</span>
+        <code class="debug-workspace-path">{{ debugWorkspacePath || 'workspace/debug' }}</code>
+        <span class="debug-workspace-hint">(created automatically when you run a task)</span>
+      </div>
+
       <!-- Section 1: Backend Connection -->
       <div class="section-label">1 — Backend Connection</div>
       <div class="card">
@@ -519,7 +527,362 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
         </div>
       </div>
 
-    </div><!-- /tab-body -->
+    </div><!-- /tab-body researcher -->
+
+    <!-- ── Worker tab ────────────────────────────────────────────────── -->
+    <div v-if="activeTab === 'worker'" class="tab-body">
+
+      <div class="dbg-title">
+        <v-icon size="18" color="#10B981">mdi-code-braces</v-icon>
+        <div>
+          <div class="dbg-title__name">Worker Agent</div>
+          <div class="dbg-title__sub">Run the Worker agent directly — provide a task and inspect the JSON blueprint output, written files, and live token stream.</div>
+        </div>
+      </div>
+
+      <!-- Debug workspace banner -->
+      <div class="debug-workspace-banner">
+        <v-icon size="14" color="#10B981">mdi-folder-outline</v-icon>
+        <span>Debug workspace:</span>
+        <code class="debug-workspace-path">{{ debugWorkspacePath || 'workspace/debug' }}</code>
+        <span class="debug-workspace-hint">(all files written here — created automatically)</span>
+      </div>
+
+      <!-- Section 1: Backend Connection -->
+      <div class="section-label">1 — Backend Connection</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#6366F1">mdi-server-network</v-icon>
+            <span class="card-title">Worker Status</span>
+          </div>
+          <span class="badge" :class="wConnBadgeClass">
+            <span class="dot" :class="wConnPulse ? 'dot-pulse' : ''"></span>
+            {{ wConnBadgeText }}
+          </span>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="stat-label">Socket.IO</div>
+            <div class="stat-value" v-html="socketStatusHtml"></div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Worker Agent</div>
+            <div class="stat-value" v-html="wAgentStatusHtml"></div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Debug Workspace</div>
+            <div class="stat-value" style="font-size:11px;font-family:monospace;color:#10B981">
+              {{ debugWorkspacePath ? debugWorkspacePath.replace(/\\/g, '/').split('/').slice(-2).join('/') : 'workspace/debug' }}
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-cyan" :disabled="wCheckingBackend" @click="wCheckBackend">
+            <v-icon size="13">mdi-connection</v-icon> Check Backend
+          </button>
+        </div>
+      </div>
+
+      <!-- Section 2: Thinking Model Toggle -->
+      <div class="section-label">2 — Model Thinking</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#F59E0B">mdi-brain</v-icon>
+            <span class="card-title">Thinking Model</span>
+          </div>
+          <span class="badge" :class="wThinkingModel ? 'badge-yellow' : 'badge-grey'">
+            {{ wThinkingModel ? '● Thinking On' : '○ Thinking Off' }}
+          </span>
+        </div>
+        <div class="info-box">
+          When <strong>enabled</strong>, the Worker treats the model as a thinking model (Qwen3, DeepSeek-R1, QwQ).
+          <code>&lt;think&gt;</code> blocks are silently stripped; <code>response_format</code> is skipped since
+          thinking models stall when forced into a JSON schema.<br>
+          When <strong>disabled</strong>, the Worker forces <code>response_format: json_schema</code> on the
+          model — better JSON reliability for non-thinking models.
+        </div>
+        <div class="toggle-row">
+          <label class="toggle">
+            <input type="checkbox" :checked="wThinkingModel" @change="toggleWorkerThinking($event.target.checked)" />
+            <span class="slider"></span>
+          </label>
+          <span class="toggle-label" :style="wThinkingModel ? 'color:#F59E0B' : ''">
+            {{ wThinkingModel ? 'Thinking Model Enabled' : 'Thinking Model Disabled' }}
+          </span>
+        </div>
+        <div v-if="wThinkingSaveResult" class="mcp-save-result" :class="wThinkingSaveOk ? 'text-green' : 'text-red'">
+          {{ wThinkingSaveResult }}
+        </div>
+      </div>
+
+      <!-- Section 3: Run a Task -->
+      <div class="section-label">3 — Run a Worker Task</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#10B981">mdi-play-circle-outline</v-icon>
+            <span class="card-title">Worker Task</span>
+          </div>
+          <span class="badge" :class="wRunBadgeClass">
+            <span class="dot" :class="wRunPulse ? 'dot-pulse' : ''"></span>
+            {{ wRunBadgeText }}
+          </span>
+        </div>
+        <div class="worker-input-area">
+          <textarea
+            v-model="wTaskInput"
+            class="worker-textarea"
+            placeholder="Describe what the Worker should implement…&#10;&#10;Example: Create a simple Express.js REST API with GET /health and GET /users endpoints. Return mock JSON data. Include proper error handling."
+            :disabled="wRunning"
+          ></textarea>
+        </div>
+        <div class="input-row">
+          <button class="btn btn-green" :disabled="wRunning || !wTaskInput.trim()" @click="runWorker()">
+            <v-icon size="13">mdi-play</v-icon> Run Worker
+          </button>
+          <button class="btn btn-red" :disabled="!wRunning" @click="wStopRun">
+            <v-icon size="13">mdi-stop</v-icon> Stop
+          </button>
+          <button
+            v-if="wTruncated || wLastRawOutput"
+            class="btn btn-orange"
+            :disabled="wRunning"
+            @click="runWorker(true)"
+            title="Continue from where the model was truncated"
+          >
+            <v-icon size="13">mdi-play-speed</v-icon> Continue
+          </button>
+          <button class="btn btn-grey" style="margin-left:auto" @click="wClearAll">
+            <v-icon size="13">mdi-refresh</v-icon> Clear
+          </button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" :style="{ width: wProgressWidth, transition: wProgressTransition }"></div></div>
+        <div class="log-grid">
+          <div>
+            <div class="log-header">Agent Status Log</div>
+            <div class="log-stream" ref="wLogStreamEl">
+              <div v-for="(entry, i) in wAgentLog" :key="i" class="log-line">
+                <span class="log-ts">{{ entry.ts }}</span>
+                <span class="log-tag" :class="entry.tag">{{ entry.icon }}</span>
+                <span class="log-msg">{{ entry.msg }}</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="log-header">Token Stream (raw LLM output)</div>
+            <div class="log-stream log-stream--mono" ref="wChatStreamEl">{{ wChatBuffer }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Blueprint Inspector -->
+      <div class="section-label">4 — Blueprint Inspector</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#A78BFA">mdi-file-code-outline</v-icon>
+            <span class="card-title">Parsed JSON Blueprint</span>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <div v-if="wBlueprint" class="view-mode-toggle">
+              <button
+                class="view-mode-btn"
+                :class="{ 'view-mode-btn--active': wViewMode === 'all' }"
+                @click="wViewMode = 'all'"
+              ><v-icon size="12">mdi-view-list</v-icon> All</button>
+              <button
+                class="view-mode-btn"
+                :class="{ 'view-mode-btn--active': wViewMode === 'step' }"
+                @click="wViewMode = 'step'; wCurrentFileIdx = 0"
+              ><v-icon size="12">mdi-file-arrow-right-outline</v-icon> File by File</button>
+            </div>
+            <span class="badge" :class="wBlueprint ? 'badge-green' : 'badge-grey'">
+              {{ wBlueprint ? `${(wBlueprint.files||[]).length} file(s)` : 'Waiting…' }}
+            </span>
+          </div>
+        </div>
+        <div v-if="!wBlueprint" class="empty-hint">Run a worker task above — the parsed JSON blueprint will appear here.</div>
+        <template v-else>
+          <!-- Summary bar -->
+          <div class="bp-summary">
+            <div class="bp-stat">
+              <div class="bp-stat__num" style="color:#10B981">{{ (wBlueprint.files||[]).length }}</div>
+              <div class="bp-stat__label">Files</div>
+            </div>
+            <div class="bp-stat">
+              <div class="bp-stat__num" style="color:#22D3EE">{{ wTotalLines }}</div>
+              <div class="bp-stat__label">Total Lines</div>
+            </div>
+            <div class="bp-stat">
+              <div class="bp-stat__num" style="color:#A78BFA">{{ wTotalChars.toLocaleString() }}</div>
+              <div class="bp-stat__label">Characters</div>
+            </div>
+            <div class="bp-stat">
+              <div class="bp-stat__num" :style="{ color: wWrittenFiles.length ? '#10B981' : '#EF4444' }">{{ wWrittenFiles.length }}</div>
+              <div class="bp-stat__label">Written</div>
+            </div>
+          </div>
+
+          <!-- Summary text -->
+          <div v-if="wBlueprint.summary" class="bp-summary-text">
+            <v-icon size="14" color="#F59E0B" class="mr-1">mdi-information-outline</v-icon>
+            {{ wBlueprint.summary }}
+          </div>
+
+          <!-- Written files banner -->
+          <div v-if="wWrittenFiles.length" class="bp-written-banner">
+            <v-icon size="14" color="#10B981">mdi-check-circle-outline</v-icon>
+            <span>{{ wWrittenFiles.length }} file(s) written to workspace:</span>
+            <span v-for="f in wWrittenFiles" :key="f" class="bp-file-pill">{{ f }}</span>
+          </div>
+          <div v-else-if="wBlueprint" class="bp-written-banner bp-written-banner--warn">
+            <v-icon size="14" color="#F59E0B">mdi-alert-outline</v-icon>
+            <span>No files written — blueprint may be incomplete or all paths were empty.</span>
+          </div>
+
+          <!-- ── All files view ── -->
+          <div v-if="wViewMode === 'all'" class="bp-files">
+            <div v-for="(file, i) in wBlueprint.files||[]" :key="i" class="bp-file">
+              <div class="bp-file__header" @click="wExpandedFiles[i] = !wExpandedFiles[i]">
+                <span class="bp-file__icon">{{ fileIcon(file.path) }}</span>
+                <span class="bp-file__path">{{ file.path }}</span>
+                <div class="bp-file__meta">
+                  <span class="bp-file__lines">{{ lineCount(file.content) }} lines</span>
+                  <span class="bp-file__chars">{{ (file.content||'').length.toLocaleString() }} chars</span>
+                  <span :class="wWrittenFiles.includes(file.path) ? 'bp-written-ok' : 'bp-written-pending'">
+                    {{ wWrittenFiles.includes(file.path) ? '✓ written' : '○ not written' }}
+                  </span>
+                </div>
+                <v-icon size="14" style="color:rgba(226,232,240,0.3);margin-left:6px">
+                  {{ wExpandedFiles[i] ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                </v-icon>
+              </div>
+              <div v-if="wExpandedFiles[i]" class="bp-file__content">
+                <pre class="bp-file__pre">{{ file.content }}</pre>
+              </div>
+              <div v-else class="bp-file__preview">{{ (file.content||'').slice(0,300) }}{{ (file.content||'').length > 300 ? '…' : '' }}</div>
+            </div>
+          </div>
+
+          <!-- ── File by file view ── -->
+          <div v-else class="bp-step">
+            <div class="bp-step__nav">
+              <button class="btn btn-grey" :disabled="wCurrentFileIdx === 0" @click="wCurrentFileIdx--">
+                <v-icon size="14">mdi-chevron-left</v-icon> Prev
+              </button>
+              <div class="bp-step__counter">
+                <span class="bp-step__idx">{{ wCurrentFileIdx + 1 }}</span>
+                <span class="bp-step__sep">/</span>
+                <span class="bp-step__total">{{ (wBlueprint.files||[]).length }}</span>
+              </div>
+              <button class="btn btn-grey" :disabled="wCurrentFileIdx >= (wBlueprint.files||[]).length - 1" @click="wCurrentFileIdx++">
+                Next <v-icon size="14">mdi-chevron-right</v-icon>
+              </button>
+            </div>
+
+            <template v-if="wBlueprint.files && wBlueprint.files[wCurrentFileIdx]">
+              <div class="bp-step__pills">
+                <span v-for="(f, i) in wBlueprint.files" :key="i"
+                  class="bp-step__pill"
+                  :class="{ 'bp-step__pill--active': i === wCurrentFileIdx, 'bp-step__pill--done': wWrittenFiles.includes(f.path) }"
+                  @click="wCurrentFileIdx = i"
+                  :title="f.path"
+                >{{ fileIcon(f.path) }}</span>
+              </div>
+
+              <div class="bp-step__file">
+                <div class="bp-step__file-header">
+                  <span class="bp-file__icon">{{ fileIcon(wBlueprint.files[wCurrentFileIdx].path) }}</span>
+                  <span class="bp-step__path">{{ wBlueprint.files[wCurrentFileIdx].path }}</span>
+                  <div class="bp-file__meta" style="margin-left:auto">
+                    <span class="bp-file__lines">{{ lineCount(wBlueprint.files[wCurrentFileIdx].content) }} lines</span>
+                    <span class="bp-file__chars">{{ (wBlueprint.files[wCurrentFileIdx].content||'').length.toLocaleString() }} chars</span>
+                    <span :class="wWrittenFiles.includes(wBlueprint.files[wCurrentFileIdx].path) ? 'bp-written-ok' : 'bp-written-pending'">
+                      {{ wWrittenFiles.includes(wBlueprint.files[wCurrentFileIdx].path) ? '✓ written' : '○ not written' }}
+                    </span>
+                  </div>
+                </div>
+                <pre class="bp-step__pre">{{ wBlueprint.files[wCurrentFileIdx].content }}</pre>
+              </div>
+            </template>
+          </div>
+
+          <!-- Raw JSON toggle -->
+          <div class="raw-json-toggle">
+            <button class="btn btn-grey" style="font-size:11px" @click="wShowRaw = !wShowRaw">
+              <v-icon size="12">{{ wShowRaw ? 'mdi-chevron-up' : 'mdi-code-braces' }}</v-icon>
+              {{ wShowRaw ? 'Hide' : 'Show' }} raw JSON
+            </button>
+          </div>
+          <pre v-if="wShowRaw" class="raw-json">{{ JSON.stringify(wBlueprint, null, 2) }}</pre>
+        </template>
+      </div>
+
+      <!-- Section 4: What to Expect -->
+      <div class="section-label">5 — What to Expect</div>
+      <div class="card">
+        <div class="two-col">
+          <div>
+            <div class="card-subtitle">Normal Behaviour</div>
+            <div class="diag-row"><span class="diag-dot">✅</span><div><strong>Token stream:</strong> JSON blob starting with <code>{"files":[</code></div></div>
+            <div class="diag-row"><span class="diag-dot">✅</span><div><strong>Agent status:</strong> <code>working → idle</code></div></div>
+            <div class="diag-row"><span class="diag-dot">✅</span><div><strong>Blueprint Inspector:</strong> files list with content populated</div></div>
+            <div class="diag-row"><span class="diag-dot">✅</span><div><strong>Duration:</strong> 10–120 seconds depending on file count and model</div></div>
+          </div>
+          <div>
+            <div class="card-subtitle">Thinking Models (Qwen3, DeepSeek, QwQ)</div>
+            <div class="diag-row"><span class="diag-dot">🧠</span><div>Token stream begins with <code>&lt;think&gt;</code> — this is reasoning; it is stripped before JSON extraction</div></div>
+            <div class="diag-row"><span class="diag-dot">⏱️</span><div>Thinking can take 30–120 seconds before the JSON appears</div></div>
+            <div class="diag-row"><span class="diag-dot">⚠️</span><div>If no JSON appears after thinking: model ran out of tokens. Increase <strong>max_tokens</strong> in Settings → worker.</div></div>
+            <div class="diag-row"><span class="diag-dot">✂️</span><div>If files are cut off mid-content: token limit hit during output. Increase <strong>max_tokens</strong> or reduce file count in the task.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 5: Troubleshooting -->
+      <div class="section-label">6 — Troubleshooting</div>
+      <div class="card">
+        <div class="two-col">
+          <div>
+            <div class="card-subtitle">Worker produces no files</div>
+            <div class="diag-row"><span class="diag-dot">🔹</span><div>Check token stream — if it shows only <code>&lt;think&gt;</code> content, all tokens were used in reasoning. Increase <code>max_tokens</code>.</div></div>
+            <div class="diag-row"><span class="diag-dot">🔹</span><div>If stream is empty, LM Studio may be offline. Go to Settings → worker → Test Connection.</div></div>
+            <div class="diag-row"><span class="diag-dot">🔹</span><div>If token stream has text (no JSON): model ignored format instructions. Try a larger or instruction-tuned model.</div></div>
+          </div>
+          <div>
+            <div class="card-subtitle">Files cut off / incomplete content</div>
+            <div class="diag-row"><span class="diag-dot">🔹</span><div>JSON blueprint is truncated mid-string — token limit hit. Increase <code>max_tokens</code> in Settings (try 65 536).</div></div>
+            <div class="diag-row"><span class="diag-dot">🔹</span><div>Simplify the task: ask for fewer files, or split into multiple runs.</div></div>
+            <div class="diag-row"><span class="diag-dot">🔹</span><div>Worker writes files to <code>workspace/&lt;Project&gt;/</code> when a project is active, otherwise to <code>workspace/</code>.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 6: Backend Logs -->
+      <div class="section-label">7 — Backend Logs (live)</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
+            <span class="card-title">All backend log entries</span>
+          </div>
+          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="wBackendLog = []">Clear</button>
+        </div>
+        <div class="backend-log" ref="wBackendLogEl">
+          <div v-for="(entry, i) in wBackendLog" :key="i"
+            class="backend-log__line"
+            :style="{ color: logColor(entry.level, entry.highlight) }"
+          >
+            <span class="backend-log__ts">{{ entry.ts }}</span>
+            <span class="backend-log__src">[{{ entry.source }}]</span>
+            {{ entry.msg }}
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-body worker -->
   </div>
 </template>
 
@@ -532,8 +895,12 @@ const socket = useSocket();
 
 const tabs = [
   { id: 'researcher', label: 'Researcher', icon: 'mdi-magnify' },
+  { id: 'worker',     label: 'Worker',     icon: 'mdi-code-braces' },
 ];
 const activeTab = ref('researcher');
+
+// ── Shared debug workspace path (both tabs) ───────────────────────────
+const debugWorkspacePath = ref('');
 
 // ── Connection ────────────────────────────────────────────────────────
 const connBadgeText  = ref('Connecting…');
@@ -648,6 +1015,11 @@ async function checkBackend() {
   } finally {
     checkingBackend.value = false;
   }
+  // Also fetch researcher status for debug workspace path
+  try {
+    const { data } = await axios.get('/api/researcher/status');
+    if (data.debugWorkspace) debugWorkspacePath.value = data.debugWorkspace;
+  } catch { /* ignore */ }
 }
 
 async function checkMCPSetting() {
@@ -708,8 +1080,10 @@ async function runResearch() {
       progressIndet.value = true;
       const { data } = await axios.post('/api/researcher/research', { goal });
       currentRunId.value = data.runId;
+      if (data.debugWorkspace) debugWorkspacePath.value = data.debugWorkspace;
       appendLog('🆔', 'tag-wf', `runId: ${data.runId}`);
       appendLog('🆔', 'tag-wf', `sessionId: ${data.sessionId}`);
+      appendLog('📁', 'tag-wf', `Workspace: ${data.debugWorkspace || 'workspace/debug'}`);
       if (data.findings) findings.value = data.findings;
       setRunBadge('green', '✓ Complete');
       progressPct.value   = 100;
@@ -767,6 +1141,239 @@ function tryParseFromChat() {
   }
 }
 
+// ── Worker tab state ──────────────────────────────────────────────────
+const wConnBadgeText   = ref('Connecting…');
+const wConnBadgeClass  = ref('badge-grey');
+const wConnPulse       = ref(false);
+const wAgentStatusHtml = ref('<span style="color:rgba(226,232,240,0.4)">—</span>');
+const wCheckingBackend = ref(false);
+
+// ── Worker thinking model toggle ───────────────────────────────────────
+const wThinkingModel      = ref(true);
+const wThinkingSaveResult = ref('');
+const wThinkingSaveOk     = ref(false);
+
+const wTaskInput    = ref('create professional portfolio.html using html and pure css for represent AI Engineer expert');
+const wTruncated    = ref(false);
+const wLastRawOutput = ref('');
+const wRunning      = ref(false);
+const wRunBadgeText = ref('Idle');
+const wRunBadgeClass = ref('badge-grey');
+const wRunPulse     = ref(false);
+const wProgressPct  = ref(0);
+const wProgressIndet = ref(false);
+
+const wProgressWidth      = computed(() => wProgressIndet.value ? '60%' : wProgressPct.value + '%');
+const wProgressTransition = computed(() => wProgressIndet.value ? 'width 2s ease' : 'width .4s ease');
+
+const wAgentLog    = ref([]);
+const wChatBuffer  = ref('');
+const wBackendLog  = ref([]);
+const wLogStreamEl   = ref(null);
+const wChatStreamEl  = ref(null);
+const wBackendLogEl  = ref(null);
+
+const wBlueprint     = ref(null);
+const wWrittenFiles  = ref([]);
+const wShowRaw       = ref(false);
+const wExpandedFiles = ref({});
+const wViewMode      = ref('all');   // 'all' | 'step'
+const wCurrentFileIdx = ref(0);
+
+const wTotalLines = computed(() =>
+  (wBlueprint.value?.files || []).reduce((acc, f) => acc + lineCount(f.content), 0)
+);
+const wTotalChars = computed(() =>
+  (wBlueprint.value?.files || []).reduce((acc, f) => acc + (f.content || '').length, 0)
+);
+
+function lineCount(content) { return (content || '').split('\n').length; }
+function fileIcon(path = '') {
+  const ext = path.split('.').pop().toLowerCase();
+  return { js: '🟨', ts: '🔷', vue: '💚', html: '🌐', css: '🎨', json: '📋', md: '📝', py: '🐍', sh: '🔧', env: '🔒' }[ext] || '📄';
+}
+
+function wAppendLog(icon, tag, msg) {
+  wAgentLog.value.push({ ts: ts(), icon, tag, msg });
+  nextTick(() => { if (wLogStreamEl.value) wLogStreamEl.value.scrollTop = wLogStreamEl.value.scrollHeight; });
+}
+function wAppendBackendLog(level, source, msg, highlight) {
+  wBackendLog.value.push({ ts: ts(), level, source, msg, highlight });
+  if (wBackendLog.value.length > 500) wBackendLog.value.splice(0, 100);
+  nextTick(() => { if (wBackendLogEl.value) wBackendLogEl.value.scrollTop = wBackendLogEl.value.scrollHeight; });
+}
+function setWRunBadge(color, text, pulse = false) {
+  wRunBadgeClass.value = `badge-${color}`;
+  wRunBadgeText.value  = text;
+  wRunPulse.value      = pulse;
+}
+
+function tryParseBlueprint() {
+  const buf = wChatBuffer.value;
+  if (!buf) return;
+  // Try anchoring on {"files":[
+  const idx = buf.indexOf('{"files"');
+  if (idx !== -1) {
+    const blocks = [];
+    let depth = 0, start = -1;
+    for (let i = idx; i < buf.length; i++) {
+      if (buf[i] === '{') { if (depth === 0) start = i; depth++; }
+      else if (buf[i] === '}' && depth > 0) {
+        depth--;
+        if (depth === 0 && start !== -1) { blocks.push(buf.slice(start, i + 1)); start = -1; }
+      }
+    }
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      try {
+        const parsed = JSON.parse(blocks[i]);
+        if (parsed.files) { wBlueprint.value = parsed; return; }
+      } catch { /* ignore */ }
+    }
+  }
+  // Fallback: brace scan from end
+  const blocks = [];
+  let depth = 0, start = -1;
+  for (let i = 0; i < buf.length; i++) {
+    if (buf[i] === '{') { if (depth === 0) start = i; depth++; }
+    else if (buf[i] === '}' && depth > 0) {
+      depth--;
+      if (depth === 0 && start !== -1) { blocks.push(buf.slice(start, i + 1)); start = -1; }
+    }
+  }
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    try {
+      const parsed = JSON.parse(blocks[i]);
+      if (parsed.files) { wBlueprint.value = parsed; return; }
+    } catch { /* ignore */ }
+  }
+}
+
+async function wCheckBackend() {
+  wCheckingBackend.value = true;
+  try {
+    const { data } = await axios.get('/api/worker/status');
+    wAgentStatusHtml.value = data.status === 'ready'
+      ? `<span style="color:#10B981">Online</span> — model: <code>${data.model}</code>`
+      : `<span style="color:#EF4444">Offline</span> — LM Studio not reachable`;
+    wAppendLog('💻', 'tag-status', `Agent check: ${data.status === 'ready' ? 'ONLINE' : 'OFFLINE'} (${data.model})`);
+    wConnBadgeText.value  = data.status === 'ready' ? '● Connected' : '● Offline';
+    wConnBadgeClass.value = data.status === 'ready' ? 'badge-green' : 'badge-red';
+    if (data.debugWorkspace) debugWorkspacePath.value = data.debugWorkspace;
+    await loadWorkerThinkingModel();
+  } catch (e) {
+    wAgentStatusHtml.value = `<span style="color:#EF4444">Error: ${e.message}</span>`;
+    wConnBadgeText.value  = '● Error';
+    wConnBadgeClass.value = 'badge-red';
+  } finally {
+    wCheckingBackend.value = false;
+  }
+}
+
+async function loadWorkerThinkingModel() {
+  try {
+    const { data } = await axios.get('/api/settings/worker');
+    wThinkingModel.value = data.thinking_model !== undefined ? Boolean(data.thinking_model) : true;
+  } catch { /* silent — keep default */ }
+}
+
+async function toggleWorkerThinking(enabled) {
+  wThinkingSaveResult.value = 'Saving…';
+  wThinkingSaveOk.value     = false;
+  try {
+    await axios.put('/api/settings/worker', { thinking_model: enabled ? 1 : 0 });
+    wThinkingModel.value      = enabled;
+    wThinkingSaveOk.value     = true;
+    wThinkingSaveResult.value = `✓ Saved: thinking_model = ${enabled ? 'enabled' : 'disabled'}`;
+    wAppendLog('⚙️', 'tag-status', `Thinking model: ${enabled ? 'ENABLED' : 'DISABLED'}`);
+  } catch (e) {
+    wThinkingSaveOk.value     = false;
+    wThinkingSaveResult.value = `✗ Failed: ${e.message}`;
+  }
+}
+
+async function runWorker(isContinue = false) {
+  const task = wTaskInput.value.trim();
+  if (!task) return;
+
+  if (!isContinue) {
+    wAgentLog.value     = [];
+    wChatBuffer.value   = '';
+    wBlueprint.value    = null;
+    wWrittenFiles.value = [];
+    wShowRaw.value      = false;
+    wExpandedFiles.value = {};
+    wViewMode.value      = 'all';
+    wCurrentFileIdx.value = 0;
+    wLastRawOutput.value = '';
+    wTruncated.value    = false;
+  } else {
+    wAppendLog('▶', 'tag-wf', 'Continuing from truncated output…');
+  }
+
+  wRunning.value      = true;
+  setWRunBadge('cyan', isContinue ? '● Continuing…' : '● Starting…', true);
+  wProgressPct.value   = isContinue ? 50 : 5;
+  wProgressIndet.value = true;
+
+  if (!isContinue) {
+    wAppendLog('💻', 'tag-wf', `Task: "${task.slice(0, 80)}${task.length > 80 ? '…' : ''}"`);
+    wAppendLog('📁', 'tag-wf', `Workspace: ${debugWorkspacePath.value || 'workspace/debug'}`);
+  }
+
+  const body = { task };
+  if (isContinue && wLastRawOutput.value) body.continueFrom = wLastRawOutput.value;
+
+  try {
+    const { data } = await axios.post('/api/worker/execute', body);
+    if (data.debugWorkspace) debugWorkspacePath.value = data.debugWorkspace;
+    wLastRawOutput.value = data.rawOutput || '';
+    wTruncated.value     = Boolean(data.truncated);
+    wAppendLog('✅', 'tag-done', `Execution complete — result: ${data.result || '(no result)'}`);
+    if (wTruncated.value) {
+      wAppendLog('⚠️', 'tag-error', 'Output truncated — model hit token limit. Use Continue to resume.');
+    }
+    // Parse written files from result string
+    if (data.result && data.result.startsWith('Implemented')) {
+      const match = data.result.match(/: (.+)$/);
+      if (match) wWrittenFiles.value = match[1].split(', ').map(f => f.trim());
+    }
+    setWRunBadge(wTruncated.value ? 'yellow' : 'green', wTruncated.value ? '⚠ Truncated' : '✓ Complete');
+    wProgressPct.value   = 100;
+    wProgressIndet.value = false;
+    wRunning.value       = false;
+    // Parse blueprint from chat buffer
+    setTimeout(tryParseBlueprint, 200);
+  } catch (e) {
+    wAppendLog('❌', 'tag-error', `Worker failed: ${e.response?.data?.error || e.message}`);
+    setWRunBadge('red', '✗ Failed');
+    wProgressPct.value   = 0;
+    wProgressIndet.value = false;
+    wRunning.value       = false;
+  }
+}
+
+function wStopRun() {
+  // Worker execute is synchronous HTTP — there's no run ID to abort.
+  // Signal intent via log; the HTTP request will complete.
+  wAppendLog('■', 'tag-error', 'Stop requested — worker will finish current HTTP call');
+}
+
+function wClearAll() {
+  wAgentLog.value     = [];
+  wChatBuffer.value   = '';
+  wBlueprint.value    = null;
+  wWrittenFiles.value = [];
+  wShowRaw.value      = false;
+  wExpandedFiles.value = {};
+  wViewMode.value      = 'all';
+  wCurrentFileIdx.value = 0;
+  wProgressPct.value  = 0;
+  wProgressIndet.value = false;
+  wLastRawOutput.value = '';
+  wTruncated.value    = false;
+  setWRunBadge('grey', 'Idle');
+}
+
 // ── Socket listeners ──────────────────────────────────────────────────
 function onConnect() {
   connBadgeText.value  = '● Connected';
@@ -786,26 +1393,40 @@ function onConnectError(err) {
   socketStatusHtml.value = `<span style="color:#EF4444">Cannot connect: ${err.message}</span>`;
 }
 function onAgentStatus(data) {
-  if (data.agentId !== 'researcher') return;
-  const isMCP = data.currentTask && (data.currentTask.includes('MCP') || data.currentTask.includes('Browsing') || data.currentTask.includes('Processing web'));
-  appendLog(isMCP ? '🌐' : '⚡', isMCP ? 'tag-mcp' : 'tag-status', `[${data.agentId}] ${data.status}${data.currentTask ? ': ' + data.currentTask : ''}`);
-  // In research-only mode the HTTP response drives completion; only update progress indicator here
-  if (!researchOnly.value) {
-    if (data.status === 'idle') {
-      setRunBadge('green', '✓ Complete');
-      progressPct.value   = 100;
-      progressIndet.value = false;
-      running.value       = false;
-      setTimeout(tryParseFromChat, 300);
-    } else if (data.status === 'working') {
-      progressIndet.value = true;
+  // ── Researcher tab ───────────────────────────────────────
+  if (data.agentId === 'researcher') {
+    const isMCP = data.currentTask && (data.currentTask.includes('MCP') || data.currentTask.includes('Browsing') || data.currentTask.includes('Processing web'));
+    appendLog(isMCP ? '🌐' : '⚡', isMCP ? 'tag-mcp' : 'tag-status', `[${data.agentId}] ${data.status}${data.currentTask ? ': ' + data.currentTask : ''}`);
+    if (!researchOnly.value) {
+      if (data.status === 'idle') {
+        setRunBadge('green', '✓ Complete');
+        progressPct.value   = 100;
+        progressIndet.value = false;
+        running.value       = false;
+        setTimeout(tryParseFromChat, 300);
+      } else if (data.status === 'working') {
+        progressIndet.value = true;
+      }
+    }
+  }
+  // ── Worker tab ────────────────────────────────────────────
+  if (data.agentId === 'worker') {
+    wAppendLog('⚡', 'tag-status', `[worker] ${data.status}${data.currentTask ? ': ' + data.currentTask : ''}`);
+    if (data.status === 'working') {
+      wProgressIndet.value = true;
+      setWRunBadge('cyan', '● Working…', true);
     }
   }
 }
 function onChatChunk(data) {
-  if (data.agentId !== 'researcher') return;
-  chatBuffer.value += data.chunk;
-  nextTick(() => { if (chatStreamEl.value) chatStreamEl.value.scrollTop = chatStreamEl.value.scrollHeight; });
+  if (data.agentId === 'researcher') {
+    chatBuffer.value += data.chunk;
+    nextTick(() => { if (chatStreamEl.value) chatStreamEl.value.scrollTop = chatStreamEl.value.scrollHeight; });
+  }
+  if (data.agentId === 'worker') {
+    wChatBuffer.value += data.chunk;
+    nextTick(() => { if (wChatStreamEl.value) wChatStreamEl.value.scrollTop = wChatStreamEl.value.scrollHeight; });
+  }
 }
 function onWorkflowStarted(data) {
   appendLog('🔄', 'tag-wf', `workflow:started runId=${data.runId}`);
@@ -854,8 +1475,11 @@ function onMemorySaved(data) {
   appendLog('💾', 'tag-done', `Memory saved — STM: ${data.stm} entry, LTM: ${data.ltm} entries`);
 }
 function onLogEntry(entry) {
-  const highlight = entry.agentId === 'researcher' || (entry.message || '').toLowerCase().includes('researcher') || (entry.message || '').toLowerCase().includes('mcp');
-  appendBackendLog(entry.level, entry.agentId || '—', entry.message, highlight);
+  const researcherHighlight = entry.agentId === 'researcher' || (entry.message || '').toLowerCase().includes('researcher') || (entry.message || '').toLowerCase().includes('mcp');
+  appendBackendLog(entry.level, entry.agentId || '—', entry.message, researcherHighlight);
+
+  const workerHighlight = entry.agentId === 'worker' || (entry.message || '').toLowerCase().includes('worker') || (entry.message || '').toLowerCase().includes('blueprint') || (entry.message || '').toLowerCase().includes('wrote:');
+  wAppendBackendLog(entry.level, entry.agentId || '—', entry.message, workerHighlight);
 }
 
 onMounted(async () => {
@@ -879,6 +1503,7 @@ onMounted(async () => {
   setTimeout(async () => {
     await checkBackend();
     await checkMCPSetting();
+    await wCheckBackend();
   }, 500);
 });
 
@@ -1008,6 +1633,7 @@ onUnmounted(() => {
 .btn-grey   { background: rgba(255,255,255,0.06); color: rgba(226,232,240,0.6); }
 .btn-green  { background: rgba(16,185,129,0.1);  color: #10B981; border-color: rgba(16,185,129,0.3); }
 .btn-red    { background: rgba(239,68,68,0.1);   color: #EF4444; border-color: rgba(239,68,68,0.3); }
+.btn-orange { background: rgba(245,158,11,0.1);  color: #F59E0B; border-color: rgba(245,158,11,0.3); }
 
 /* ── Info / warn boxes ───────────────────────────────────────────────── */
 .info-box {
@@ -1249,4 +1875,164 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
 .backend-log__line { font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.7; }
 .backend-log__ts  { color: rgba(255,255,255,0.2); margin-right: 6px; }
 .backend-log__src { color: rgba(255,255,255,0.3); margin-right: 6px; }
+
+/* ── Debug workspace banner (both tabs) ─────────────────────────────── */
+.debug-workspace-banner {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 12px; color: rgba(226,232,240,0.5);
+}
+.debug-workspace-path {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: #22D3EE; background: rgba(34,211,238,0.07);
+  padding: 1px 7px; border-radius: 4px;
+  border: 1px solid rgba(34,211,238,0.2);
+}
+.debug-workspace-hint {
+  font-size: 10px; color: rgba(226,232,240,0.25); font-style: italic;
+}
+
+/* ── Worker tab ──────────────────────────────────────────────────────── */
+.worker-input-area { padding: 12px 16px 0; }
+.worker-textarea {
+  width: 100%; min-height: 110px;
+  padding: 10px 12px; border-radius: 8px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  color: #E2E8F0; font-size: 13px; font-family: inherit;
+  line-height: 1.6; resize: vertical; outline: none;
+}
+.worker-textarea:focus { border-color: rgba(16,185,129,0.4); }
+.worker-textarea:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Blueprint summary stats */
+.bp-summary {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.bp-stat { padding: 14px 16px; border-right: 1px solid rgba(255,255,255,0.04); text-align: center; }
+.bp-stat:last-child { border-right: none; }
+.bp-stat__num   { font-size: 22px; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
+.bp-stat__label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(226,232,240,0.3); }
+
+.bp-summary-text {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 16px;
+  font-size: 12px; color: rgba(245,158,11,0.9);
+  background: rgba(245,158,11,0.03); border-bottom: 1px solid rgba(245,158,11,0.1);
+}
+
+.bp-written-banner {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 9px 16px;
+  background: rgba(16,185,129,0.05); border-bottom: 1px solid rgba(16,185,129,0.15);
+  font-size: 12px; color: rgba(226,232,240,0.6);
+}
+.bp-written-banner--warn {
+  background: rgba(245,158,11,0.04); border-bottom-color: rgba(245,158,11,0.15);
+  color: rgba(245,158,11,0.8);
+}
+.bp-file-pill {
+  font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  padding: 2px 8px; background: rgba(16,185,129,0.1);
+  border: 1px solid rgba(16,185,129,0.25); border-radius: 4px; color: #10B981;
+}
+
+/* Blueprint file cards */
+.bp-files { display: flex; flex-direction: column; }
+.bp-file {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.bp-file:last-child { border-bottom: none; }
+.bp-file__header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px; cursor: pointer;
+  transition: background 0.15s;
+}
+.bp-file__header:hover { background: rgba(255,255,255,0.02); }
+.bp-file__icon { font-size: 16px; flex-shrink: 0; }
+.bp-file__path {
+  flex: 1; font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  color: #A78BFA; word-break: break-all;
+}
+.bp-file__meta { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.bp-file__lines, .bp-file__chars {
+  font-size: 10px; color: rgba(226,232,240,0.3); font-family: monospace;
+}
+.bp-written-ok      { font-size: 10px; font-weight: 700; color: #10B981; }
+.bp-written-pending { font-size: 10px; color: rgba(226,232,240,0.25); }
+.bp-file__preview {
+  padding: 0 16px 12px 42px;
+  font-size: 11px; color: rgba(226,232,240,0.4); line-height: 1.65;
+  font-family: 'JetBrains Mono', monospace;
+  white-space: pre-wrap; word-break: break-word;
+}
+.bp-file__content { padding: 0 16px 12px 16px; }
+.bp-file__pre {
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px; padding: 12px 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.65;
+  color: rgba(226,232,240,0.8); white-space: pre-wrap; word-break: break-word;
+  max-height: 500px; overflow-y: auto;
+}
+
+/* View mode toggle */
+.view-mode-toggle { display: flex; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; }
+.view-mode-btn {
+  padding: 4px 10px; font-size: 11px; font-weight: 600;
+  background: transparent; color: rgba(226,232,240,0.4); border: none; cursor: pointer;
+  display: flex; align-items: center; gap: 4px; transition: background 0.15s, color 0.15s;
+}
+.view-mode-btn:hover { background: rgba(255,255,255,0.05); color: rgba(226,232,240,0.8); }
+.view-mode-btn--active { background: rgba(167,139,250,0.15); color: #A78BFA; }
+
+/* File by file step view */
+.bp-step { display: flex; flex-direction: column; gap: 0; }
+.bp-step__nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 16px; border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.01);
+}
+.bp-step__counter {
+  display: flex; align-items: baseline; gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+.bp-step__idx   { font-size: 22px; font-weight: 800; color: #A78BFA; line-height: 1; }
+.bp-step__sep   { font-size: 14px; color: rgba(226,232,240,0.25); }
+.bp-step__total { font-size: 14px; color: rgba(226,232,240,0.4); }
+.bp-step__pills {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 8px 16px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.bp-step__pill {
+  width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; font-size: 14px; cursor: pointer;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  transition: background 0.15s, border-color 0.15s;
+}
+.bp-step__pill:hover { background: rgba(167,139,250,0.1); border-color: rgba(167,139,250,0.3); }
+.bp-step__pill--active { background: rgba(167,139,250,0.18); border-color: #A78BFA; }
+.bp-step__pill--done { border-color: rgba(16,185,129,0.4); }
+.bp-step__pill--active.bp-step__pill--done { background: rgba(16,185,129,0.12); border-color: #10B981; }
+.bp-step__file { display: flex; flex-direction: column; }
+.bp-step__file-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px; border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.015);
+}
+.bp-step__path {
+  font-size: 13px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  color: #A78BFA; word-break: break-all;
+}
+.bp-step__pre {
+  background: rgba(0,0,0,0.35); margin: 12px 16px;
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;
+  padding: 14px 16px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.65;
+  color: rgba(226,232,240,0.85); white-space: pre-wrap; word-break: break-word;
+  max-height: 600px; overflow-y: auto;
+}
 </style>

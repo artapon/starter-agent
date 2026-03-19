@@ -1,4 +1,7 @@
 import { getDb } from '../database/db.js';
+import { createLogger } from '../logger/winston.logger.js';
+
+const streamLogger = createLogger('stream');
 
 /**
  * Convert LangChain BaseMessage objects → OpenAI {role, content} format.
@@ -60,7 +63,13 @@ export async function* rawLMStream(settings, messages, signal) {
           messages,
           stream:      true,
           temperature: settings.temperature ?? 0.2,
-          max_tokens:  settings.max_tokens  ?? 32768,
+          ...(settings.unlimited_tokens ? {} : { max_tokens: settings.max_tokens ?? 32768 }),
+          // response_format: json_schema is intentionally NOT used here.
+          // Many LM Studio builds buffer the full response internally for schema
+          // validation before emitting, which kills per-token SSE streaming and
+          // leaves the token stream panel empty for the entire generation.
+          // Our multi-pass extractors (extractJSON, extractBlueprintByStrings,
+          // repairJSON) are robust enough to parse the JSON from free-form output.
         }),
         signal,
       });
@@ -96,7 +105,10 @@ export async function* rawLMStream(settings, messages, signal) {
         ({ done, value } = await reader.read());
       } catch (err) {
         if (err.name === 'AbortError') throw err;
-        if (RECOVERABLE.has(err.code)) break;
+        if (RECOVERABLE.has(err.code)) {
+          streamLogger.warn(`Stream cut by ${err.code} — output may be incomplete`, { agentId: settings.agent_id });
+          break;
+        }
         throw err;
       }
       if (done) break;
@@ -111,7 +123,16 @@ export async function* rawLMStream(settings, messages, signal) {
         if (trimmed.startsWith('data: ')) {
           try {
             const json = JSON.parse(trimmed.slice(6));
-            const token = json.choices?.[0]?.delta?.content;
+            const finishReason = json.choices?.[0]?.finish_reason;
+            if (finishReason === 'length') {
+              streamLogger.warn(`Model stopped at token limit (finish_reason=length) — output truncated. Enable Unlimited tokens or increase Max Tokens in Settings.`, { agentId: settings.agent_id });
+            }
+            // Primary: per-token streaming (delta.content)
+            // Fallback: some LM Studio builds with response_format buffer the full
+            // response and emit it in the final SSE event via message.content instead.
+            const token = json.choices?.[0]?.delta?.content
+                       ?? json.choices?.[0]?.message?.content
+                       ?? null;
             if (token) yield token;
           } catch { /* malformed SSE line — skip */ }
         }
@@ -135,37 +156,44 @@ function stripThinkBlocks(text) {
   return result;
 }
 
+// Valid single-character JSON escape sequences (after the backslash).
+// \uXXXX is handled separately via the 'u' entry.
+const JSON_ESCAPE_CHARS = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']);
+
 /**
  * Repair common JSON encoding faults produced by LLMs (especially thinking
  * models like Qwen3 that embed raw file content inside JSON string values):
  *
  *  • Literal newline / carriage-return / tab inside a string value
- *    → escaped as \\n / \\r / \\t
+ *    → escaped as \n / \r / \t
  *  • Other bare control characters (U+0000–U+001F) inside a string value
  *    → removed (they are illegal in JSON strings)
+ *  • Invalid escape sequences inside a string value (e.g. \d \w \s \p from
+ *    JS regex / CSS, or \' from single-quoted JS strings)
+ *    → backslash is doubled so \d becomes \\d (a literal backslash + d),
+ *      which is valid JSON and preserves the intended content
  *
- * Uses a single O(n) pass with a proper string-aware state machine so it is
- * not fooled by escaped quotes (\") or escape sequences already present (\\n).
+ * Uses a single O(n) pass with a string-aware state machine so it is not
+ * fooled by escaped quotes (\") or sequences already present (\\n).
  */
 function repairJSON(text) {
   let inStr  = false;   // currently inside a JSON string
-  let escape = false;   // previous char was an unprocessed backslash
   let out    = '';
 
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
 
-    if (escape) {
-      // Character after a backslash — always pass through verbatim
-      escape = false;
-      out += ch;
-      continue;
-    }
-
     if (ch === '\\' && inStr) {
-      // Start of an escape sequence inside a string
-      escape = true;
-      out += ch;
+      const next = i + 1 < text.length ? text[i + 1] : '';
+      if (JSON_ESCAPE_CHARS.has(next)) {
+        // Valid escape sequence — pass both characters through and skip next
+        out += ch + next;
+        i++;
+      } else {
+        // Invalid escape sequence (e.g. \d \w \s \1 \') — double the backslash
+        out += '\\\\';
+        // next char will be processed normally on the next iteration
+      }
       continue;
     }
 
@@ -191,17 +219,40 @@ function repairJSON(text) {
 }
 
 /**
+ * String-aware brace scanner: walks `text` starting at `from` and returns
+ * the index just past the `}` that closes the first top-level JSON object.
+ * Correctly skips `{` / `}` that appear inside JSON string values so that
+ * CSS rules, template literals, and embedded code don't confuse the counter.
+ * Returns -1 if no complete object is found.
+ */
+function findJSONObjectEnd(text, from = 0) {
+  let depth  = 0;
+  let inStr  = false;
+  let escape = false;
+  for (let i = from; i < text.length; i++) {
+    const ch = text[i];
+    if (escape)              { escape = false; continue; }
+    if (ch === '\\' && inStr){ escape = true;  continue; }
+    if (ch === '"')          { inStr = !inStr; continue; }
+    if (!inStr) {
+      if      (ch === '{') { depth++; }
+      else if (ch === '}') { if (--depth === 0) return i + 1; }
+    }
+  }
+  return -1;
+}
+
+/**
  * Robustly extract and parse the first valid JSON object from model output.
  *
  * Strategy (ordered by confidence):
  *  1. Direct parse — model output is already clean JSON (fastest path)
- *  2. Direct parse after repairJSON — handles Qwen3 literal newlines in strings
+ *  2. Direct parse after repairJSON — handles literal newlines inside strings
  *  3. Markdown code fences — ```json ... ``` or ``` ... ```
- *  4. Anchor on `{"files":` — worker-specific: find the blueprint key and try
- *     JSON.parse from that position (avoids brace-scanner confusion from code
- *     content with unbalanced braces inside string values)
- *  5. Brace-depth scanning last → first — generic fallback; each block is
- *     tried raw then after repairJSON
+ *  4. Anchor on `{"files":` — worker blueprint key; uses string-aware scanner
+ *     to find the exact end of the object so trailing prose is not included
+ *  5. String-aware brace scan (last → first) — collects every top-level JSON
+ *     object using findJSONObjectEnd so CSS/JS braces inside strings are ignored
  *
  * Returns the parsed object, or null if nothing is parseable.
  */
@@ -220,36 +271,46 @@ export function extractJSON(text) {
   while ((m = fenceRe.exec(trimmed)) !== null) {
     const inner = m[1].trim();
     if (!inner.startsWith('{') && !inner.startsWith('[')) continue;
-    try { return JSON.parse(inner); }         catch { /* try repaired */ }
-    try { return JSON.parse(repairJSON(inner)); } catch { /* next */ }
+    try { return JSON.parse(inner); }              catch { /* try repaired */ }
+    try { return JSON.parse(repairJSON(inner)); }  catch { /* next */ }
   }
 
   // ── Pass 3: anchor on `{"files":` (worker blueprint key) ───────────────────
-  // Qwen3 often emits preamble text before the JSON. Anchoring on the known
-  // key avoids the brace-scanner's blind spot (unbalanced braces in code).
+  // Uses string-aware scanner so CSS/JS braces in file content don't cause
+  // the object to be sliced at the wrong closing brace.
   const filesAnchor = trimmed.indexOf('{"files"');
   if (filesAnchor !== -1) {
-    const sub = trimmed.slice(filesAnchor);
-    try { return JSON.parse(sub); }           catch { /* try repaired */ }
-    try { return JSON.parse(repairJSON(sub)); } catch { /* fall through */ }
+    const end = findJSONObjectEnd(trimmed, filesAnchor);
+    const sub = end !== -1 ? trimmed.slice(filesAnchor, end) : trimmed.slice(filesAnchor);
+    try { return JSON.parse(sub); }              catch { /* try repaired */ }
+    try { return JSON.parse(repairJSON(sub)); }  catch { /* fall through */ }
   }
 
-  // ── Pass 4: brace-depth scanning (collected last → first) ──────────────────
-  // Last resort. Iterating from the end prioritises the model's actual answer
-  // over any JSON-like fragments in the reasoning preamble.
+  // ── Pass 4: string-aware brace scan (collected last → first) ───────────────
+  // Iterating from the end prioritises the model's actual answer over any
+  // JSON-like fragments in a reasoning preamble.
+  // First pass: prefer blocks that contain a "files" array (the full blueprint)
+  // so a trailing single-file excerpt doesn't shadow the real response.
   const blocks = [];
-  let depth = 0, start = -1;
-  for (let i = 0; i < trimmed.length; i++) {
-    if (trimmed[i] === '{') { if (depth === 0) start = i; depth++; }
-    else if (trimmed[i] === '}' && depth > 0) {
-      depth--;
-      if (depth === 0 && start !== -1) { blocks.push(trimmed.slice(start, i + 1)); start = -1; }
-    }
+  let pos = 0;
+  while (pos < trimmed.length) {
+    const start = trimmed.indexOf('{', pos);
+    if (start === -1) break;
+    const end = findJSONObjectEnd(trimmed, start);
+    if (end === -1) break;
+    blocks.push(trimmed.slice(start, end));
+    pos = end;
   }
   for (let i = blocks.length - 1; i >= 0; i--) {
     const raw = blocks[i];
-    try { return JSON.parse(raw); }           catch { /* try repaired */ }
-    try { return JSON.parse(repairJSON(raw)); } catch { /* next */ }
+    try { const p = JSON.parse(raw);             if (p.files) return p; } catch { /* try repaired */ }
+    try { const p = JSON.parse(repairJSON(raw)); if (p.files) return p; } catch { /* next */ }
+  }
+  // Second pass: accept any valid JSON (no files key required)
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const raw = blocks[i];
+    try { return JSON.parse(raw); }              catch { /* try repaired */ }
+    try { return JSON.parse(repairJSON(raw)); }  catch { /* next */ }
   }
 
   return null;
@@ -259,9 +320,10 @@ export function extractJSON(text) {
  * Run rawLMStream, emit each token via socketManager, and record token usage.
  * <think>…</think> blocks are silently suppressed from socket emission and
  * stripped from the returned string so agents only see the actual response.
- * Returns the cleaned accumulated output string.
+ * Returns the cleaned accumulated output string, or { output, rawOutput } when
+ * returnRaw is true (useful for JSON agents that need a think-block fallback).
  */
-export async function streamAndEmit(settings, messages, signal, socketManager, sessionId, agentId) {
+export async function streamAndEmit(settings, messages, signal, socketManager, sessionId, agentId, returnRaw = false) {
   const inputText = messages.map(m => m.content).join(' ');
   let rawOutput = '';  // full unmodified output (for strip regex at end)
   let buf      = '';   // lookahead buffer for tag boundary detection
@@ -321,5 +383,25 @@ export async function streamAndEmit(settings, messages, signal, socketManager, s
   // Strip all think blocks from the raw output for clean downstream processing
   const output = stripThinkBlocks(rawOutput);
   recordTokenUsage(agentId, estimateTokens(inputText), estimateTokens(output));
+
+  // Detect likely truncation:
+  //  1. Raw output: JSON started but never closed (e.g. model hit token limit)
+  //  2. Stripped output: after removing <think> blocks, the remaining JSON is unclosed
+  //     This catches the case where the model opened a <think> mid-JSON-string —
+  //     stripThinkBlocks cuts after the tag, leaving an unterminated JSON string.
+  //  3. <think> appeared inside the content (not at the top) — model resumed thinking
+  //     mid-generation, which always means the JSON string was cut off at that point.
+  const rawTrimmed      = rawOutput.trimEnd();
+  const strippedTrimmed = output.trimEnd();
+  const rawUnclosed      = rawTrimmed.includes('{') && !rawTrimmed.endsWith('}') && !rawTrimmed.endsWith(']');
+  const strippedUnclosed = strippedTrimmed.includes('{') && !strippedTrimmed.endsWith('}') && !strippedTrimmed.endsWith(']');
+  // <think> appearing after JSON content began = model resumed reasoning mid-string
+  const thinkMidContent  = /<think>/i.test(rawTrimmed.replace(/^<think>[\s\S]*?<\/think>/i, ''));
+  const truncated = rawUnclosed || strippedUnclosed || thinkMidContent;
+  if (truncated && agentId === 'worker') {
+    streamLogger.warn(`Worker response appears truncated — JSON not closed (${rawOutput.length} chars total). Model likely hit context limit.`, { agentId });
+  }
+
+  if (returnRaw) return { output, rawOutput, truncated };
   return output;
 }
