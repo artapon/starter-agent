@@ -292,6 +292,10 @@
                 <v-icon size="12">mdi-file-chart-outline</v-icon> Walkthrough
               </router-link>
               <span v-else style="font-size:11px;color:rgba(226,232,240,0.15);width:72px"></span>
+              <button v-if="run.status !== 'running'" class="repeat-btn"
+                @click="repeatRun(run)" title="Repeat this workflow">
+                <v-icon size="11">mdi-repeat</v-icon>
+              </button>
             </div>
             <div v-if="!recentRuns.length" class="empty-state">No runs yet</div>
           </div>
@@ -330,8 +334,11 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { useSocket } from '../plugins/socket.js';
 import axios from 'axios';
+
+const router = useRouter();
 
 const socket = useSocket();
 const loading = ref(false);
@@ -349,6 +356,17 @@ async function stopRun(runId) {
     await axios.post(`/api/workflow/stop/${runId}`);
   } catch { /* best-effort */ }
   finally { stoppingRunId.value = null; }
+}
+
+function repeatRun(run) {
+  const params = new URLSearchParams();
+  try {
+    const state = JSON.parse(run.graph_state_json || '{}');
+    const goalText = state.goal || state.userGoal || '';
+    if (goalText) params.set('goal', goalText);
+  } catch {}
+  if (run.project_id) params.set('projectId', run.project_id);
+  router.push(`/workflow?${params.toString()}`);
 }
 
 async function cancelJob(jobId) {
@@ -437,18 +455,18 @@ const NODE_COLORS = {
 };
 const EDGE_COLORS = {
   idle:       'rgba(255,255,255,0.1)',
-  'loop-idle':'rgba(245,158,11,0.25)',
+  'loop-idle':'rgba(99,102,241,0.25)',
   active:     '#6366F1',
   complete:   '#10B981',
-  loop:       '#F59E0B',
+  loop:       '#6366F1',
 };
 // marker ids referenced in SVG defs
 const markerIds = computed(() => [
   { id: 'arr-idle',      color: 'rgba(255,255,255,0.2)' },
-  { id: 'arr-loop-idle', color: 'rgba(245,158,11,0.4)'  },
+  { id: 'arr-loop-idle', color: 'rgba(99,102,241,0.4)'  },
   { id: 'arr-active',    color: '#6366F1' },
   { id: 'arr-complete',  color: '#10B981' },
-  { id: 'arr-loop',      color: '#F59E0B' },
+  { id: 'arr-loop',      color: '#6366F1' },
   { id: 'arr-done',      color: '#10B981' },
 ]);
 
@@ -1196,4 +1214,15 @@ onMounted(() => {
   border: 1px solid rgba(99,102,241,0.3);
   color: #818CF8;
 }
+
+.repeat-btn {
+  width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.22);
+  color: #F59E0B; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  outline: none;
+}
+.repeat-btn:hover { background: rgba(245,158,11,0.18); border-color: rgba(245,158,11,0.45); }
 </style>

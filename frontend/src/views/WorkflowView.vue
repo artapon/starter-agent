@@ -211,6 +211,12 @@
           </router-link>
           <span v-else style="font-size:11px;color:rgba(226,232,240,0.2)">—</span>
         </template>
+        <template #item.repeat="{ item }">
+          <button v-if="item.status !== 'running'" class="repeat-btn"
+            @click="repeatRun(item)" title="Repeat this workflow">
+            <v-icon size="12">mdi-repeat</v-icon> Repeat
+          </button>
+        </template>
       </v-data-table>
     </div>
 
@@ -221,6 +227,9 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSocket } from '../plugins/socket.js';
 import axios from 'axios';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const socket = useSocket();
 const goal = ref('');
@@ -296,17 +305,17 @@ const NODE_COLORS = {
 };
 const EDGE_COLORS = {
   idle:        'rgba(255,255,255,0.1)',
-  'loop-idle': 'rgba(245,158,11,0.25)',
+  'loop-idle': 'rgba(99,102,241,0.25)',
   active:      '#6366F1',
   complete:    '#10B981',
-  loop:        '#F59E0B',
+  loop:        '#6366F1',
 };
 const markerIds = computed(() => [
   { id: 'arr-idle',      color: 'rgba(255,255,255,0.2)' },
-  { id: 'arr-loop-idle', color: 'rgba(245,158,11,0.4)'  },
+  { id: 'arr-loop-idle', color: 'rgba(99,102,241,0.4)'  },
   { id: 'arr-active',    color: '#6366F1' },
   { id: 'arr-complete',  color: '#10B981' },
-  { id: 'arr-loop',      color: '#F59E0B' },
+  { id: 'arr-loop',      color: '#6366F1' },
   { id: 'arr-done',      color: '#10B981' },
 ]);
 
@@ -381,7 +390,17 @@ const headers = [
   { title: 'Status',   key: 'status' },
   { title: 'Started',  key: 'started_at' },
   { title: 'Report',   key: 'report',     sortable: false },
+  { title: '',         key: 'repeat',     sortable: false },
 ];
+
+function repeatRun(item) {
+  try {
+    const state = JSON.parse(item.graph_state_json || '{}');
+    goal.value = state.goal || state.userGoal || '';
+  } catch { goal.value = ''; }
+  if (item.project_id) projectId.value = item.project_id;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 const reportSessions = ref(new Set());
 
 function runStatusColor(s) {
@@ -423,6 +442,8 @@ onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const urlProjectId = urlParams.get('projectId');
   if (urlProjectId) projectId.value = urlProjectId;
+  const urlGoal = urlParams.get('goal');
+  if (urlGoal) goal.value = urlGoal;
 
   fetchRuns();
   loadProjects();
@@ -828,4 +849,18 @@ onMounted(() => {
   background: rgba(167,139,250,0.07);
   max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+.repeat-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600;
+  color: #F59E0B;
+  padding: 2px 8px; border-radius: 4px;
+  border: 1px solid rgba(245,158,11,0.25);
+  background: rgba(245,158,11,0.07);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  outline: none;
+  white-space: nowrap;
+}
+.repeat-btn:hover { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.45); }
 </style>
