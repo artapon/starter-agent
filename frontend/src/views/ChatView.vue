@@ -27,7 +27,7 @@
         <div class="header-select-wrap">
           <v-icon size="13" color="rgba(226,232,240,0.35)">mdi-folder-outline</v-icon>
           <select class="header-select" v-model="projectId" @change="onProjectChange(projectId)">
-            <option :value="null">No Project</option>
+            <option :value="null" disabled hidden>Select project…</option>
             <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.title }}</option>
           </select>
         </div>
@@ -61,8 +61,17 @@
       <!-- Messages -->
       <div ref="messagesEl" class="messages-pane">
 
+        <!-- No project selected gate -->
+        <div v-if="!projectId" class="chat-empty">
+          <div class="chat-empty__icon">
+            <v-icon size="32" color="#6366F1">mdi-folder-open-outline</v-icon>
+          </div>
+          <div class="chat-empty__title">Select a project to start</div>
+          <div class="chat-empty__sub">Choose a project from the dropdown above before chatting.</div>
+        </div>
+
         <!-- Empty state -->
-        <div v-if="!messages.length && !isStreaming && !typing && !sending" class="chat-empty">
+        <div v-else-if="!messages.length && !isStreaming && !typing && !sending" class="chat-empty">
           <div class="chat-empty__icon">
             <v-icon size="32" color="#6366F1">mdi-robot-outline</v-icon>
           </div>
@@ -188,9 +197,9 @@
           ref="inputEl"
           v-model="input"
           class="chat-textarea"
-          placeholder="Message…"
+          :placeholder="projectId ? 'Message…' : 'Select a project first…'"
           rows="1"
-          :disabled="sending"
+          :disabled="sending || !projectId"
           @focus="inputFocused = true"
           @blur="inputFocused = false"
           @keydown.enter.exact.prevent="sendMessage"
@@ -207,8 +216,8 @@
             <v-icon size="15">mdi-play-circle-outline</v-icon>
             Continue
           </button>
-          <button class="send-btn" :class="{ 'send-btn--active': input.trim() && !sending }"
-            :disabled="!input.trim() || sending" @click="sendMessage" title="Send (Enter)">
+          <button class="send-btn" :class="{ 'send-btn--active': input.trim() && !sending && projectId }"
+            :disabled="!input.trim() || sending || !projectId" @click="sendMessage" title="Send (Enter)">
             <v-icon size="18">mdi-send</v-icon>
           </button>
         </div>
@@ -237,7 +246,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch, defineComponent, h } from 'vue';
 import { useSocket } from '../plugins/socket.js';
-import { useActiveProject } from '../composables/useActiveProject.js';
 import { marked } from 'marked';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
@@ -280,7 +288,6 @@ const WorkspaceNode = defineComponent({
 
 // ── State ──────────────────────────────────────────────────────────────────
 const socket = useSocket();
-const { activeProject } = useActiveProject();
 const input       = ref('');
 const inputFocused = ref(false);
 const sending     = ref(false);
@@ -544,10 +551,9 @@ watch(showWorkspace, v => { if (v) loadWorkspace(); });
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const urlProjectId = urlParams.get('projectId');
-  const initialProjectId = urlProjectId || activeProject.value?.id || null;
-  if (initialProjectId) {
-    projectId.value = initialProjectId;
-    sessionId.value = `proj_${initialProjectId}`;
+  if (urlProjectId) {
+    projectId.value = urlProjectId;
+    sessionId.value = `proj_${urlProjectId}`;
     messages.value = [];
   }
 

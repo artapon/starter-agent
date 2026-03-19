@@ -37,8 +37,7 @@
     <!-- Project grid -->
     <div v-else class="proj-grid">
       <div v-for="project in projects" :key="project.id"
-        class="proj-card card-hover"
-        :class="{ 'proj-card--active': activeProject?.id === project.id }">
+        class="proj-card card-hover">
         <div class="proj-card__body">
           <div class="proj-card__icon">
             <v-icon size="20" color="#A78BFA">mdi-folder-outline</v-icon>
@@ -57,11 +56,10 @@
         </div>
         <div class="proj-card__actions">
           <button class="proj-select-btn"
-            :class="activeProject?.id === project.id ? 'proj-select-btn--active' : ''"
-            @click="selectProject(project)"
-            :title="activeProject?.id === project.id ? 'Active project' : 'Set as active project'">
-            <v-icon size="12">{{ activeProject?.id === project.id ? 'mdi-check-circle' : 'mdi-circle-outline' }}</v-icon>
-            <span>{{ activeProject?.id === project.id ? 'Active' : 'Select' }}</span>
+            @click="openInChat(project)"
+            title="Open in Chat">
+            <v-icon size="12">mdi-chat-outline</v-icon>
+            <span>Open Chat</span>
           </button>
           <v-btn size="x-small" variant="text" icon="mdi-pencil-outline"
             style="color:rgba(226,232,240,0.4)" @click="openEdit(project)" />
@@ -168,15 +166,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRouter } from 'vue-router';
 import axios from 'axios';
-import { useActiveProject } from '../composables/useActiveProject.js';
 
-const route  = useRoute();
 const router = useRouter();
-const { activeProject, setActiveProject } = useActiveProject();
-
-const redirectPath = ref(route.query.redirect || null);
 
 const projects        = ref([]);
 const loading         = ref(true);
@@ -208,11 +201,8 @@ async function ensureFolder(project) {
   finally { folderRecreating.value[project.id] = false; }
 }
 
-function selectProject(project) {
-  setActiveProject(project);
-  if (redirectPath.value) {
-    router.push(redirectPath.value);
-  }
+function openInChat(project) {
+  router.push(`/chat?projectId=${project.id}`);
 }
 
 function openCreate() {
@@ -237,11 +227,6 @@ async function saveDialog() {
       await axios.put(`/api/projects/${dialog.value.id}`, { title: dialog.value.title, description: dialog.value.description });
       dialog.value.show = false;
       await fetchProjects();
-      // Keep active project in sync if title was updated
-      if (activeProject.value?.id === dialog.value.id) {
-        const updated = projects.value.find(p => p.id === dialog.value.id);
-        if (updated) setActiveProject(updated);
-      }
     }
   } catch { /* ignore */ }
   finally { dialog.value.saving = false; }
@@ -253,7 +238,6 @@ async function doDelete() {
   try {
     const deletedId = deleteDialog.value.project.id;
     await axios.delete(`/api/projects/${deletedId}`);
-    if (activeProject.value?.id === deletedId) setActiveProject(null);
     deleteDialog.value.show = false;
     await fetchProjects();
   } catch { /* ignore */ }

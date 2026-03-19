@@ -54,7 +54,7 @@
           />
           <div class="wf-action-row mt-3">
             <v-btn color="primary" :loading="starting"
-              :disabled="!goal.trim() || isRunning"
+              :disabled="!goal.trim() || isRunning || !projectId"
               prepend-icon="mdi-play-circle-outline" @click="startWorkflow"
               style="box-shadow:0 2px 12px rgba(99,102,241,0.2)">
               Run Workflow
@@ -64,7 +64,8 @@
               prepend-icon="mdi-stop-circle-outline" @click="stopWorkflow">
               Stop
             </v-btn>
-            <span class="wf-tip">Researcher → Planner → Worker → Reviewer</span>
+            <span v-if="!projectId" class="wf-tip" style="color:rgba(167,139,250,0.7)">Select a project to run</span>
+            <span v-else class="wf-tip">Researcher → Planner → Worker → Reviewer</span>
           </div>
         </div>
       </div>
@@ -169,11 +170,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useSocket } from '../plugins/socket.js';
-import { useActiveProject } from '../composables/useActiveProject.js';
 import axios from 'axios';
 
 const socket = useSocket();
-const { activeProject } = useActiveProject();
 const goal = ref('');
 const projectId = ref(null);
 const projects = ref([]);
@@ -253,7 +252,6 @@ onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const urlProjectId = urlParams.get('projectId');
   if (urlProjectId) projectId.value = urlProjectId;
-  else if (activeProject.value?.id) projectId.value = activeProject.value.id;
 
   fetchRuns();
   loadProjects();
