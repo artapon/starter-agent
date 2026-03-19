@@ -149,11 +149,11 @@
                 </marker>
               </defs>
               <!-- researcher → planner -->
-              <path d="M120,42 L153,42" :stroke="edgeColor('researcher','planner')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','planner')})`"/>
+              <path d="M120,42 L153,42" :stroke-dasharray="edgeDash('researcher','planner')" :stroke-dashoffset="edgeOffset('researcher','planner')" :stroke="edgeColor('researcher','planner')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','planner')})`"/>
               <!-- planner → worker -->
-              <path d="M263,42 L297,42" :stroke="edgeColor('planner','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','worker')})`"/>
+              <path d="M263,42 L297,42" :stroke-dasharray="edgeDash('planner','worker')" :stroke-dashoffset="edgeOffset('planner','worker')" :stroke="edgeColor('planner','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','worker')})`"/>
               <!-- worker → reviewer -->
-              <path d="M407,42 L441,42" :stroke="edgeColor('worker','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('worker','reviewer')})`"/>
+              <path d="M407,42 L441,42" :stroke-dasharray="edgeDash('worker','reviewer')" :stroke-dashoffset="edgeOffset('worker','reviewer')" :stroke="edgeColor('worker','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('worker','reviewer')})`"/>
               <!-- reviewer → assembler -->
               <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
               <!-- reviewer → loop_reset -->
@@ -390,6 +390,24 @@ const isLoopResetting    = ref(false);
 const loopDashOffset     = ref(0);
 const loopNodeOpacity    = ref(1);
 let   _loopAnimInterval  = null;
+const fwdDashOffset      = ref(0);
+let   _fwdAnimInterval   = null;
+
+watch(graphOverallStatus, (status) => {
+  if (status === 'running') {
+    if (_fwdAnimInterval) return;
+    let offset = 0;
+    _fwdAnimInterval = setInterval(() => {
+      offset -= 1;
+      if (offset < -24) offset = 0;
+      fwdDashOffset.value = offset;
+    }, 25);
+  } else {
+    clearInterval(_fwdAnimInterval);
+    _fwdAnimInterval = null;
+    fwdDashOffset.value = 0;
+  }
+});
 
 watch([graphLoopCount, graphOverallStatus], ([count, status]) => {
   if (count > 0 && status === 'running') {
@@ -418,38 +436,46 @@ const NODE_COLORS = {
   error:    { fill: 'rgba(239,68,68,0.22)',   stroke: '#EF4444'                },
 };
 const EDGE_COLORS = {
-  idle:     'rgba(255,255,255,0.1)',
-  active:   '#6366F1',
-  complete: '#10B981',
-  loop:     '#F59E0B',
+  idle:       'rgba(255,255,255,0.1)',
+  'loop-idle':'rgba(245,158,11,0.25)',
+  active:     '#6366F1',
+  complete:   '#10B981',
+  loop:       '#F59E0B',
 };
 // marker ids referenced in SVG defs
 const markerIds = computed(() => [
-  { id: 'arr-idle',     color: 'rgba(255,255,255,0.2)' },
-  { id: 'arr-active',   color: '#6366F1' },
-  { id: 'arr-complete', color: '#10B981' },
-  { id: 'arr-loop',     color: '#F59E0B' },
-  { id: 'arr-done',     color: '#10B981' },
+  { id: 'arr-idle',      color: 'rgba(255,255,255,0.2)' },
+  { id: 'arr-loop-idle', color: 'rgba(245,158,11,0.4)'  },
+  { id: 'arr-active',    color: '#6366F1' },
+  { id: 'arr-complete',  color: '#10B981' },
+  { id: 'arr-loop',      color: '#F59E0B' },
+  { id: 'arr-done',      color: '#10B981' },
 ]);
 
 function nodeFill(n) {
-  if (n === 'loop_reset' && graphLoopCount.value > 0 && graphNodeStatus[n] !== 'idle' && graphNodeStatus[n] !== 'pending')
-    return 'rgba(245,158,11,0.15)';
+  if (n === 'loop_reset' && graphLoopCount.value > 0 && graphOverallStatus.value === 'running')
+    return NODE_COLORS.running.fill;
   return (NODE_COLORS[graphNodeStatus[n]] || NODE_COLORS.idle).fill;
 }
 function nodeStroke(n) {
-  if (n === 'loop_reset' && graphLoopCount.value > 0 && graphNodeStatus[n] !== 'idle' && graphNodeStatus[n] !== 'pending')
-    return '#F59E0B';
+  if (n === 'loop_reset' && graphLoopCount.value > 0 && graphOverallStatus.value === 'running')
+    return NODE_COLORS.running.stroke;
   return (NODE_COLORS[graphNodeStatus[n]] || NODE_COLORS.idle).stroke;
 }
 function nodeClass(n)  {
   if (n === 'loop_reset' && graphLoopCount.value > 0 && graphOverallStatus.value === 'running')
-    return 'node-loop-active';
+    return 'node-running';
   if (graphNodeStatus[n] !== 'running') return '';
   return 'node-running';
 }
 function edgeClass(from, to) {
   return edgeStatus(from, to) === 'loop' ? 'edge-loop-active' : '';
+}
+function edgeDash(from, to) {
+  return edgeStatus(from, to) === 'active' ? '8 4' : 'none';
+}
+function edgeOffset(from, to) {
+  return edgeStatus(from, to) === 'active' ? fwdDashOffset.value : 0;
 }
 
 function edgeStatus(from, to) {
@@ -460,10 +486,14 @@ function edgeStatus(from, to) {
   if (fs === 'idle' && ts2 === 'idle') return 'idle';
   if (loopEdges.has(key)) {
     if (graphLoopCount.value > 0 && graphOverallStatus.value === 'running') return 'loop';
-    return 'idle';
+    return 'loop-idle';
   }
   if (from === 'assembler' && to === 'done') {
     return fs === 'complete' ? 'done' : 'idle';
+  }
+  // Only activate reviewer→assembler when assembler is actually preparing (not during loops)
+  if (from === 'reviewer' && to === 'assembler') {
+    return ts2 === 'complete' ? 'complete' : 'idle';
   }
   if (fs === 'complete') return 'complete';
   if (fs === 'running')  return 'active';
@@ -587,6 +617,19 @@ onMounted(() => {
         resetGraph();
       }
       return;
+    }
+
+    // ── Loop detection fallback (from log messages when socket event not emitted) ──
+    if ((agentId === 'worker' || agentId === 'reviewer') && graphOverallStatus.value === 'running') {
+      const loopMatch = message.match(/Improvement pass \(loop (\d+)\)/i);
+      if (loopMatch) {
+        const loopNum = parseInt(loopMatch[1]);
+        if (loopNum > graphLoopCount.value) {
+          graphLoopCount.value = loopNum;
+          graphNodeStatus['loop_reset'] = 'complete';
+          if (graphNodeStatus['reviewer'] !== 'running') graphNodeStatus['reviewer'] = 'complete';
+        }
+      }
     }
 
     // ── Agent node active ───────────────────────────────────────────────────
@@ -780,6 +823,7 @@ onMounted(() => {
   onUnmounted(() => {
     clearInterval(interval);
     clearInterval(_loopAnimInterval);
+    clearInterval(_fwdAnimInterval);
     socket.off('log:entry');
     socket.off('agent:status');
     socket.off('dashboard:stats');
