@@ -121,7 +121,7 @@ class AgentQueue {
       })
       .catch(err => {
         this._finish(next, () => next.reject(err));
-        if (!err.cancelled) logger.warn(`Job failed: ${next.id} — ${err.message}`);
+        if (!err.cancelled) logger.error(`Job failed: ${next.id} — ${err.message}`);
       });
   }
 

@@ -148,7 +148,7 @@ export class ResearcherAgent {
         return await this._researchWithMCP(goal, sessionId, runId);
       } catch (err) {
         if (err.name === 'AbortError') throw err;
-        logger.warn(`MCP research failed, falling back to plain: ${err.message}`, { agentId: 'researcher' });
+        logger.error(`MCP research failed, falling back to plain: ${err.message}`, { agentId: 'researcher' });
         this.socketManager?.emitAgentStatus('researcher', 'working', 'Web search unavailable, using plain research...');
       }
     }
@@ -299,7 +299,7 @@ export class ResearcherAgent {
         try {
           const text = await byName['browse_url'].invoke({ url }, { signal });
           if (text.startsWith('Failed to read') || text.startsWith('[binary')) {
-            logger.warn(`Browse skipped: ${text.slice(0, 80)}`, { agentId: 'researcher' });
+            logger.error(`Browse skipped: ${text.slice(0, 80)}`, { agentId: 'researcher' });
           } else {
             addSource(url, type, text.slice(0, 300));
             pageContents.push({ url, text, type });
@@ -307,7 +307,7 @@ export class ResearcherAgent {
             logger.info(`Read ${url} (${text.length} chars)`, { agentId: 'researcher' });
           }
         } catch (err) {
-          logger.warn(`Browse failed for ${url}: ${err.message}`, { agentId: 'researcher' });
+          logger.error(`Browse failed for ${url}: ${err.message}`, { agentId: 'researcher' });
         }
       }
 
@@ -399,14 +399,14 @@ export class ResearcherAgent {
 function _parseSearchResult(settled, label) {
   if (settled.status === 'rejected') {
     if (settled.reason !== 'source disabled') {
-      logger.warn(`${label} search failed: ${settled.reason}`, { agentId: 'researcher' });
+      logger.error(`${label} search failed: ${settled.reason}`, { agentId: 'researcher' });
     }
     return [];
   }
   try {
     const val = settled.value;
     if (typeof val === 'string' && val.startsWith('Search failed:')) {
-      logger.warn(`${label} search error: ${val}`, { agentId: 'researcher' });
+      logger.error(`${label} search error: ${val}`, { agentId: 'researcher' });
       return [];
     }
     const parsed = JSON.parse(val);

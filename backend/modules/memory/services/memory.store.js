@@ -93,7 +93,7 @@ export class MemoryStore {
       const last    = snap.pairs[snap.pairs.length - 1];
       const content = `Goal: ${last.input.slice(0, 400)}\nResult: ${last.output.slice(0, 400)}`;
       this.storeToLTM(agentId, content, { agentId, sessionId }).catch(err =>
-        logger.warn(`LTM ingest failed for ${agentId}: ${err.message}`)
+        logger.error(`LTM ingest failed for ${agentId}: ${err.message}`)
       );
     }
 
@@ -225,7 +225,7 @@ export class MemoryStore {
     try {
       await addToLTM(agentId, content, metadata);
     } catch (err) {
-      logger.warn(`LTM store failed for ${agentId}: ${err.message}`);
+      logger.error(`LTM store failed for ${agentId}: ${err.message}`);
     }
   }
 
@@ -233,7 +233,7 @@ export class MemoryStore {
     try {
       return await queryLTM(agentId, queryText, k);
     } catch (err) {
-      logger.warn(`LTM query failed for ${agentId}: ${err.message}`);
+      logger.error(`LTM query failed for ${agentId}: ${err.message}`);
       return [];
     }
   }

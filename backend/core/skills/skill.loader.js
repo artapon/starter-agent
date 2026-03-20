@@ -33,7 +33,7 @@ function readSkill(subskill, filename) {
     // Escape { and } so LangChain's ChatPromptTemplate doesn't treat them as variables
     return readFileSync(filePath, 'utf8').trim().replace(/\{/g, '{{').replace(/\}/g, '}}');
   } catch (err) {
-    logger.warn(`Could not read skill file ${subskill}/${filename}: ${err.message}`);
+    logger.error(`Could not read skill file ${subskill}/${filename}: ${err.message}`);
     return '';
   }
 }
@@ -66,7 +66,7 @@ function readSkillRaw(subskill, filename) {
   try {
     return readFileSync(filePath, 'utf8').trim();
   } catch (err) {
-    logger.warn(`Could not read raw skill file ${subskill}/${filename}: ${err.message}`);
+    logger.error(`Could not read raw skill file ${subskill}/${filename}: ${err.message}`);
     return '';
   }
 }

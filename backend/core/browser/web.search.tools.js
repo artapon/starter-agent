@@ -163,11 +163,11 @@ async function duckduckgoSearch(query) {
   for (const endpoint of endpoints) {
     try {
       const res = await fetch(endpoint, { headers, signal: AbortSignal.timeout(15000) });
-      if (!res.ok) { logger.warn(`DuckDuckGo ${endpoint} returned HTTP ${res.status}`); continue; }
+      if (!res.ok) { logger.error(`DuckDuckGo ${endpoint} returned HTTP ${res.status}`); continue; }
       html = await res.text();
       if (html.length > 500) break; // got a real response
     } catch (err) {
-      logger.warn(`DuckDuckGo fetch failed (${endpoint}): ${err.message}`);
+      logger.error(`DuckDuckGo fetch failed (${endpoint}): ${err.message}`);
     }
   }
   if (!html) throw new Error('DuckDuckGo: all endpoints failed');
@@ -463,7 +463,7 @@ export function getWebSearchTools(sources = null) {
           logger.info(`[${adapter.label}] ${results.length} results`, { agentId: 'researcher' });
           return JSON.stringify(results, null, 2);
         } catch (err) {
-          logger.warn(`[${adapter.label}] failed: ${err.message}`, { agentId: 'researcher' });
+          logger.error(`[${adapter.label}] failed: ${err.message}`, { agentId: 'researcher' });
           return `Search failed: ${err.message}`;
         }
       },
@@ -481,7 +481,7 @@ export function getWebSearchTools(sources = null) {
         logger.info(`Browse complete: ${url} (${text.length} chars)`, { agentId: 'researcher' });
         return text;
       } catch (err) {
-        logger.warn(`Browse failed for ${url}: ${err.message}`, { agentId: 'researcher' });
+        logger.error(`Browse failed for ${url}: ${err.message}`, { agentId: 'researcher' });
         return `Failed to read ${url}: ${err.message}`;
       }
     },

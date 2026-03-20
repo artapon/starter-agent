@@ -155,9 +155,9 @@ export class ReviewerAgent {
       if (regexResult.score !== 7 || regexResult.feedback) {
         // Regex found something useful
         review = regexResult;
-        logger.warn(`Reviewer JSON truncated — extracted via regex: score=${regexResult.score}`, { agentId: 'reviewer' });
+        logger.error(`Reviewer JSON truncated — extracted via regex: score=${regexResult.score}`, { agentId: 'reviewer' });
       } else {
-        logger.warn(`Reviewer produced no parseable JSON (${reviewOutput.length} chars)`, { agentId: 'reviewer' });
+        logger.error(`Reviewer produced no parseable JSON (${reviewOutput.length} chars)`, { agentId: 'reviewer' });
         review = { approved: true, score: 7, feedback: reviewOutput.slice(0, 500) || 'Review output could not be parsed.', suggestions: [] };
       }
     }

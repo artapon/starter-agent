@@ -268,7 +268,7 @@ export class WorkerAgent {
       if (!blueprint && output.trim().startsWith('{')) {
         // Log the exact JSON parse error to help diagnose the issue
         try { JSON.parse(output.trim()); } catch (e) {
-          logger.warn(`JSON.parse failed: ${e.message} (at char ~${e.message.match(/position (\d+)/)?.[1] ?? '?'})`, { agentId: 'worker' });
+          logger.error(`JSON.parse failed: ${e.message} (at char ~${e.message.match(/position (\d+)/)?.[1] ?? '?'})`, { agentId: 'worker' });
         }
       }
 
@@ -278,7 +278,7 @@ export class WorkerAgent {
       if (!blueprint) {
         blueprint = extractBlueprintByStrings(output) || extractBlueprintByStrings(fullRaw);
         if (blueprint) {
-          logger.warn(`Worker JSON unparseable — recovered ${blueprint.files?.length ?? 0} file(s) via string-level scan.`, { agentId: 'worker' });
+          logger.error(`Worker JSON unparseable — recovered ${blueprint.files?.length ?? 0} file(s) via string-level scan.`, { agentId: 'worker' });
         }
       }
 
@@ -286,17 +286,17 @@ export class WorkerAgent {
       if (!blueprint) {
         blueprint = extractBlueprintFromMarkdown(output) || extractBlueprintFromMarkdown(fullRaw);
         if (blueprint) {
-          logger.warn(`Worker produced markdown instead of JSON — extracted ${blueprint.files?.length ?? 0} file(s) via markdown parser. Consider using a model that follows JSON instructions more reliably.`, { agentId: 'worker' });
+          logger.error(`Worker produced markdown instead of JSON — extracted ${blueprint.files?.length ?? 0} file(s) via markdown parser. Consider using a model that follows JSON instructions more reliably.`, { agentId: 'worker' });
         }
       }
 
       if (!blueprint) {
         const isLikelyThinkOnly = !output.trim() && fullRaw.includes('<think>');
         if (isLikelyThinkOnly) {
-          logger.warn(`Worker output was entirely inside <think> blocks — model did not emit JSON after reasoning. Increase max_tokens in Settings.`, { agentId: 'worker' });
+          logger.error(`Worker output was entirely inside <think> blocks — model did not emit JSON after reasoning. Increase max_tokens in Settings.`, { agentId: 'worker' });
         } else {
-          logger.warn(`No JSON found in worker output (${output.length} chars). Model produced prose with no recognisable file structure.`, { agentId: 'worker' });
-          logger.warn(`Worker output preview (first 800 chars): ${output.slice(0, 800)}`, { agentId: 'worker' });
+          logger.error(`No JSON found in worker output (${output.length} chars). Model produced prose with no recognisable file structure.`, { agentId: 'worker' });
+          logger.error(`Worker output preview (first 800 chars): ${output.slice(0, 800)}`, { agentId: 'worker' });
         }
         return { written, summary: '' };
       }
@@ -316,18 +316,18 @@ export class WorkerAgent {
           logger.info(`extractJSON returned single-file object; string scan recovered ${multiBlueprint.files.length} file(s).`, { agentId: 'worker' });
           files = multiBlueprint.files;
         } else {
-          logger.warn(`Worker JSON returned single-file object — treating as one-file blueprint.`, { agentId: 'worker' });
+          logger.error(`Worker JSON returned single-file object — treating as one-file blueprint.`, { agentId: 'worker' });
           files = [blueprint];
         }
       } else {
-        logger.warn(`Worker JSON has no "files" array (keys: ${Object.keys(blueprint).join(', ')})`, { agentId: 'worker' });
+        logger.error(`Worker JSON has no "files" array (keys: ${Object.keys(blueprint).join(', ')})`, { agentId: 'worker' });
         files = [];
       }
       for (const { path: filePath, content } of files) {
         if (!filePath || content == null) continue;
         const contentStr = String(content);
         if (contentStr.trim().length < 5) {
-          logger.warn(`Skipping ${filePath} — content is empty or near-empty (${contentStr.length} chars)`, { agentId: 'worker' });
+          logger.error(`Skipping ${filePath} — content is empty or near-empty (${contentStr.length} chars)`, { agentId: 'worker' });
           continue;
         }
         const result = await writeFileTool.func({ path: filePath, content: contentStr });
@@ -337,7 +337,7 @@ export class WorkerAgent {
       }
       return { written, summary: blueprint?.summary || '' };
     } catch (e) {
-      logger.warn(`Blueprint apply failed: ${e.message}`, { agentId: 'worker' });
+      logger.error(`Blueprint apply failed: ${e.message}`, { agentId: 'worker' });
     }
     return { written, summary: '' };
   }
@@ -461,11 +461,11 @@ export class WorkerAgent {
         );
         logger.info(`LLM response written to workspace/debug/_debug_llm_response.txt`, { agentId: 'worker' });
       } catch (e) {
-        logger.warn(`Could not write debug response file: ${e.message}`, { agentId: 'worker' });
+        logger.error(`Could not write debug response file: ${e.message}`, { agentId: 'worker' });
       }
 
       if (truncated) {
-        logger.warn(`Worker response was truncated — file content may be incomplete. Consider increasing context window in LM Studio or simplifying the task.`, { agentId: 'worker' });
+        logger.error(`Worker response was truncated — file content may be incomplete. Consider increasing context window in LM Studio or simplifying the task.`, { agentId: 'worker' });
       }
 
       const { written, summary: blueprintSummary } = await this._applyBlueprint(output, fullRawOutput, sessionId);

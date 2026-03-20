@@ -73,7 +73,7 @@ class AgentVectorStore {
         this.dim       = saved.dim   || null;
         this.metadata  = saved.entries || [];
       } catch (err) {
-        logger.warn(`[${this.agentId}] LTM metadata corrupt, starting fresh: ${err.message}`);
+        logger.error(`[${this.agentId}] LTM metadata corrupt, starting fresh: ${err.message}`);
         this.dim      = null;
         this.metadata = [];
       }
@@ -93,7 +93,7 @@ class AgentVectorStore {
         this.index.readIndex(this.idxPath, true);
         logger.info(`[${this.agentId}] LTM loaded: ${this.metadata.length} entries, ${this.dim}-dim`);
       } catch (err) {
-        logger.warn(`[${this.agentId}] LTM index unreadable, rebuilding: ${err.message}`);
+        logger.error(`[${this.agentId}] LTM index unreadable, rebuilding: ${err.message}`);
         this._wipeAndRebuild(HierarchicalNSW);
       }
     } else {
@@ -117,14 +117,14 @@ class AgentVectorStore {
 
     // If dimension changed (new embedding model), wipe and start fresh
     if (vec.length !== this.dim) {
-      logger.warn(`[${this.agentId}] Embed dim changed ${this.dim}→${vec.length}, wiping LTM index`);
+      logger.error(`[${this.agentId}] Embed dim changed ${this.dim}→${vec.length}, wiping LTM index`);
       this.dim = vec.length;
       const HierarchicalNSW = await getHNSW();
       this._wipeAndRebuild(HierarchicalNSW);
     }
 
     if (this.metadata.length >= MAX_ELEMENTS) {
-      logger.warn(`[${this.agentId}] LTM at max capacity (${MAX_ELEMENTS}), skipping`);
+      logger.error(`[${this.agentId}] LTM at max capacity (${MAX_ELEMENTS}), skipping`);
       return;
     }
 
@@ -161,7 +161,7 @@ class AgentVectorStore {
         .filter(r => r.similarity >= 0.3)  // discard low-relevance matches
         .sort((a, b) => b.similarity - a.similarity);
     } catch (err) {
-      logger.warn(`[${this.agentId}] LTM search failed: ${err.message}`);
+      logger.error(`[${this.agentId}] LTM search failed: ${err.message}`);
       return [];
     }
   }
@@ -191,10 +191,10 @@ class AgentVectorStore {
       // Write metadata asynchronously to avoid blocking the event loop
       const json = JSON.stringify({ dim: this.dim, entries: this.metadata });
       writeFile(this.metaPath, json, 'utf8', (err) => {
-        if (err) logger.warn(`[${this.agentId}] LTM metadata save failed: ${err.message}`);
+        if (err) logger.error(`[${this.agentId}] LTM metadata save failed: ${err.message}`);
       });
     } catch (err) {
-      logger.warn(`[${this.agentId}] LTM save failed: ${err.message}`);
+      logger.error(`[${this.agentId}] LTM save failed: ${err.message}`);
     }
   }
 }
