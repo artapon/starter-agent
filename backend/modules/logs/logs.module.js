@@ -29,15 +29,16 @@ router.delete('/', (req, res, next) => {
 
 // ── File log endpoints ────────────────────────────────────────────────────────
 
-/** GET /api/logs/files?file=info|error&level=&search=&limit=2000
- *  Reads agent-info.log or agent-error.log, parses JSON lines, filters, tails. */
+/** GET /api/logs/files?file=info|error&level=&search=&page=1&perPage=30
+ *  Reads agent-info.log or agent-error.log, parses JSON lines, filters, paginates.
+ *  page=1 is the LAST (most recent) page. */
 router.get('/files', (req, res, next) => {
   try {
-    const { file = 'info', level = '', search = '', limit = 2000 } = req.query;
+    const { file = 'info', level = '', search = '', page = 1, perPage = 30 } = req.query;
     const filename = file === 'error' ? 'agent-error.log' : 'agent-info.log';
     const filePath = join(LOG_DIR, filename);
 
-    if (!existsSync(filePath)) return res.json({ lines: [], size: 0, filename });
+    if (!existsSync(filePath)) return res.json({ lines: [], total: 0, page: 1, totalPages: 1, size: 0, filename });
 
     const stat    = statSync(filePath);
     const raw     = readFileSync(filePath, 'utf8');
@@ -48,19 +49,24 @@ router.get('/files', (req, res, next) => {
       if (!trimmed) continue;
       try {
         const obj = JSON.parse(trimmed);
-        if (level  && obj.level   !== level)                       continue;
+        if (level  && obj.level !== level) continue;
         if (search && !JSON.stringify(obj).toLowerCase().includes(search.toLowerCase())) continue;
         entries.push(obj);
       } catch {
-        // non-JSON line — include as raw message
         if (search && !trimmed.toLowerCase().includes(search.toLowerCase())) continue;
         entries.push({ level: 'info', message: trimmed, timestamp: null, agentId: null });
       }
     }
 
-    // Tail: return last N entries
-    const tail = entries.slice(-Number(limit));
-    res.json({ lines: tail, total: entries.length, size: stat.size, filename });
+    const total      = entries.length;
+    const pp         = Math.max(1, Number(perPage));
+    const totalPages = Math.max(1, Math.ceil(total / pp));
+    // page=1 = last page (most recent), page=totalPages = first page (oldest)
+    const p          = Math.min(Math.max(1, Number(page)), totalPages);
+    const fromEnd    = (p - 1) * pp;
+    const slice      = entries.slice(total - fromEnd - pp, total - fromEnd);
+
+    res.json({ lines: slice, total, page: p, totalPages, size: stat.size, filename });
   } catch (e) { next(e); }
 });
 
