@@ -139,7 +139,21 @@ export class WorkflowRunner {
             reviewFeedback:   finalState.reviewFeedback,
           });
         }
-        finalState = { ...finalState, ...partialState };
+        // subtaskResults uses an accumulator reducer in the state annotation —
+        // apply the same logic here since the stream gives raw node deltas.
+        if ('subtaskResults' in partialState) {
+          const prev   = Array.isArray(finalState.subtaskResults) ? finalState.subtaskResults : [];
+          const update = partialState.subtaskResults;
+          finalState = {
+            ...finalState,
+            ...partialState,
+            subtaskResults: update === null
+              ? []
+              : [...prev, ...(Array.isArray(update) ? update : [update])],
+          };
+        } else {
+          finalState = { ...finalState, ...partialState };
+        }
       }
 
       const wasAborted = runCtx.aborted || controller.signal.aborted;
