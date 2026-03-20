@@ -2,6 +2,7 @@ import { CronJob, validateCronExpression } from 'cron';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../../../core/database/db.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
+import { agentQueue } from '../../../core/queue/agent.queue.js';
 
 const logger = createLogger('cron');
 
@@ -22,32 +23,42 @@ function getNextRun(job) {
 /** Lazy-import agents so cron service boots before LangChain finishes loading */
 async function runTarget(jobRecord, socketManager) {
   const sessionId = `cron-${jobRecord.id.slice(0, 8)}-${Date.now()}`;
+  const projectId = jobRecord.project_id || null;
+  const label     = `[cron] ${jobRecord.name}`;
 
   if (jobRecord.target === 'workflow') {
     const { WorkflowRunner } = await import('../../workflow/services/workflow.runner.js');
     const runner = new WorkflowRunner(socketManager);
-    await runner.run(jobRecord.prompt, sessionId, null, null, jobRecord.project_id || null);
+    const runId  = uuidv4();
+    await agentQueue.enqueue(
+      'workflow',
+      label,
+      () => runner.run(jobRecord.prompt, sessionId, null, runId, projectId),
+      runId,
+      null,
+      projectId,
+    );
     return;
   }
 
   if (jobRecord.target === 'researcher') {
     const { ResearcherAgent } = await import('../../researcher/services/researcher.agent.js');
     const agent = new ResearcherAgent(socketManager);
-    await agent.research(jobRecord.prompt, sessionId, null);
+    await agentQueue.enqueue('workflow', label, () => agent.research(jobRecord.prompt, sessionId, null));
     return;
   }
 
   if (jobRecord.target === 'planner') {
     const { PlannerAgent } = await import('../../planner/services/planner.agent.js');
     const agent = new PlannerAgent(socketManager);
-    await agent.plan(jobRecord.prompt, sessionId, null);
+    await agentQueue.enqueue('workflow', label, () => agent.plan(jobRecord.prompt, sessionId, null));
     return;
   }
 
   if (jobRecord.target === 'worker') {
     const { WorkerAgent } = await import('../../worker/services/worker.agent.js');
     const agent = new WorkerAgent(socketManager);
-    await agent.execute(jobRecord.prompt, sessionId, null, null);
+    await agentQueue.enqueue('workflow', label, () => agent.execute(jobRecord.prompt, sessionId, null, null));
     return;
   }
 
