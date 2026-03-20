@@ -51,7 +51,10 @@
           <!-- Session sidebar -->
           <div class="stm-sidebar">
             <div class="sidebar-header">
-              <span class="sidebar-title">Sessions</span>
+              <span class="sidebar-title">
+                Sessions
+                <span class="sidebar-count">{{ filteredSessions(activeAgent).length }}</span>
+              </span>
               <button v-if="selectedSession[activeAgent]"
                 class="danger-btn" title="Clear session"
                 @click="clearSession(activeAgent, selectedSession[activeAgent])">
@@ -65,7 +68,7 @@
             </div>
 
             <button
-              v-for="s in filteredSessions(activeAgent)" :key="s.session_id"
+              v-for="s in pagedSessions" :key="s.session_id"
               class="session-row"
               :class="{ 'session-row--active': selectedSession[activeAgent] === s.session_id }"
               @click="selectSession(activeAgent, s.session_id)"
@@ -81,6 +84,17 @@
                 <v-icon size="9">mdi-file-chart-outline</v-icon>
               </router-link>
             </button>
+
+            <!-- Pagination -->
+            <div v-if="totalPages > 1" class="sidebar-pager">
+              <button class="pager-btn" :disabled="sessionPage === 0" @click="sessionPage--">
+                <v-icon size="14">mdi-chevron-left</v-icon>
+              </button>
+              <span class="pager-info">{{ sessionPage + 1 }} / {{ totalPages }}</span>
+              <button class="pager-btn" :disabled="sessionPage >= totalPages - 1" @click="sessionPage++">
+                <v-icon size="14">mdi-chevron-right</v-icon>
+              </button>
+            </div>
           </div>
 
           <!-- Conversation view -->
@@ -214,7 +228,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useSocket } from '../plugins/socket.js';
 import axios from 'axios';
 
@@ -313,6 +327,22 @@ function sessionTypeColor(sessionId) {
 function filteredSessions(agentId) {
   return agentSessions[agentId] || [];
 }
+
+// ── Session pagination ──────────────────────────────────────────────────────
+const PAGE_SIZE   = 20;
+const sessionPage = ref(0);
+
+// Reset to page 0 when agent changes
+watch(activeAgent, () => { sessionPage.value = 0; });
+
+const totalPages = computed(() =>
+  Math.ceil(filteredSessions(activeAgent.value).length / PAGE_SIZE)
+);
+
+const pagedSessions = computed(() => {
+  const start = sessionPage.value * PAGE_SIZE;
+  return filteredSessions(activeAgent.value).slice(start, start + PAGE_SIZE);
+});
 
 // ── Computed ────────────────────────────────────────────────────────────────
 const curWMActive = computed(() => {
@@ -578,7 +608,7 @@ onUnmounted(() => {
 
 /* Session sidebar */
 .stm-sidebar {
-  width: 220px; flex-shrink: 0;
+  width: 400px; flex-shrink: 0;
   border-right: 1px solid rgba(255,255,255,0.06);
   display: flex; flex-direction: column;
   overflow-y: auto;
@@ -588,7 +618,33 @@ onUnmounted(() => {
   padding: 14px 16px 10px;
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
-.sidebar-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(226,232,240,0.3); }
+.sidebar-title {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(226,232,240,0.3);
+}
+.sidebar-count {
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 10px;
+  background: rgba(255,255,255,0.07); color: rgba(226,232,240,0.4);
+  text-transform: none; letter-spacing: 0;
+}
+
+.sidebar-pager {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  margin-top: auto; flex-shrink: 0;
+}
+.pager-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(226,232,240,0.5); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.pager-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #E2E8F0; }
+.pager-btn:disabled { opacity: 0.3; cursor: default; }
+.pager-info { font-size: 12px; color: rgba(226,232,240,0.4); font-weight: 500; min-width: 48px; text-align: center; }
 
 .session-row {
   display: flex; align-items: center; gap: 9px;
