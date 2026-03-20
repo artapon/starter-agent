@@ -99,9 +99,16 @@
           {{ editingJob ? 'Edit Cron Job' : 'New Cron Job' }}
         </v-card-title>
         <v-card-text class="dialog-body">
-          <div class="field-group">
-            <label class="field-label">Name</label>
-            <input class="field-input" v-model="form.name" placeholder="e.g. Daily research digest" />
+          <div class="field-row">
+            <div class="field-group" style="flex:0 0 220px">
+              <label class="field-label">Name</label>
+              <input class="field-input" v-model="form.name" placeholder="e.g. Daily research digest" />
+            </div>
+            <div class="field-group" style="flex:1">
+              <label class="field-label">Goal / Prompt</label>
+              <textarea class="field-textarea" v-model="form.prompt" rows="3"
+                placeholder="Describe the task or goal to run on this schedule…" />
+            </div>
           </div>
 
           <div class="field-group">
@@ -166,12 +173,6 @@
               <v-icon size="11">mdi-folder-open-outline</v-icon>
               workspace/{{ projectFolder(form.project_id) }}
             </p>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label">Goal / Prompt</label>
-            <textarea class="field-textarea" v-model="form.prompt" rows="4"
-              placeholder="Describe the task or goal to run on this schedule…" />
           </div>
 
           <div class="field-group field-group--inline">
@@ -662,6 +663,8 @@ function targetIcon(target) {
 
 .field-group { margin-bottom: 14px; }
 .field-group--inline { display: flex; align-items: center; gap: 12px; }
+.field-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+.field-row .field-group { margin-bottom: 0; }
 .field-label {
   display: block;
   font-size: 11px;
