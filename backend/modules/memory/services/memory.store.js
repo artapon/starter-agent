@@ -114,11 +114,10 @@ export class MemoryStore {
   }
 
   getAllAgentMemories() {
-    const all  = this.db.table('memory_snapshots').all({}, { orderBy: 'created_at', order: 'desc' });
+    const all = this.db.table('memory_snapshots').all({}, { orderBy: 'created_at', order: 'desc' });
 
     // Build summary map — newest snapshot first (desc order), count per key
-    const seen    = new Map(); // key → summary object
-    const oldest  = new Map(); // key → oldest snapshot row (for preview fallback)
+    const seen = new Map(); // key → summary object
     for (const row of all) {
       const key = `${row.agent_id}:${row.session_id}`;
       if (!seen.has(key)) {
@@ -132,13 +131,11 @@ export class MemoryStore {
       } else {
         seen.get(key).snapshot_count++;
       }
-      // Track oldest snapshot for each key (rows are desc so keep overwriting)
-      oldest.set(key, row);
     }
 
     // Resolve preview for each session
-    for (const [key, entry] of seen) {
-      entry.preview = this._resolveSessionPreview(entry.session_id, oldest.get(key));
+    for (const entry of seen.values()) {
+      entry.preview = this._resolveSessionPreview(entry.agent_id, entry.session_id);
     }
 
     return [...seen.values()];
@@ -148,9 +145,9 @@ export class MemoryStore {
    * Resolve a short preview string for a session:
    *   - Workflow session (<projectId>:<runId>)  → goal from workflow_runs
    *   - Chat session (proj_<projectId>)          → first user message from messages
-   *   - Legacy (UUID only)                       → first input from oldest snapshot
+   *   - Any session fallback                     → first human input from earliest snapshot
    */
-  _resolveSessionPreview(sessionId, oldestSnap) {
+  _resolveSessionPreview(agentId, sessionId) {
     // ── Workflow: <projectId>:<runId> ──────────────────────────────────────
     const colonIdx = sessionId.indexOf(':');
     if (colonIdx > 0) {
@@ -171,10 +168,14 @@ export class MemoryStore {
       if (msg.length && msg[0].content) return msg[0].content;
     }
 
-    // ── Fallback: first input from oldest STM snapshot ─────────────────────
-    if (oldestSnap) {
+    // ── Fallback: first human input from the earliest snapshot ─────────────
+    const rows = this.db.table('memory_snapshots').all(
+      { agent_id: agentId, session_id: sessionId },
+      { orderBy: 'created_at', order: 'asc', limit: 1 }
+    );
+    if (rows.length) {
       try {
-        const snap = JSON.parse(oldestSnap.snapshot_json || '{}');
+        const snap = JSON.parse(rows[0].snapshot_json || '{}');
         if (Array.isArray(snap.pairs) && snap.pairs[0]?.input) return snap.pairs[0].input;
         if (Array.isArray(snap.chat_history)) {
           const first = snap.chat_history.find(m => m.type === 'human');
