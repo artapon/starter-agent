@@ -99,16 +99,15 @@
           {{ editingJob ? 'Edit Cron Job' : 'New Cron Job' }}
         </v-card-title>
         <v-card-text class="dialog-body">
-          <div class="field-row">
-            <div class="field-group" style="flex:0 0 220px">
-              <label class="field-label">Name</label>
-              <input class="field-input" v-model="form.name" placeholder="e.g. Daily research digest" />
-            </div>
-            <div class="field-group" style="flex:1">
-              <label class="field-label">Goal / Prompt</label>
-              <textarea class="field-textarea" v-model="form.prompt" rows="3"
-                placeholder="Describe the task or goal to run on this schedule…" />
-            </div>
+          <div class="field-group">
+            <label class="field-label">Name</label>
+            <input class="field-input" v-model="form.name" placeholder="e.g. Daily research digest" />
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Goal / Prompt</label>
+            <textarea class="field-textarea" v-model="form.prompt" rows="3"
+              placeholder="Describe the task or goal to run on this schedule…" />
           </div>
 
           <div class="field-group">
