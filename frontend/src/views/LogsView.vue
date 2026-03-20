@@ -26,7 +26,7 @@
           style="color:rgba(226,232,240,0.5)" />
         <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" title="Clear DB logs" @click="clearLogs" />
         <v-btn prepend-icon="mdi-file-remove-outline" variant="tonal" size="small" color="error"
-          :loading="clearingFiles" title="Empty agent-info.log and agent-error.log" @click="clearLogFiles">
+          title="Empty agent-info.log and agent-error.log" @click="confirmClearFiles = true">
           Empty Log Files
         </v-btn>
       </div>
@@ -66,6 +66,27 @@
         </template>
       </v-data-table>
     </div>
+
+    <!-- Confirm empty log files dialog -->
+    <v-dialog v-model="confirmClearFiles" max-width="400">
+      <v-card rounded="lg" style="background:#12121E">
+        <div class="dialog-header">
+          <v-icon size="16" color="#EF4444">mdi-file-remove-outline</v-icon>
+          <span style="font-size:13px;font-weight:600">Empty Log Files</span>
+        </div>
+        <div style="padding:0 20px 16px;font-size:13px;color:rgba(226,232,240,0.7)">
+          This will permanently clear <strong style="color:#E2E8F0">agent-info.log</strong> and
+          <strong style="color:#E2E8F0">agent-error.log</strong>. This cannot be undone.
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding:0 20px 16px">
+          <v-btn variant="text" size="small" style="color:rgba(226,232,240,0.4)"
+            @click="confirmClearFiles = false">Cancel</v-btn>
+          <v-btn color="error" size="small" :loading="clearingFiles" @click="clearLogFiles">
+            Empty Files
+          </v-btn>
+        </div>
+      </v-card>
+    </v-dialog>
 
     <!-- Meta dialog -->
     <v-dialog v-model="metaDialog" max-width="580">
@@ -134,11 +155,14 @@ async function clearLogs() {
   liveLogs.value = [];
 }
 
+const confirmClearFiles = ref(false);
 const clearingFiles = ref(false);
 async function clearLogFiles() {
   clearingFiles.value = true;
-  try { await axios.delete('/api/logs/files'); }
-  catch { /* ignore */ }
+  try {
+    await axios.delete('/api/logs/files');
+    confirmClearFiles.value = false;
+  } catch { /* ignore */ }
   finally { clearingFiles.value = false; }
 }
 
