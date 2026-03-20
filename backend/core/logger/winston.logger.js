@@ -12,6 +12,11 @@ if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
 
 const { combine, timestamp, errors, json, colorize, printf } = winston.format;
 
+// Filter that drops HTTP GET request entries from file logs
+const noHttpGet = winston.format((info) =>
+  info.agentId === 'http' && /^GET /.test(info.message) ? false : info
+)();
+
 const consoleFormat = printf(({ level, message, timestamp, agentId, ...meta }) => {
   const agent = agentId ? `[${agentId}] ` : '';
   const metaStr = Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : '';
@@ -46,7 +51,7 @@ export function createLogger(agentId = 'app') {
     }),
     new winston.transports.File({
       filename: path.join(logDir, 'agent-info.log'),
-      format: combine(timestamp(), json()),
+      format: combine(noHttpGet, timestamp(), json()),
     }),
   ];
 
