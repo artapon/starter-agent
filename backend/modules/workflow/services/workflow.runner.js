@@ -6,6 +6,7 @@ import { createLogger }       from '../../../core/logger/winston.logger.js';
 import { SocketEvents }       from '../../../core/socket/socket.events.js';
 import { createAbortController, abortById, clearAbortController } from '../../../core/abort/abort.registry.js';
 import { generateReport }     from '../../../core/reports/report.generator.js';
+import { isDebugMode }        from '../../../core/utils/stream.utils.js';
 import { memoryStore }        from '../../memory/services/memory.store.js';
 import { deleteSTM }         from '../../../core/memory/stm.store.js';
 import { setActiveRunWorkspace, clearActiveRunWorkspace } from '../../../core/tools/tool.implementations.js';
@@ -34,7 +35,7 @@ export class WorkflowRunner {
 
   async run(goal, sessionId, onRunId = null, presetRunId = null, projectId = null) {
     const runId = presetRunId || uuidv4();
-    logger.info(`Starting workflow run ${runId}`, { goal, sessionId });
+    logger.info(`Starting workflow run ${runId}`, isDebugMode() ? { goal, sessionId } : { sessionId });
 
     onRunId?.(runId);
 

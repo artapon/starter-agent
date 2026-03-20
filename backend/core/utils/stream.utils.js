@@ -3,6 +3,16 @@ import { createLogger } from '../logger/winston.logger.js';
 
 const streamLogger = createLogger('stream');
 
+/** Returns true when debug_mode is enabled in global_settings. */
+export function isDebugMode() {
+  try {
+    const row = getDb().table('global_settings').first({ key: 'debug_mode' });
+    return row?.value === 'true';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Convert LangChain BaseMessage objects → OpenAI {role, content} format.
  */
@@ -386,8 +396,7 @@ export async function streamAndEmit(settings, messages, signal, socketManager, s
 
   // Debug mode: log full LLM response when enabled in global_settings
   try {
-    const row = getDb().table('global_settings').first({ key: 'debug_mode' });
-    if (row?.value === 'true') {
+    if (isDebugMode()) {
       streamLogger.debug(`LLM response (${output.length} chars):\n${output}`, { agentId });
     }
   } catch { /* never crash the agent over debug logging */ }

@@ -5,7 +5,7 @@ import { compressString } from '../../../core/middleware/prompt.compression.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
-import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
 
@@ -98,7 +98,7 @@ export class ReviewerAgent {
   }
 
   async review(content, task, sessionId, subtaskId = null, runId = null) {
-    logger.info(`Reviewing content for task: ${task}`, { agentId: 'reviewer', sessionId });
+    logger.info(`Reviewing content${isDebugMode() ? ' for task: ' + task : ''}`, { agentId: 'reviewer', sessionId });
     this.socketManager?.emitAgentStatus('reviewer', 'working', `Reviewing: ${task}`);
 
     const compressed = compressString(content, 12000);

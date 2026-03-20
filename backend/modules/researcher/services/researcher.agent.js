@@ -5,7 +5,7 @@ import { compressString } from '../../../core/middleware/prompt.compression.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
-import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
 import { getRawSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { extractKeywords, SEARCH_ADAPTERS } from '../../../core/browser/web.search.tools.js';
 
@@ -140,7 +140,7 @@ export class ResearcherAgent {
   }
 
   async research(goal, sessionId, runId = null) {
-    logger.info(`Researching goal: ${goal}`, { agentId: 'researcher', sessionId });
+    logger.info(`Researching goal${isDebugMode() ? ': ' + goal : ''}`, { agentId: 'researcher', sessionId });
     this.socketManager?.emitAgentStatus('researcher', 'working', goal);
 
     if (this._isMCPEnabled()) {
@@ -180,7 +180,7 @@ export class ResearcherAgent {
     await memoryStore.snapshotMemory('researcher', sessionId);
     this.socketManager?.emitAgentStatus('researcher', 'idle');
     this.socketManager?.emit('memory:updated', { agentId: 'researcher', sessionId });
-    logger.info(`Research complete for: ${goal}`, { agentId: 'researcher' });
+    logger.info(`Research complete${isDebugMode() ? ' for: ' + goal : ''}`, { agentId: 'researcher' });
     return findings;
   }
 
@@ -227,7 +227,7 @@ export class ResearcherAgent {
     try {
       const webQuery    = compressString(goal, 200);
       const techKeywords = extractKeywords(goal, 60);
-      logger.info(`Queries — web: "${webQuery.slice(0,60)}", tech: "${techKeywords}"`, { agentId: 'researcher' });
+      if (isDebugMode()) logger.info(`Queries — web: "${webQuery.slice(0,60)}", tech: "${techKeywords}"`, { agentId: 'researcher' });
 
       // ── Phase 1: Parallel searches (driven by SEARCH_ADAPTERS registry) ────
       sm?.emitAgentStatus('researcher', 'working', 'Searching...');

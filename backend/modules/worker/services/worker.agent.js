@@ -9,7 +9,7 @@ import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { writeFileTool } from '../../../core/tools/tool.implementations.js';
-import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
 import { getWorkspacePath } from '../../../core/workspace/workspace.path.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
@@ -296,7 +296,7 @@ export class WorkerAgent {
           logger.error(`Worker output was entirely inside <think> blocks — model did not emit JSON after reasoning. Increase max_tokens in Settings.`, { agentId: 'worker' });
         } else {
           logger.error(`No JSON found in worker output (${output.length} chars). Model produced prose with no recognisable file structure.`, { agentId: 'worker' });
-          logger.error(`Worker output preview (first 800 chars): ${output.slice(0, 800)}`, { agentId: 'worker' });
+          if (isDebugMode()) logger.error(`Worker output preview (first 800 chars): ${output.slice(0, 800)}`, { agentId: 'worker' });
         }
         return { written, summary: '' };
       }
@@ -343,7 +343,7 @@ export class WorkerAgent {
   }
 
   async execute(task, sessionId, planId = null, runId = null, continueFrom = null) {
-    logger.info(`Executing task: ${task}`, { agentId: 'worker', sessionId });
+    logger.info(`Executing task${isDebugMode() ? ': ' + task : ''}`, { agentId: 'worker', sessionId });
     this.socketManager?.emitAgentStatus('worker', 'working', task);
 
     const compressedTask = compressString(task, 8192);

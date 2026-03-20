@@ -5,7 +5,7 @@ import { compressString } from '../../../core/middleware/prompt.compression.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
-import { toLMStudioMessages, streamAndEmit, extractJSON } from '../../../core/utils/stream.utils.js';
+import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -77,7 +77,7 @@ export class PlannerAgent {
   }
 
   async plan(goal, sessionId, runId = null) {
-    logger.info(`Planning goal: ${goal}`, { agentId: 'planner', sessionId });
+    logger.info(`Planning goal${isDebugMode() ? ': ' + goal : ''}`, { agentId: 'planner', sessionId });
     this.socketManager?.emitAgentStatus('planner', 'working', goal);
 
     const compressedGoal = compressString(goal, 12000);
