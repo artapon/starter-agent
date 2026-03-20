@@ -529,6 +529,173 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
 
     </div><!-- /tab-body researcher -->
 
+    <!-- ── Planner tab ──────────────────────────────────────────────── -->
+    <div v-if="activeTab === 'planner'" class="tab-body">
+
+      <div class="dbg-title">
+        <v-icon size="18" color="#A78BFA">mdi-clipboard-list-outline</v-icon>
+        <div>
+          <div class="dbg-title__name">Planner Agent</div>
+          <div class="dbg-title__sub">Run the Planner agent directly — provide a goal and inspect the generated step-by-step execution plan.</div>
+        </div>
+      </div>
+
+      <!-- Section 1: Generate a Plan -->
+      <div class="section-label">1 — Generate a Plan</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#A78BFA">mdi-play-circle-outline</v-icon>
+            <span class="card-title">Planner Task</span>
+          </div>
+          <span class="badge" :class="pRunBadgeClass">
+            <span class="dot" :class="pRunPulse ? 'dot-pulse' : ''"></span>
+            {{ pRunBadgeText }}
+          </span>
+        </div>
+        <div class="input-row">
+          <input
+            v-model="pGoalInput"
+            class="goal-input"
+            placeholder="Enter a goal to plan… e.g. Build a REST API with JWT auth"
+            @keydown.enter="!pRunning && runPlanner()"
+          />
+          <button class="btn btn-purple" :disabled="pRunning || !pGoalInput.trim()" @click="runPlanner">
+            <v-icon size="13">mdi-play</v-icon> Generate Plan
+          </button>
+          <button class="btn btn-grey" @click="pClearAll">
+            <v-icon size="13">mdi-refresh</v-icon> Clear
+          </button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill progress-fill--purple" :style="{ width: pProgressWidth, transition: pProgressTransition }"></div></div>
+        <div>
+          <div class="log-header">Status Log</div>
+          <div class="log-stream" ref="pLogStreamEl">
+            <div v-for="(entry, i) in pAgentLog" :key="i" class="log-line">
+              <span class="log-ts">{{ entry.ts }}</span>
+              <span class="log-tag" :class="entry.tag">{{ entry.icon }}</span>
+              <span class="log-msg">{{ entry.msg }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Plan Result -->
+      <div class="section-label">2 — Plan Result</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#A78BFA">mdi-clipboard-list-outline</v-icon>
+            <span class="card-title">Generated Plan</span>
+          </div>
+          <span class="badge" :class="pPlan ? 'badge-purple' : 'badge-grey'">
+            {{ pPlan ? `${(pPlan.steps||[]).length} steps` : 'Waiting…' }}
+          </span>
+        </div>
+        <div v-if="!pPlan" class="empty-hint">Run a planner task above — the generated plan will appear here.</div>
+        <template v-else>
+          <!-- Meta row -->
+          <div class="plan-meta">
+            <div class="plan-meta__item plan-meta__item--wide">
+              <div class="plan-meta__label">Goal</div>
+              <div class="plan-meta__val" style="color:#A78BFA">{{ pPlan.goal }}</div>
+            </div>
+            <div v-if="pPlan.priority" class="plan-meta__item">
+              <div class="plan-meta__label">Priority</div>
+              <div class="plan-meta__val">{{ pPlan.priority }}</div>
+            </div>
+            <div v-if="pPlan.estimatedSteps" class="plan-meta__item">
+              <div class="plan-meta__label">Est. Steps</div>
+              <div class="plan-meta__val" style="color:#22D3EE">{{ pPlan.estimatedSteps }}</div>
+            </div>
+            <div v-if="pPlan.sessionId" class="plan-meta__item">
+              <div class="plan-meta__label">Session</div>
+              <div class="plan-meta__val font-mono" style="font-size:11px;color:rgba(226,232,240,0.35)">{{ pPlan.sessionId.slice(0,12) }}…</div>
+            </div>
+          </div>
+
+          <!-- Steps -->
+          <div class="steps-list">
+            <div v-for="(step, i) in (pPlan.steps || [])" :key="step.id || i" class="step-card">
+              <div class="step-card__header">
+                <div class="step-num">{{ i + 1 }}</div>
+                <div class="step-id font-mono">{{ step.id }}</div>
+                <div class="step-desc">{{ step.description }}</div>
+                <span v-if="step.agentHint" class="step-agent-badge">{{ step.agentHint }}</span>
+              </div>
+              <div v-if="step.dependsOn?.length" class="step-deps">
+                <span class="step-deps__label">Depends on:</span>
+                <span v-for="d in step.dependsOn" :key="d" class="step-dep-pill">{{ d }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="raw-json-toggle">
+            <button class="btn btn-grey" style="font-size:11px" @click="pShowRaw = !pShowRaw">
+              <v-icon size="12">{{ pShowRaw ? 'mdi-chevron-up' : 'mdi-code-braces' }}</v-icon>
+              {{ pShowRaw ? 'Hide' : 'Show' }} raw JSON
+            </button>
+          </div>
+          <pre v-if="pShowRaw" class="raw-json">{{ JSON.stringify(pPlan, null, 2) }}</pre>
+        </template>
+      </div>
+
+      <!-- Section 3: Recent Plans -->
+      <div class="section-label">3 — Recent Plans</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#6366F1">mdi-history</v-icon>
+            <span class="card-title">Plan History</span>
+          </div>
+          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="fetchRecentPlans">
+            <v-icon size="12">mdi-refresh</v-icon> Refresh
+          </button>
+        </div>
+        <div v-if="!pRecentPlans.length" class="empty-hint">No plans yet — run the planner above.</div>
+        <div v-else class="plan-history-list">
+          <div v-for="p in pRecentPlans" :key="p.id"
+            class="plan-history-row"
+            :class="{ 'plan-history-row--active': pSelectedHistoryPlan?.id === p.id }"
+            @click="pSelectedHistoryPlan = p"
+          >
+            <span class="font-mono" style="font-size:10px;color:rgba(226,232,240,0.3)">{{ p.id.slice(0,10) }}</span>
+            <div class="plan-history-row__goal">{{ parsePlanGoal(p) }}</div>
+            <span class="plan-history-row__steps">{{ parsePlanStepCount(p) }} steps</span>
+            <span style="font-size:10px;color:rgba(226,232,240,0.3);flex-shrink:0">
+              {{ p.created_at ? new Date(p.created_at * 1000).toLocaleString() : '' }}
+            </span>
+            <button class="btn btn-grey" style="font-size:10px;padding:2px 8px;margin-left:4px;flex-shrink:0" @click.stop="loadHistoryPlan(p)">
+              <v-icon size="11">mdi-arrow-top-right</v-icon> Load
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Backend Logs -->
+      <div class="section-label">4 — Backend Logs (live)</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
+            <span class="card-title">All backend log entries</span>
+          </div>
+          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="pBackendLog = []">Clear</button>
+        </div>
+        <div class="backend-log" ref="pBackendLogEl">
+          <div v-for="(entry, i) in pBackendLog" :key="i"
+            class="backend-log__line"
+            :style="{ color: logColor(entry.level, entry.highlight) }"
+          >
+            <span class="backend-log__ts">{{ entry.ts }}</span>
+            <span class="backend-log__src">[{{ entry.source }}]</span>
+            {{ entry.msg }}
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-body planner -->
+
     <!-- ── Worker tab ────────────────────────────────────────────────── -->
     <div v-if="activeTab === 'worker'" class="tab-body">
 
@@ -883,173 +1050,6 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
       </div>
 
     </div><!-- /tab-body worker -->
-
-    <!-- ── Planner tab ──────────────────────────────────────────────── -->
-    <div v-if="activeTab === 'planner'" class="tab-body">
-
-      <div class="dbg-title">
-        <v-icon size="18" color="#A78BFA">mdi-clipboard-list-outline</v-icon>
-        <div>
-          <div class="dbg-title__name">Planner Agent</div>
-          <div class="dbg-title__sub">Run the Planner agent directly — provide a goal and inspect the generated step-by-step execution plan.</div>
-        </div>
-      </div>
-
-      <!-- Section 1: Generate a Plan -->
-      <div class="section-label">1 — Generate a Plan</div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-header-left">
-            <v-icon size="15" color="#A78BFA">mdi-play-circle-outline</v-icon>
-            <span class="card-title">Planner Task</span>
-          </div>
-          <span class="badge" :class="pRunBadgeClass">
-            <span class="dot" :class="pRunPulse ? 'dot-pulse' : ''"></span>
-            {{ pRunBadgeText }}
-          </span>
-        </div>
-        <div class="input-row">
-          <input
-            v-model="pGoalInput"
-            class="goal-input"
-            placeholder="Enter a goal to plan… e.g. Build a REST API with JWT auth"
-            @keydown.enter="!pRunning && runPlanner()"
-          />
-          <button class="btn btn-purple" :disabled="pRunning || !pGoalInput.trim()" @click="runPlanner">
-            <v-icon size="13">mdi-play</v-icon> Generate Plan
-          </button>
-          <button class="btn btn-grey" @click="pClearAll">
-            <v-icon size="13">mdi-refresh</v-icon> Clear
-          </button>
-        </div>
-        <div class="progress-bar"><div class="progress-fill progress-fill--purple" :style="{ width: pProgressWidth, transition: pProgressTransition }"></div></div>
-        <div>
-          <div class="log-header">Status Log</div>
-          <div class="log-stream" ref="pLogStreamEl">
-            <div v-for="(entry, i) in pAgentLog" :key="i" class="log-line">
-              <span class="log-ts">{{ entry.ts }}</span>
-              <span class="log-tag" :class="entry.tag">{{ entry.icon }}</span>
-              <span class="log-msg">{{ entry.msg }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Section 2: Plan Result -->
-      <div class="section-label">2 — Plan Result</div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-header-left">
-            <v-icon size="15" color="#A78BFA">mdi-clipboard-list-outline</v-icon>
-            <span class="card-title">Generated Plan</span>
-          </div>
-          <span class="badge" :class="pPlan ? 'badge-purple' : 'badge-grey'">
-            {{ pPlan ? `${(pPlan.steps||[]).length} steps` : 'Waiting…' }}
-          </span>
-        </div>
-        <div v-if="!pPlan" class="empty-hint">Run a planner task above — the generated plan will appear here.</div>
-        <template v-else>
-          <!-- Meta row -->
-          <div class="plan-meta">
-            <div class="plan-meta__item plan-meta__item--wide">
-              <div class="plan-meta__label">Goal</div>
-              <div class="plan-meta__val" style="color:#A78BFA">{{ pPlan.goal }}</div>
-            </div>
-            <div v-if="pPlan.priority" class="plan-meta__item">
-              <div class="plan-meta__label">Priority</div>
-              <div class="plan-meta__val">{{ pPlan.priority }}</div>
-            </div>
-            <div v-if="pPlan.estimatedSteps" class="plan-meta__item">
-              <div class="plan-meta__label">Est. Steps</div>
-              <div class="plan-meta__val" style="color:#22D3EE">{{ pPlan.estimatedSteps }}</div>
-            </div>
-            <div v-if="pPlan.sessionId" class="plan-meta__item">
-              <div class="plan-meta__label">Session</div>
-              <div class="plan-meta__val font-mono" style="font-size:11px;color:rgba(226,232,240,0.35)">{{ pPlan.sessionId.slice(0,12) }}…</div>
-            </div>
-          </div>
-
-          <!-- Steps -->
-          <div class="steps-list">
-            <div v-for="(step, i) in (pPlan.steps || [])" :key="step.id || i" class="step-card">
-              <div class="step-card__header">
-                <div class="step-num">{{ i + 1 }}</div>
-                <div class="step-id font-mono">{{ step.id }}</div>
-                <div class="step-desc">{{ step.description }}</div>
-                <span v-if="step.agentHint" class="step-agent-badge">{{ step.agentHint }}</span>
-              </div>
-              <div v-if="step.dependsOn?.length" class="step-deps">
-                <span class="step-deps__label">Depends on:</span>
-                <span v-for="d in step.dependsOn" :key="d" class="step-dep-pill">{{ d }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="raw-json-toggle">
-            <button class="btn btn-grey" style="font-size:11px" @click="pShowRaw = !pShowRaw">
-              <v-icon size="12">{{ pShowRaw ? 'mdi-chevron-up' : 'mdi-code-braces' }}</v-icon>
-              {{ pShowRaw ? 'Hide' : 'Show' }} raw JSON
-            </button>
-          </div>
-          <pre v-if="pShowRaw" class="raw-json">{{ JSON.stringify(pPlan, null, 2) }}</pre>
-        </template>
-      </div>
-
-      <!-- Section 3: Recent Plans -->
-      <div class="section-label">3 — Recent Plans</div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-header-left">
-            <v-icon size="15" color="#6366F1">mdi-history</v-icon>
-            <span class="card-title">Plan History</span>
-          </div>
-          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="fetchRecentPlans">
-            <v-icon size="12">mdi-refresh</v-icon> Refresh
-          </button>
-        </div>
-        <div v-if="!pRecentPlans.length" class="empty-hint">No plans yet — run the planner above.</div>
-        <div v-else class="plan-history-list">
-          <div v-for="p in pRecentPlans" :key="p.id"
-            class="plan-history-row"
-            :class="{ 'plan-history-row--active': pSelectedHistoryPlan?.id === p.id }"
-            @click="pSelectedHistoryPlan = p"
-          >
-            <span class="font-mono" style="font-size:10px;color:rgba(226,232,240,0.3)">{{ p.id.slice(0,10) }}</span>
-            <div class="plan-history-row__goal">{{ parsePlanGoal(p) }}</div>
-            <span class="plan-history-row__steps">{{ parsePlanStepCount(p) }} steps</span>
-            <span style="font-size:10px;color:rgba(226,232,240,0.3);flex-shrink:0">
-              {{ p.created_at ? new Date(p.created_at * 1000).toLocaleString() : '' }}
-            </span>
-            <button class="btn btn-grey" style="font-size:10px;padding:2px 8px;margin-left:4px;flex-shrink:0" @click.stop="loadHistoryPlan(p)">
-              <v-icon size="11">mdi-arrow-top-right</v-icon> Load
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Section 4: Backend Logs -->
-      <div class="section-label">4 — Backend Logs (live)</div>
-      <div class="card">
-        <div class="card-header">
-          <div class="card-header-left">
-            <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
-            <span class="card-title">All backend log entries</span>
-          </div>
-          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="pBackendLog = []">Clear</button>
-        </div>
-        <div class="backend-log" ref="pBackendLogEl">
-          <div v-for="(entry, i) in pBackendLog" :key="i"
-            class="backend-log__line"
-            :style="{ color: logColor(entry.level, entry.highlight) }"
-          >
-            <span class="backend-log__ts">{{ entry.ts }}</span>
-            <span class="backend-log__src">[{{ entry.source }}]</span>
-            {{ entry.msg }}
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /tab-body planner -->
   </div>
 </template>
 
@@ -1062,8 +1062,8 @@ const socket = useSocket();
 
 const tabs = [
   { id: 'researcher', label: 'Researcher', icon: 'mdi-magnify' },
-  { id: 'worker',     label: 'Worker',     icon: 'mdi-code-braces' },
   { id: 'planner',    label: 'Planner',    icon: 'mdi-clipboard-list-outline' },
+  { id: 'worker',     label: 'Worker',     icon: 'mdi-code-braces' },
 ];
 const activeTab = ref('researcher');
 

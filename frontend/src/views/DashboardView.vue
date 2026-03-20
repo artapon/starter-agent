@@ -407,41 +407,51 @@ const graphTotalSteps    = ref(null);
 const isLoopResetting    = ref(false);
 const loopDashOffset     = ref(0);
 const loopNodeOpacity    = ref(1);
-let   _loopAnimInterval  = null;
 const fwdDashOffset      = ref(0);
-let   _fwdAnimInterval   = null;
+let   _rafId             = null;
+let   _rafFwdOffset      = 0;
+let   _rafLoopOffset     = 0;
+let   _rafTick           = 0;
+let   _rafLastTs         = 0;
+
+// Single RAF loop replaces two setIntervals (saves ~60 repaints/sec overhead)
+function _rafLoop(ts) {
+  _rafId = requestAnimationFrame(_rafLoop);
+  const dt = ts - _rafLastTs;
+  if (dt < 16) return; // cap at ~60fps
+  _rafLastTs = ts;
+
+  const running = graphOverallStatus.value === 'running';
+  const looping = graphLoopCount.value > 0 && running;
+
+  if (running) {
+    _rafFwdOffset -= 0.65;
+    if (_rafFwdOffset < -24) _rafFwdOffset = 0;
+    fwdDashOffset.value = _rafFwdOffset;
+  }
+  if (looping) {
+    _rafLoopOffset -= 0.55;
+    if (_rafLoopOffset < -16) _rafLoopOffset = 0;
+    loopDashOffset.value = _rafLoopOffset;
+    _rafTick++;
+    loopNodeOpacity.value = 0.35 + 0.65 * (0.5 + 0.5 * Math.cos(_rafTick / 26.7 * 2 * Math.PI));
+  }
+  if (!running) {
+    if (fwdDashOffset.value !== 0)  fwdDashOffset.value  = 0;
+    if (loopDashOffset.value !== 0) loopDashOffset.value = 0;
+    if (loopNodeOpacity.value !== 1) loopNodeOpacity.value = 1;
+  }
+}
 
 watch(graphOverallStatus, (status) => {
-  if (status === 'running') {
-    if (_fwdAnimInterval) return;
-    let offset = 0;
-    _fwdAnimInterval = setInterval(() => {
-      offset -= 1;
-      if (offset < -24) offset = 0;
-      fwdDashOffset.value = offset;
-    }, 25);
-  } else {
-    clearInterval(_fwdAnimInterval);
-    _fwdAnimInterval = null;
-    fwdDashOffset.value = 0;
-  }
-});
-
-watch([graphLoopCount, graphOverallStatus], ([count, status]) => {
-  if (count > 0 && status === 'running') {
-    if (_loopAnimInterval) return;
-    let offset = 0, tick = 0;
-    _loopAnimInterval = setInterval(() => {
-      offset -= 1;
-      if (offset < -16) offset = 0;
-      loopDashOffset.value = offset;
-      tick++;
-      loopNodeOpacity.value = 0.35 + 0.65 * (0.5 + 0.5 * Math.cos(tick / 26.7 * 2 * Math.PI));
-    }, 30);
-  } else {
-    clearInterval(_loopAnimInterval);
-    _loopAnimInterval = null;
-    loopDashOffset.value = 0;
+  if (status === 'running' && !_rafId) {
+    _rafLastTs = 0;
+    _rafId = requestAnimationFrame(_rafLoop);
+  } else if (status !== 'running' && _rafId) {
+    cancelAnimationFrame(_rafId);
+    _rafId = null;
+    _rafFwdOffset = _rafLoopOffset = _rafTick = 0;
+    fwdDashOffset.value = loopDashOffset.value = 0;
     loopNodeOpacity.value = 1;
   }
 });
@@ -840,8 +850,7 @@ onMounted(() => {
   const interval = setInterval(fetchStats, 30000);
   onUnmounted(() => {
     clearInterval(interval);
-    clearInterval(_loopAnimInterval);
-    clearInterval(_fwdAnimInterval);
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     socket.off('log:entry');
     socket.off('agent:status');
     socket.off('dashboard:stats');
