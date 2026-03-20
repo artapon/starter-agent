@@ -1,5 +1,6 @@
 import { ChatPromptTemplate, MessagesPlaceholder } from '@langchain/core/prompts';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { getAdapter } from '../../../core/adapters/llm/adapter.registry.js';
 import { memoryStore } from '../../memory/services/memory.store.js';
 import { compressString } from '../../../core/middleware/prompt.compression.js';
@@ -263,12 +264,19 @@ export class WorkerAgent {
   async _applyBlueprint(output, fullRaw, sessionId) {
     const written = [];
     try {
-      // Pass 1: standard JSON extraction (stripped output, then full raw for think-wrapped JSON)
-      let blueprint = extractJSON(output) || extractJSON(fullRaw);
-      if (!blueprint && output.trim().startsWith('{')) {
-        // Log the exact JSON parse error to help diagnose the issue
-        try { JSON.parse(output.trim()); } catch (e) {
-          logger.error(`JSON.parse failed: ${e.message} (at char ~${e.message.match(/position (\d+)/)?.[1] ?? '?'})`, { agentId: 'worker' });
+      // Pass 0: LangChain JsonOutputParser — standard first attempt (strips markdown fences)
+      let blueprint = null;
+      try {
+        blueprint = await new JsonOutputParser().parse(output);
+      } catch { /* fall through to manual passes */ }
+
+      // Pass 1: repairJSON + multi-pass brace scanner (handles minor malformed JSON)
+      if (!blueprint) {
+        blueprint = extractJSON(output) || extractJSON(fullRaw);
+        if (!blueprint && output.trim().startsWith('{')) {
+          try { JSON.parse(output.trim()); } catch (e) {
+            logger.error(`JSON.parse failed: ${e.message} (at char ~${e.message.match(/position (\d+)/)?.[1] ?? '?'})`, { agentId: 'worker' });
+          }
         }
       }
 

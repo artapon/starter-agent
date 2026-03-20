@@ -5,6 +5,7 @@ import { compressString } from '../../../core/middleware/prompt.compression.js';
 import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
+import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
 import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
@@ -145,11 +146,17 @@ export class ReviewerAgent {
     }
 
     let review;
-    // Try stripped output first, then full raw (catches JSON inside <think> blocks)
-    const parsed = extractJSON(reviewOutput) || extractJSON(fullRawOutput);
-    if (parsed) {
-      review = parsed;
-    } else {
+    // Pass 0: LangChain JsonOutputParser — standard first attempt
+    try {
+      review = await new JsonOutputParser().parse(reviewOutput);
+    } catch { /* fall through */ }
+
+    // Pass 1: repairJSON + brace scanner (catches think-wrapped JSON, minor malformation)
+    if (!review) {
+      review = extractJSON(reviewOutput) || extractJSON(fullRawOutput);
+    }
+
+    if (!review) {
       // Last resort: regex extraction from partial/truncated JSON
       const regexResult = parseReviewFallback(reviewOutput) || parseReviewFallback(fullRawOutput);
       if (regexResult.score !== 7 || regexResult.feedback) {
