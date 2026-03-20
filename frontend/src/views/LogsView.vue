@@ -17,19 +17,6 @@
 
       <div class="toolbar-sep" />
 
-      <!-- Level filter -->
-      <div class="level-filters">
-        <button v-for="lv in LEVELS" :key="lv.key"
-          class="lv-pill" :class="{ 'lv-pill--active': levelFilter === lv.key }"
-          :style="levelFilter === lv.key ? `--lc:${lv.color}` : ''"
-          @click="setLevel(lv.key)">
-          <span class="lv-dot" :style="`background:${lv.color}`" />
-          {{ lv.label }}
-        </button>
-      </div>
-
-      <div class="toolbar-sep" />
-
       <!-- Search -->
       <div class="search-wrap" :class="{ 'search-wrap--active': searchQuery }">
         <v-icon size="14" :color="searchQuery ? '#818CF8' : 'rgba(226,232,240,0.3)'">mdi-magnify</v-icon>
@@ -38,6 +25,19 @@
           autocomplete="off" spellcheck="false" />
         <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">
           <v-icon size="12">mdi-close</v-icon>
+        </button>
+      </div>
+
+      <div class="toolbar-sep" />
+
+      <!-- Level filter -->
+      <div class="level-filters">
+        <button v-for="lv in LEVELS" :key="lv.key"
+          class="lv-pill" :class="{ 'lv-pill--active': levelFilter === lv.key }"
+          :style="levelFilter === lv.key ? `--lc:${lv.color}` : ''"
+          @click="setLevel(lv.key)">
+          <span class="lv-dot" :style="`background:${lv.color}`" />
+          {{ lv.label }}
         </button>
       </div>
 
@@ -370,7 +370,7 @@ onMounted(() => {
 /* Search */
 .search-wrap {
   display: flex; align-items: center; gap: 7px; padding: 0 10px;
-  height: 32px; min-width: 200px;
+  height: 32px; min-width: 160px; max-width: 40%;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08); border-radius: 7px;
   transition: border-color 0.15s;
