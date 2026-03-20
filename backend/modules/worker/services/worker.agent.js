@@ -17,39 +17,47 @@ import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('worker');
 
-const BASE_PROMPT = `You are a Worker Agent — an expert implementer. Your job is to produce complete, production-ready file contents that fulfil the given task. The active skill profile defines your domain expertise and quality standards.
+const BASE_PROMPT = `You are a Worker Agent — an expert full-stack implementer. Your job is to produce complete, production-ready files that precisely fulfil the given task. Every import must resolve, every function must be implemented, zero TODOs.
 
-## ⚠️ OUTPUT INSTRUCTION (most important rule)
-After you finish reasoning, you MUST emit the JSON object below as your final output.
-The JSON must appear OUTSIDE and AFTER any reasoning/thinking block — never inside <think> tags.
-Do NOT end your response inside a thinking block. Close all thinking first, then output the JSON.
+## ⚠️ OUTPUT INSTRUCTION
+After reasoning, emit ONE valid JSON object as your final output — immediately after closing any <think> block.
+Never emit JSON inside a <think> block. Close all thinking first, then output JSON.
 
-Output format — a single valid JSON object, nothing else:
-{{"files":[{{"path":"relative/path/file.ext","content":"complete file content"}}],"summary":"concise description of what was implemented"}}
+Output format — exactly this shape, nothing else:
+{{"files":[{{"path":"relative/path/file.ext","content":"complete file content"}}],"summary":"one sentence: what was built and which files"}}
 
 ## ⚠️ JSON ENCODING RULES (strictly required)
-- File content goes inside a JSON string — every newline MUST be written as the two-character escape sequence \n (backslash + n), NOT as an actual line break
-- Every tab MUST be written as \t, every backslash as \\, every double-quote as \"
-- The entire response must be parseable by JSON.parse() without any pre-processing
-- Do NOT wrap the JSON in markdown code fences
+- Every newline inside a string value → \\n (backslash + n), NOT a real line break
+- Every tab → \\t, every backslash → \\\\, every double-quote → \\"
+- The entire response must be parseable by JSON.parse() with zero pre-processing
+- Do NOT wrap the JSON in markdown fences
 
-## ⚠️ CRITICAL: Working with an Existing Project
-If the task contains an "=== EXISTING WORKSPACE PROJECT ===" section, you MUST:
-1. **Read every relevant existing file shown** before writing anything
-2. **Modify files in-place** — your output for any existing file must be the COMPLETE updated content of that file, preserving all logic not changed by this task
-3. **Never recreate from scratch** what already exists — if server.js is shown, output the modified server.js, not a new one
-4. **Match the existing code style exactly** — same indentation, import style (ESM vs CJS), naming conventions, framework patterns
-5. **Use only the dependencies already in package.json** — do not introduce new packages unless absolutely required by the task
-6. **Keep import paths consistent** — use the same relative import style already in use
-7. **Only change what the task requires** — leave unrelated code untouched
+## ⚠️ PRE-OUTPUT ACCURACY CHECK
+Before finalising your JSON, silently verify each file:
+1. Every import path resolves — to a file already in the workspace OR one you are outputting right now
+2. Every function/variable you call is defined in the same file or in an import you've listed
+3. Zero placeholder comments: no TODO, no "// implement", no "// add logic here", no "// rest of code"
+4. Every exported function has a complete body — not an empty stub
+5. Naming is consistent across all files (same function names, same variable names, same path conventions)
+
+If any check fails, fix the issue before outputting.
+
+## ⚠️ WORKING WITH AN EXISTING PROJECT
+If the task contains "=== EXISTING WORKSPACE PROJECT ===":
+1. Study every relevant file shown — understand its structure, imports, and patterns before writing
+2. Output the COMPLETE updated content of any modified file — preserving all existing logic not changed by this task
+3. Never recreate from scratch what already exists
+4. Match the existing code style exactly: indentation, import style (ESM vs CJS), naming conventions
+5. Use only dependencies already in package.json — no new packages unless absolutely required
+6. Only change what the task requires — leave unrelated code untouched
 
 ## Output Rules
-- Paths are relative to workspace root (e.g. "src/routes/auth.js", "src/models/user.js")
-- Content must be the COMPLETE file content — never use placeholders like "// ... rest of file"
-- Include EVERY file that needs to be created or modified
-- The JSON object is your ENTIRE response after reasoning — no prose, no markdown, no explanation
+- Paths are relative to workspace root (e.g. "src/routes/auth.js")
+- Content = COMPLETE file — never use "// ... rest of file" or any placeholder
+- Include EVERY file that needs creating or modifying for the task to work end-to-end
+- After reasoning: output ONLY the JSON — no prose, no markdown, no explanation
 
-Your final output MUST be the JSON object — output it immediately after closing any thinking block.`;
+Your final output MUST be the JSON object — emit it immediately after closing any thinking block.`;
 
 
 function getSystemPrompt() {
@@ -290,7 +298,7 @@ export class WorkerAgent {
           logger.warn(`No JSON found in worker output (${output.length} chars). Model produced prose with no recognisable file structure.`, { agentId: 'worker' });
           logger.warn(`Worker output preview (first 800 chars): ${output.slice(0, 800)}`, { agentId: 'worker' });
         }
-        return written;
+        return { written, summary: '' };
       }
       // Normalise: model sometimes returns a single file object instead of the
       // full blueprint (brace-scanner edge case: Pass 4 of extractJSON iterates
@@ -317,15 +325,21 @@ export class WorkerAgent {
       }
       for (const { path: filePath, content } of files) {
         if (!filePath || content == null) continue;
-        const result = await writeFileTool.func({ path: filePath, content: String(content) });
+        const contentStr = String(content);
+        if (contentStr.trim().length < 5) {
+          logger.warn(`Skipping ${filePath} — content is empty or near-empty (${contentStr.length} chars)`, { agentId: 'worker' });
+          continue;
+        }
+        const result = await writeFileTool.func({ path: filePath, content: contentStr });
         written.push(filePath);
         logger.info(`Wrote: ${filePath}`, { agentId: 'worker' });
         this.socketManager?.emitChatChunk(sessionId, `\n✓ ${result}`, 'worker');
       }
+      return { written, summary: blueprint?.summary || '' };
     } catch (e) {
       logger.warn(`Blueprint apply failed: ${e.message}`, { agentId: 'worker' });
     }
-    return written;
+    return { written, summary: '' };
   }
 
   async execute(task, sessionId, planId = null, runId = null, continueFrom = null) {
@@ -454,10 +468,10 @@ export class WorkerAgent {
         logger.warn(`Worker response was truncated — file content may be incomplete. Consider increasing context window in LM Studio or simplifying the task.`, { agentId: 'worker' });
       }
 
-      const written = await this._applyBlueprint(output, fullRawOutput, sessionId);
+      const { written, summary: blueprintSummary } = await this._applyBlueprint(output, fullRawOutput, sessionId);
       await memory.saveContext({ input: task }, { output });
       result = written.length > 0
-        ? `Implemented ${written.length} file(s): ${written.join(', ')}`
+        ? `Implemented ${written.length} file(s): ${written.join(', ')}${blueprintSummary ? ` — ${blueprintSummary}` : ''}`
         : output;
 
     } catch (err) {

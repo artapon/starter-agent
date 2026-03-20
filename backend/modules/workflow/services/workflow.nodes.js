@@ -102,24 +102,34 @@ export function createNodes(socketManager) {
     const techHint = [
       findings.recommendedApproach ? `Approach: ${findings.recommendedApproach}` : '',
       findings.techStack?.length ? `Tech stack: ${findings.techStack.join(', ')}` : '',
-      findings.recommendedPackages?.length ? `Packages to use: ${findings.recommendedPackages.join(', ')}` : '',
-      findings.antiPatterns?.length ? `Avoid: ${findings.antiPatterns.join('; ')}` : '',
+      findings.recommendedPackages?.length
+        ? `Packages to use: ${findings.recommendedPackages.map(p => typeof p === 'string' ? p : p.name).filter(Boolean).join(', ')}`
+        : '',
+      findings.antiPatterns?.length ? `Avoid these anti-patterns: ${findings.antiPatterns.slice(0, 4).join('; ')}` : '',
+      findings.potentialChallenges?.length ? `Watch out for: ${findings.potentialChallenges.slice(0, 3).join('; ')}` : '',
+      findings.productionConsiderations?.length ? `Production requirements: ${findings.productionConsiderations.slice(0, 3).join('; ')}` : '',
     ].filter(Boolean).join('\n');
 
-    // Build a summary of files already written in previous steps of this run
+    // Build a detailed summary of what has already been written in earlier steps.
+    // This prevents the worker from re-implementing files and tells it what exists.
     const previousResults = (state.subtaskResults || [])
       .map((r, i) => r?.result ? `Step ${i + 1}: ${r.result}` : null)
       .filter(Boolean);
     const priorContext = previousResults.length
-      ? `\n[Previously completed in this run]\n${previousResults.join('\n')}\n`
+      ? `\n[Previously completed — ${previousResults.length} of ${steps.length} step(s) done]\n${previousResults.join('\n')}\nDo NOT re-implement or overwrite files already created above unless this task explicitly modifies them.\n`
       : '';
+
+    // Re-read workspace after previous steps wrote files, so the worker sees the
+    // latest state — not the snapshot taken before the run started.
+    const latestWs = buildWorkspaceContext(state.workspaceFolder || undefined);
+    const currentWorkspaceContext = latestWs.isEmpty ? null : latestWs.context;
 
     const enrichedTask = [
       `# Overall Goal: ${state.userGoal}\n`,
-      `# Current Task:\n${step.description}`,
+      `# Current Task (step ${state.currentStepIdx + 1} of ${steps.length}):\n${step.description}`,
       techHint ? `\n[Research Guidance]\n${techHint}` : '',
       priorContext,
-      state.workspaceContext ? `\n${state.workspaceContext}` : '',
+      currentWorkspaceContext ? `\n${currentWorkspaceContext}` : '',
     ].join('');
 
     // Use projectId-scoped memory key when a project is selected
