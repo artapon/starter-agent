@@ -115,7 +115,10 @@ export class MemoryStore {
 
   getAllAgentMemories() {
     const all  = this.db.table('memory_snapshots').all({}, { orderBy: 'created_at', order: 'desc' });
-    const seen = new Map();
+
+    // Build summary map — newest snapshot first (desc order), count per key
+    const seen    = new Map(); // key → summary object
+    const oldest  = new Map(); // key → oldest snapshot row (for preview fallback)
     for (const row of all) {
       const key = `${row.agent_id}:${row.session_id}`;
       if (!seen.has(key)) {
@@ -124,12 +127,63 @@ export class MemoryStore {
           session_id:     row.session_id,
           last_updated:   row.created_at,
           snapshot_count: 1,
+          preview:        null,
         });
       } else {
         seen.get(key).snapshot_count++;
       }
+      // Track oldest snapshot for each key (rows are desc so keep overwriting)
+      oldest.set(key, row);
     }
+
+    // Resolve preview for each session
+    for (const [key, entry] of seen) {
+      entry.preview = this._resolveSessionPreview(entry.session_id, oldest.get(key));
+    }
+
     return [...seen.values()];
+  }
+
+  /**
+   * Resolve a short preview string for a session:
+   *   - Workflow session (<projectId>:<runId>)  → goal from workflow_runs
+   *   - Chat session (proj_<projectId>)          → first user message from messages
+   *   - Legacy (UUID only)                       → first input from oldest snapshot
+   */
+  _resolveSessionPreview(sessionId, oldestSnap) {
+    // ── Workflow: <projectId>:<runId> ──────────────────────────────────────
+    const colonIdx = sessionId.indexOf(':');
+    if (colonIdx > 0) {
+      const runId = sessionId.slice(colonIdx + 1);
+      const run   = this.db.table('workflow_runs').first({ id: runId });
+      if (run) {
+        try {
+          const state = JSON.parse(run.graph_state_json);
+          const goal  = state.goal || state.userGoal;
+          if (goal) return goal;
+        } catch { /* fall through */ }
+      }
+    }
+
+    // ── Chat: proj_<projectId> ─────────────────────────────────────────────
+    if (sessionId.startsWith('proj_')) {
+      const msg = this.db.table('messages').all({ session_id: sessionId, role: 'user' }, { orderBy: 'ts', order: 'asc', limit: 1 });
+      if (msg.length && msg[0].content) return msg[0].content;
+    }
+
+    // ── Fallback: first input from oldest STM snapshot ─────────────────────
+    if (oldestSnap) {
+      try {
+        const snap = JSON.parse(oldestSnap.snapshot_json || '{}');
+        if (Array.isArray(snap.pairs) && snap.pairs[0]?.input) return snap.pairs[0].input;
+        if (Array.isArray(snap.chat_history)) {
+          const first = snap.chat_history.find(m => m.type === 'human');
+          if (first) return first.data?.content || first.kwargs?.content || first.content || null;
+        }
+      } catch { /* ignore */ }
+    }
+
+    return null;
   }
 
   getSTMStats() {
