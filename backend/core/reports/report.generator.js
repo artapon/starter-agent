@@ -180,10 +180,20 @@ function phaseResearch(r) {
       <span class="badge badge--cyan">researcher</span>
     </div>
     <div class="phase__body">
+
       ${r.topic || r.summary ? `
         <div class="research-hero">
-          ${r.topic ? `<h3 class="research-topic">${esc(r.topic)}</h3>` : ''}
-          ${r.summary ? `<p class="research-summary">${esc(r.summary)}</p>` : ''}
+          ${r.topic ? `<div class="research-topic">${esc(r.topic)}</div>` : ''}
+          ${r.summary ? `<div class="research-summary">${md(r.summary)}</div>` : ''}
+        </div>` : ''}
+
+      ${r.recommendedApproach ? `
+        <div class="recommend-box">
+          <span class="recommend-icon">⭐</span>
+          <div>
+            <div class="recommend-label">Recommended Strategy</div>
+            <div class="recommend-text">${esc(r.recommendedApproach)}</div>
+          </div>
         </div>` : ''}
 
       ${approaches ? `<div class="section-label">Architectural Approaches</div><div class="approaches-grid">${approaches}</div>` : ''}
@@ -192,7 +202,7 @@ function phaseResearch(r) {
         <div>
           ${(r.keyConsiderations || []).length ? `
             <div class="section-label">Key Considerations</div>
-            <ul class="tag-list">${(r.keyConsiderations).map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+            <ul class="consider-list">${(r.keyConsiderations).map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
           ${(r.techStack || []).length ? `
             <div class="section-label" style="margin-top:20px">Tech Stack</div>
             <div class="tech-pills">${(r.techStack).map(t => `<span class="tech-pill">${esc(t)}</span>`).join('')}</div>` : ''}
@@ -203,13 +213,6 @@ function phaseResearch(r) {
             <ul class="challenges-list">${(r.potentialChallenges).map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
         </div>
       </div>
-
-      ${r.recommendedApproach ? `
-        <div class="section-label">Recommended Strategy</div>
-        <div class="recommend-box">
-          <span class="recommend-icon">⭐</span>
-          <div class="recommend-text">${esc(r.recommendedApproach)}</div>
-        </div>` : ''}
 
       ${(r.recommendedPackages || []).length ? `
         <div class="section-label">Recommended Packages</div>
@@ -712,12 +715,23 @@ code,kbd{
 
 /* ── Research ────────────────────────────────────────────────────────────── */
 .research-hero{
-  padding:20px;margin-bottom:24px;
-  background:rgba(34,211,238,.03);border:1px solid rgba(34,211,238,.1);
-  border-radius:10px;
+  padding:22px 24px;margin-bottom:20px;
+  background:rgba(34,211,238,.03);
+  border-left:3px solid rgba(34,211,238,.35);
+  border-radius:0 10px 10px 0;
 }
-.research-topic{font-size:19px;font-weight:800;color:var(--cyan);letter-spacing:-.02em;margin-bottom:10px}
-.research-summary{font-size:14px;line-height:1.7;color:rgba(232,234,240,.8)}
+.research-topic{
+  font-size:18px;font-weight:800;color:var(--cyan);
+  letter-spacing:-.02em;margin-bottom:14px;line-height:1.3;
+}
+.research-summary{
+  font-size:15px;line-height:1.85;color:rgba(232,234,240,.92);
+  font-weight:400;
+}
+.research-summary p{margin:0 0 10px}
+.research-summary p:last-child{margin-bottom:0}
+.research-summary strong{color:var(--text);font-weight:700}
+.research-summary code{font-size:13px}
 .section-label{
   font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.15em;
   color:var(--text-faint);margin:24px 0 12px;
@@ -741,8 +755,21 @@ code,kbd{
 .col-label--green{color:var(--green)}
 .col-label--red{color:var(--red)}
 .tag-list{list-style:none;padding:0}
-.tag-list li{font-size:12px;padding-left:12px;position:relative;color:var(--text-dim);margin-bottom:5px;line-height:1.5}
-.tag-list li::before{content:'·';position:absolute;left:0;opacity:.5}
+.tag-list li{font-size:12px;padding-left:14px;position:relative;color:var(--text-dim);margin-bottom:6px;line-height:1.55}
+.tag-list li::before{content:'·';position:absolute;left:2px;top:1px;opacity:.5}
+
+/* Key considerations list — checkmark icon */
+.consider-list{list-style:none;padding:0}
+.consider-list li{
+  font-size:13px;padding:7px 10px 7px 30px;
+  position:relative;color:rgba(232,234,240,.85);
+  margin-bottom:6px;line-height:1.55;
+  background:rgba(255,255,255,.02);border-radius:6px;
+}
+.consider-list li::before{
+  content:'✓';position:absolute;left:9px;top:7px;
+  font-size:11px;color:var(--green);font-weight:700;
+}
 
 /* Tech pills */
 .tech-pills{display:flex;flex-wrap:wrap;gap:7px}
@@ -780,11 +807,17 @@ code,kbd{
 
 /* Recommend box */
 .recommend-box{
-  background:rgba(129,140,248,.05);border:1px solid rgba(129,140,248,.2);
-  border-radius:10px;padding:18px;display:flex;gap:14px;margin-bottom:24px;
+  background:rgba(129,140,248,.06);
+  border:1px solid rgba(129,140,248,.25);
+  border-radius:10px;padding:18px 20px;
+  display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;
 }
-.recommend-icon{font-size:22px;flex-shrink:0}
-.recommend-text{font-size:14px;font-weight:500;line-height:1.6;color:#C7D2FE}
+.recommend-icon{font-size:20px;flex-shrink:0;margin-top:2px}
+.recommend-label{
+  font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;
+  color:var(--indigo);margin-bottom:5px;opacity:.8;
+}
+.recommend-text{font-size:14px;font-weight:500;line-height:1.65;color:#C7D2FE}
 
 /* Info box */
 .info-box{display:flex;align-items:flex-start;gap:14px;padding:16px;border-radius:9px;margin-bottom:24px}
