@@ -1050,6 +1050,151 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
       </div>
 
     </div><!-- /tab-body worker -->
+
+    <!-- ── Reviewer tab ──────────────────────────────────────────────── -->
+    <div v-if="activeTab === 'reviewer'" class="tab-body">
+
+      <div class="dbg-title">
+        <v-icon size="18" color="#F59E0B">mdi-eye-check-outline</v-icon>
+        <div>
+          <div class="dbg-title__name">Reviewer Agent</div>
+          <div class="dbg-title__sub">Run the Reviewer agent directly — submit code or content with a task description and inspect the quality score, feedback, and dimension breakdown.</div>
+        </div>
+      </div>
+
+      <!-- Section 1: Submit for Review -->
+      <div class="section-label">1 — Submit for Review</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#F59E0B">mdi-play-circle-outline</v-icon>
+            <span class="card-title">Review Request</span>
+          </div>
+          <span class="badge" :class="rvRunBadgeClass">
+            <span class="dot" :class="rvRunPulse ? 'dot-pulse' : ''"></span>
+            {{ rvRunBadgeText }}
+          </span>
+        </div>
+        <div class="review-inputs">
+          <div>
+            <div class="log-header">Task Description</div>
+            <input
+              v-model="rvTaskInput"
+              class="goal-input"
+              placeholder="Describe the task that was implemented… e.g. Create a REST API with JWT auth"
+              :disabled="rvRunning"
+            />
+          </div>
+          <div>
+            <div class="log-header">Content to Review</div>
+            <textarea
+              v-model="rvContentInput"
+              class="worker-textarea"
+              placeholder="Paste the code or output to review…"
+              :disabled="rvRunning"
+            ></textarea>
+          </div>
+        </div>
+        <div class="input-row">
+          <button class="btn btn-amber" :disabled="rvRunning || !rvContentInput.trim() || !rvTaskInput.trim()" @click="runReviewer">
+            <v-icon size="13">mdi-play</v-icon> Run Review
+          </button>
+          <button class="btn btn-grey" @click="rvClearAll">
+            <v-icon size="13">mdi-refresh</v-icon> Clear
+          </button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill progress-fill--amber" :style="{ width: rvProgressWidth, transition: rvProgressTransition }"></div></div>
+        <div>
+          <div class="log-header">Status Log</div>
+          <div class="log-stream" ref="rvLogStreamEl">
+            <div v-for="(entry, i) in rvAgentLog" :key="i" class="log-line">
+              <span class="log-ts">{{ entry.ts }}</span>
+              <span class="log-tag" :class="entry.tag">{{ entry.icon }}</span>
+              <span class="log-msg">{{ entry.msg }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Review Result -->
+      <div class="section-label">2 — Review Result</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#F59E0B">mdi-chart-bar</v-icon>
+            <span class="card-title">Quality Report</span>
+          </div>
+          <span v-if="rvResult" class="badge" :class="rvResult.approved ? 'badge-green' : 'badge-red'">
+            {{ rvResult.approved ? '✓ Approved' : '✗ Rejected' }}
+          </span>
+          <span v-else class="badge badge-grey">Waiting…</span>
+        </div>
+        <div v-if="!rvResult" class="empty-hint">Run a review above — the quality report will appear here.</div>
+        <template v-else>
+          <!-- Score row -->
+          <div class="rv-score-row">
+            <div class="rv-score-circle" :class="rvResult.score >= 7 ? 'rv-score--pass' : 'rv-score--fail'">
+              <span class="rv-score-num">{{ rvResult.score }}</span>
+              <span class="rv-score-denom">/10</span>
+            </div>
+            <div class="rv-score-meta">
+              <div class="rv-score-label" :style="{ color: rvResult.score >= 9 ? '#10B981' : rvResult.score >= 7 ? '#F59E0B' : '#EF4444' }">
+                {{ rvResult.score >= 9 ? 'Excellent' : rvResult.score >= 7 ? 'Good' : rvResult.score >= 5 ? 'Adequate' : rvResult.score >= 3 ? 'Poor' : 'Critical' }}
+              </div>
+              <div class="rv-score-sub">Threshold: 7 — {{ rvResult.approved ? 'above' : 'below' }}</div>
+            </div>
+            <!-- Dimension bars -->
+            <div v-if="rvResult.dimensions" class="rv-dims">
+              <div v-for="(val, key) in rvResult.dimensions" :key="key" class="rv-dim-row">
+                <span class="rv-dim-label">{{ key }}</span>
+                <div class="rv-dim-bar-track">
+                  <div class="rv-dim-bar-fill" :style="{ width: (val * 10) + '%', background: val >= 7 ? '#10B981' : val >= 5 ? '#F59E0B' : '#EF4444' }"></div>
+                </div>
+                <span class="rv-dim-val">{{ val }}/10</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feedback -->
+          <div class="rv-feedback">
+            <div class="rv-feedback__label">Feedback</div>
+            <div class="rv-feedback__text">{{ rvResult.feedback }}</div>
+          </div>
+
+          <!-- Suggestions -->
+          <div v-if="rvResult.suggestions?.length" class="rv-suggestions">
+            <div class="rv-feedback__label">Suggestions</div>
+            <div v-for="(s, i) in rvResult.suggestions" :key="i" class="rv-suggestion-item">
+              <span class="rv-suggestion-num">{{ i + 1 }}</span>
+              <span>{{ s }}</span>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Section 3: Backend Logs -->
+      <div class="section-label">3 — Backend Logs (live)</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
+            <span class="card-title">All backend log entries</span>
+          </div>
+          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="rvBackendLog = []">Clear</button>
+        </div>
+        <div class="backend-log" ref="rvBackendLogEl">
+          <div v-for="(entry, i) in rvBackendLog" :key="i"
+            class="backend-log__line"
+            :style="{ color: logColor(entry.level, entry.highlight) }"
+          >
+            <span class="backend-log__ts">{{ entry.ts }}</span>
+            <span class="backend-log__src">[{{ entry.source }}]</span>
+            {{ entry.msg }}
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-body reviewer -->
   </div>
 </template>
 
@@ -1064,6 +1209,7 @@ const tabs = [
   { id: 'researcher', label: 'Researcher', icon: 'mdi-magnify' },
   { id: 'planner',    label: 'Planner',    icon: 'mdi-clipboard-list-outline' },
   { id: 'worker',     label: 'Worker',     icon: 'mdi-code-braces' },
+  { id: 'reviewer',   label: 'Reviewer',   icon: 'mdi-eye-check-outline' },
 ];
 const activeTab = ref('researcher');
 
@@ -1640,6 +1786,74 @@ function pClearAll() {
   setPRunBadge('grey', 'Idle');
 }
 
+// ── Reviewer tab state ────────────────────────────────────────────────
+const rvTaskInput    = ref('');
+const rvContentInput = ref('');
+const rvRunning      = ref(false);
+const rvRunBadgeText  = ref('Idle');
+const rvRunBadgeClass = ref('badge-grey');
+const rvRunPulse      = ref(false);
+const rvProgressPct   = ref(0);
+const rvProgressIndet = ref(false);
+const rvProgressWidth = computed(() => rvProgressIndet.value ? '60%' : rvProgressPct.value + '%');
+const rvProgressTransition = computed(() => rvProgressIndet.value ? 'width 2s ease' : 'width .4s ease');
+const rvAgentLog     = ref([]);
+const rvBackendLog   = ref([]);
+const rvLogStreamEl  = ref(null);
+const rvBackendLogEl = ref(null);
+const rvResult       = ref(null);
+
+function setRvRunBadge(color, text, pulse = false) {
+  rvRunBadgeClass.value = `badge-${color}`;
+  rvRunBadgeText.value  = text;
+  rvRunPulse.value      = pulse;
+}
+function rvAppendLog(icon, tag, msg) {
+  rvAgentLog.value.push({ ts: ts(), icon, tag, msg });
+  nextTick(() => { if (rvLogStreamEl.value) rvLogStreamEl.value.scrollTop = rvLogStreamEl.value.scrollHeight; });
+}
+function rvAppendBackendLog(level, source, msg, highlight) {
+  rvBackendLog.value.push({ ts: ts(), level, source, msg, highlight });
+  if (rvBackendLog.value.length > 500) rvBackendLog.value.splice(0, 100);
+  nextTick(() => { if (rvBackendLogEl.value) rvBackendLogEl.value.scrollTop = rvBackendLogEl.value.scrollHeight; });
+}
+async function runReviewer() {
+  const content = rvContentInput.value.trim();
+  const task    = rvTaskInput.value.trim();
+  if (!content || !task) return;
+  rvAgentLog.value      = [];
+  rvResult.value        = null;
+  rvRunning.value       = true;
+  setRvRunBadge('cyan', '● Reviewing…', true);
+  rvProgressPct.value   = 5;
+  rvProgressIndet.value = true;
+  rvAppendLog('🔍', 'tag-wf', `Task: "${task}" — ${content.length} chars to review`);
+  try {
+    const { data } = await axios.post('/api/reviewer/review', { content, task });
+    rvResult.value        = data;
+    rvProgressPct.value   = 100;
+    rvProgressIndet.value = false;
+    rvRunning.value       = false;
+    const verdict = data.approved ? '✅ Approved' : '❌ Rejected';
+    setRvRunBadge(data.approved ? 'green' : 'red', data.approved ? '✓ Approved' : '✗ Rejected');
+    rvAppendLog(data.approved ? '✅' : '❌', data.approved ? 'tag-done' : 'tag-error',
+      `${verdict} — score ${data.score}/10`);
+  } catch (e) {
+    rvAppendLog('❌', 'tag-error', `Reviewer failed: ${e.response?.data?.error || e.message}`);
+    setRvRunBadge('red', '✗ Failed');
+    rvProgressPct.value   = 0;
+    rvProgressIndet.value = false;
+    rvRunning.value       = false;
+  }
+}
+function rvClearAll() {
+  rvAgentLog.value      = [];
+  rvResult.value        = null;
+  rvProgressPct.value   = 0;
+  rvProgressIndet.value = false;
+  setRvRunBadge('grey', 'Idle');
+}
+
 // ── Socket listeners ──────────────────────────────────────────────────
 function onConnect() {
   connBadgeText.value  = '● Connected';
@@ -1689,6 +1903,14 @@ function onAgentStatus(data) {
     if (data.status === 'working') {
       pProgressIndet.value = true;
       setPRunBadge('cyan', '● Working…', true);
+    }
+  }
+  // ── Reviewer tab ──────────────────────────────────────────
+  if (data.agentId === 'reviewer') {
+    rvAppendLog('⚡', 'tag-status', `[reviewer] ${data.status}${data.currentTask ? ': ' + data.currentTask : ''}`);
+    if (data.status === 'working') {
+      rvProgressIndet.value = true;
+      setRvRunBadge('cyan', '● Reviewing…', true);
     }
   }
 }
@@ -1757,6 +1979,9 @@ function onLogEntry(entry) {
 
   const plannerHighlight = entry.agentId === 'planner' || (entry.message || '').toLowerCase().includes('planner') || (entry.message || '').toLowerCase().includes('plan');
   pAppendBackendLog(entry.level, entry.agentId || '—', entry.message, plannerHighlight);
+
+  const reviewerHighlight = entry.agentId === 'reviewer' || (entry.message || '').toLowerCase().includes('reviewer') || (entry.message || '').toLowerCase().includes('review');
+  rvAppendBackendLog(entry.level, entry.agentId || '—', entry.message, reviewerHighlight);
 }
 
 onMounted(async () => {
@@ -2384,5 +2609,59 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
 }
 .plan-history-row__steps {
   font-size: 11px; font-weight: 600; color: #A78BFA; flex-shrink: 0;
+}
+
+/* ── Reviewer tab ─────────────────────────────────────────────────────── */
+.btn-amber { background: rgba(245,158,11,0.1); color: #F59E0B; border-color: rgba(245,158,11,0.3); }
+.badge-amber { background: rgba(245,158,11,0.1); color: #F59E0B; border: 1px solid rgba(245,158,11,0.3); }
+.progress-fill--amber { background: linear-gradient(90deg, #B45309, #F59E0B); }
+
+.review-inputs { display: flex; flex-direction: column; gap: 10px; padding: 0 16px 12px; }
+
+.rv-score-row {
+  display: flex; align-items: flex-start; gap: 20px;
+  padding: 16px 16px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  flex-wrap: wrap;
+}
+.rv-score-circle {
+  flex-shrink: 0;
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  border: 3px solid;
+}
+.rv-score--pass { border-color: #10B981; background: rgba(16,185,129,0.08); }
+.rv-score--fail { border-color: #EF4444; background: rgba(239,68,68,0.08); }
+.rv-score-num { font-size: 22px; font-weight: 700; line-height: 1; }
+.rv-score--pass .rv-score-num { color: #10B981; }
+.rv-score--fail .rv-score-num { color: #EF4444; }
+.rv-score-denom { font-size: 10px; color: rgba(226,232,240,0.35); }
+.rv-score-meta { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.rv-score-label { font-size: 16px; font-weight: 700; }
+.rv-score-sub { font-size: 11px; color: rgba(226,232,240,0.4); }
+
+.rv-dims { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
+.rv-dim-row { display: flex; align-items: center; gap: 10px; }
+.rv-dim-label { font-size: 11px; color: rgba(226,232,240,0.5); width: 90px; flex-shrink: 0; text-transform: capitalize; }
+.rv-dim-bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+.rv-dim-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.rv-dim-val { font-size: 10px; font-weight: 600; color: rgba(226,232,240,0.5); width: 30px; text-align: right; flex-shrink: 0; }
+
+.rv-feedback { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.rv-feedback__label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(226,232,240,0.35); margin-bottom: 6px; }
+.rv-feedback__text { font-size: 13px; color: rgba(226,232,240,0.85); line-height: 1.6; }
+
+.rv-suggestions { padding: 12px 16px; display: flex; flex-direction: column; gap: 6px; }
+.rv-suggestion-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: rgba(245,158,11,0.04); border: 1px solid rgba(245,158,11,0.1);
+  border-radius: 6px; padding: 8px 12px;
+  font-size: 12px; color: rgba(226,232,240,0.8); line-height: 1.5;
+}
+.rv-suggestion-num {
+  flex-shrink: 0;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #F59E0B;
 }
 </style>
