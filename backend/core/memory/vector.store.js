@@ -128,6 +128,8 @@ class AgentVectorStore {
       return;
     }
 
+    if (!this.index) throw new Error(`[${this.agentId}] LTM index not initialised`);
+
     const label = this.metadata.length;
     this.metadata.push({
       content:  content.slice(0, 600),
@@ -165,10 +167,11 @@ class AgentVectorStore {
   }
 
   clear() {
-    this.metadata = [];
+    this.metadata     = [];
+    this._ready       = false;
+    this.index        = null;
+    this._initPromise = null; // force full re-init on next access
     try { rmSync(this.dir, { recursive: true, force: true }); } catch { /* ignore */ }
-    this._ready = false;
-    this.index  = null;
     logger.info(`[${this.agentId}] LTM cleared`);
   }
 
