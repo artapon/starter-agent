@@ -606,15 +606,16 @@ onMounted(() => {
 
   socket.on('workspace:changed', () => { if (showWorkspace.value) loadWorkspace(); });
 
-  onUnmounted(() => {
-    _drainQueue();
-    socket.off('agent:status');
-    socket.off('chat:response');
-    socket.off('chat:response_chunk');
-    socket.off('chat:typing');
-    socket.off('chat:stopped');
-    socket.off('workspace:changed');
-  });
+});
+
+onUnmounted(() => {
+  _drainQueue();
+  socket.off('agent:status');
+  socket.off('chat:response');
+  socket.off('chat:response_chunk');
+  socket.off('chat:typing');
+  socket.off('chat:stopped');
+  socket.off('workspace:changed');
 });
 </script>
 

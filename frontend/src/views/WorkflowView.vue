@@ -678,18 +678,19 @@ onMounted(() => {
     }
   });
 
-  onUnmounted(() => {
-    clearInterval(_loopAnimInterval);
-    clearInterval(_fwdAnimInterval);
-    socket.off('log:entry');
-    socket.off('workflow:started');
-    socket.off('workflow:node_complete');
-    socket.off('workflow:complete');
-    socket.off('workflow:stopped');
-    socket.off('workflow:error');
-    socket.off('agent:status');
-    socket.off('queue:updated');
-  });
+});
+
+onUnmounted(() => {
+  clearInterval(_loopAnimInterval);
+  clearInterval(_fwdAnimInterval);
+  socket.off('log:entry');
+  socket.off('workflow:started');
+  socket.off('workflow:node_complete');
+  socket.off('workflow:complete');
+  socket.off('workflow:stopped');
+  socket.off('workflow:error');
+  socket.off('agent:status');
+  socket.off('queue:updated');
 });
 </script>
 
