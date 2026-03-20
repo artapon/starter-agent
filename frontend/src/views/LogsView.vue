@@ -24,7 +24,11 @@
         />
         <v-btn icon="mdi-refresh" variant="text" size="small" :loading="loading" @click="fetchLogs"
           style="color:rgba(226,232,240,0.5)" />
-        <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" @click="clearLogs" />
+        <v-btn icon="mdi-delete-outline" variant="text" size="small" color="error" title="Clear DB logs" @click="clearLogs" />
+        <v-btn prepend-icon="mdi-file-remove-outline" variant="tonal" size="small" color="error"
+          :loading="clearingFiles" title="Empty agent-info.log and agent-error.log" @click="clearLogFiles">
+          Empty Log Files
+        </v-btn>
       </div>
     </div>
 
@@ -128,6 +132,14 @@ async function clearLogs() {
   await axios.delete('/api/logs');
   logs.value = [];
   liveLogs.value = [];
+}
+
+const clearingFiles = ref(false);
+async function clearLogFiles() {
+  clearingFiles.value = true;
+  try { await axios.delete('/api/logs/files'); }
+  catch { /* ignore */ }
+  finally { clearingFiles.value = false; }
 }
 
 watch(filters, fetchLogs, { deep: true });
