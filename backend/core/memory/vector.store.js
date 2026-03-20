@@ -42,18 +42,28 @@ const _stores = new Map(); // agentId → AgentVectorStore
 
 class AgentVectorStore {
   constructor(agentId) {
-    this.agentId  = agentId;
-    this.dir      = join(LTM_DIR, agentId);
-    this.idxPath  = join(this.dir, 'index.hnsw');
-    this.metaPath = join(this.dir, 'metadata.json');
-    this.index    = null;
-    this.metadata = []; // array index == HNSW label
-    this.dim      = null;
-    this._ready   = false;
+    this.agentId      = agentId;
+    this.dir          = join(LTM_DIR, agentId);
+    this.idxPath      = join(this.dir, 'index.hnsw');
+    this.metaPath     = join(this.dir, 'metadata.json');
+    this.index        = null;
+    this.metadata     = []; // array index == HNSW label
+    this.dim          = null;
+    this._ready       = false;
+    this._initPromise = null; // gate: prevents concurrent inits
   }
 
   async _init() {
     if (this._ready) return;
+    if (this._initPromise) return this._initPromise;
+    this._initPromise = this._doInit().catch(err => {
+      this._initPromise = null; // allow retry on failure
+      throw err;
+    });
+    return this._initPromise;
+  }
+
+  async _doInit() {
     mkdirSync(this.dir, { recursive: true });
 
     // Load saved dimension + metadata
@@ -91,7 +101,7 @@ class AgentVectorStore {
     }
 
     this._ready = true;
-  }
+  } // end _doInit
 
   _wipeAndRebuild(HierarchicalNSW) {
     this.metadata = [];
