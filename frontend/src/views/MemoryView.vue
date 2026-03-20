@@ -12,7 +12,31 @@
       </button>
     </div>
 
+    <!-- ── Global Search ──────────────────────────────────────────────── -->
+    <div class="gsearch-bar" :class="{ 'gsearch-bar--active': searchActive }">
+      <div class="gsearch-wrap">
+        <v-icon size="16" class="gsearch-icon" :color="searchActive ? '#818CF8' : 'rgba(226,232,240,0.3)'">mdi-magnify</v-icon>
+        <input
+          ref="searchInputRef"
+          class="gsearch-input"
+          placeholder="Search all agents — sessions, memories…"
+          v-model="searchQuery"
+          @keydown.escape="clearSearch"
+          @keydown.enter="runGlobalSearch"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button v-if="searchActive" class="gsearch-clear" @click="clearSearch" title="Clear (Esc)">
+          <v-icon size="14">mdi-close</v-icon>
+        </button>
+        <div v-if="globalSearching" class="gsearch-spinner">
+          <v-icon size="14" style="animation:spin 0.8s linear infinite">mdi-loading</v-icon>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Agent selector ─────────────────────────────────────────────── -->
+    <template v-if="!searchActive">
     <div class="agent-bar">
       <button
         v-for="a in agents" :key="a"
@@ -233,20 +257,107 @@
       </template>
 
     </div><!-- .mem-body -->
+    </template><!-- v-if="!searchActive" -->
+
+    <!-- ── Search Results ──────────────────────────────────────────────── -->
+    <div v-if="searchActive" class="gsearch-results">
+
+      <!-- Sessions -->
+      <div class="gsr-section">
+        <div class="gsr-section__header">
+          <v-icon size="13" color="#A5B4FC">mdi-chat-processing-outline</v-icon>
+          Sessions
+          <span class="gsr-count">{{ sessionResults.length }}</span>
+        </div>
+        <template v-if="sessionResults.length">
+          <button
+            v-for="r in sessionResults" :key="r.agentId + r.session_id"
+            class="gsr-row gsr-row--session"
+            @click="navigateToSession(r)"
+          >
+            <span class="gsr-badge" :style="`background:${AGENT_COLORS[r.agentId]}22;color:${AGENT_COLORS[r.agentId]};border-color:${AGENT_COLORS[r.agentId]}44`">{{ r.agentId }}</span>
+            <v-icon size="13" :color="sessionTypeColor(r.session_id)">{{ sessionTypeIcon(r.session_id) }}</v-icon>
+            <div class="gsr-row__body">
+              <span class="gsr-row__text" v-html="highlightMatch(r.preview, searchQuery)" />
+              <span class="gsr-row__meta">{{ r.snapshot_count }} turn{{ r.snapshot_count !== 1 ? 's' : '' }} · {{ sessionTypeLabel(r.session_id) }}</span>
+            </div>
+            <v-icon size="13" color="rgba(226,232,240,0.2)">mdi-arrow-right</v-icon>
+          </button>
+        </template>
+        <div v-else class="gsr-empty">
+          <v-icon size="18" color="rgba(255,255,255,0.08)">mdi-chat-sleep-outline</v-icon>
+          No matching sessions
+        </div>
+      </div>
+
+      <!-- LTM -->
+      <div class="gsr-section">
+        <div class="gsr-section__header">
+          <v-icon size="13" color="#5EEAD4">mdi-brain</v-icon>
+          Long-Term Memories
+          <span class="gsr-count">{{ ltmGlobalResults.length }}</span>
+          <span v-if="globalSearching" class="gsr-searching">
+            <v-icon size="11" style="animation:spin 0.8s linear infinite">mdi-loading</v-icon>
+            querying…
+          </span>
+        </div>
+        <template v-if="ltmGlobalResults.length">
+          <div v-for="(r, i) in ltmGlobalResults" :key="i" class="gsr-row gsr-row--ltm">
+            <span class="gsr-badge" :style="`background:${AGENT_COLORS[r.agentId]}22;color:${AGENT_COLORS[r.agentId]};border-color:${AGENT_COLORS[r.agentId]}44`">{{ r.agentId }}</span>
+            <v-icon size="13" color="#5EEAD4">mdi-memory</v-icon>
+            <div class="gsr-row__body">
+              <span class="gsr-row__text">{{ r.content }}</span>
+              <span class="gsr-row__meta">
+                {{ (r.similarity * 100).toFixed(0) }}% match
+                <span class="gsr-bar"><span class="gsr-bar-fill" :style="`width:${r.similarity*100}%`" /></span>
+                · {{ new Date(r.ts).toLocaleDateString() }}
+              </span>
+            </div>
+          </div>
+        </template>
+        <div v-else-if="!globalSearching" class="gsr-empty">
+          <v-icon size="18" color="rgba(255,255,255,0.08)">mdi-brain-outline</v-icon>
+          No relevant memories found
+        </div>
+      </div>
+
+    </div><!-- .gsearch-results -->
+
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useSocket } from '../plugins/socket.js';
 import axios from 'axios';
 
 const socket = useSocket();
+const router = useRouter();
 
 const agents      = ['researcher', 'planner', 'worker', 'reviewer'];
 const activeAgent = ref('researcher');
 const activeTab   = ref('stm');
 const loading     = ref(false);
+
+// ── Global Search ────────────────────────────────────────────────────────────
+const searchQuery      = ref('');
+const searchInputRef   = ref(null);
+const globalSearching  = ref(false);
+const ltmGlobalResults = reactive([]);
+const searchActive     = computed(() => searchQuery.value.trim().length > 0);
+
+const sessionResults = computed(() => {
+  if (!searchActive.value) return [];
+  const q = searchQuery.value.toLowerCase();
+  const out = [];
+  for (const agent of agents) {
+    for (const s of (agentSessions[agent] || [])) {
+      if ((s.preview || '').toLowerCase().includes(q)) out.push({ ...s, agentId: agent });
+    }
+  }
+  return out;
+});
 
 const AGENT_COLORS = { researcher: '#6366F1', planner: '#22D3EE', worker: '#4ADE80', reviewer: '#F59E0B' };
 const STM_WINDOWS  = { researcher: 6, planner: 8, worker: 10, reviewer: 6 };
@@ -351,6 +462,16 @@ const sessionPage = ref(0);
 
 // Reset to page 0 when agent changes
 watch(activeAgent, () => { sessionPage.value = 0; });
+
+// Debounced LTM search on query change
+let _searchDebounce = null;
+watch(searchQuery, (val) => {
+  clearTimeout(_searchDebounce);
+  ltmGlobalResults.splice(0);
+  if (val.trim().length >= 2) {
+    _searchDebounce = setTimeout(runGlobalSearch, 400);
+  }
+});
 
 const totalPages = computed(() =>
   Math.ceil(filteredSessions(activeAgent.value).length / PAGE_SIZE)
@@ -505,6 +626,46 @@ async function clearLTM(agent) {
   ltmStats[agent]    = { entries: 0, dim: null, ready: false };
   ltmResults[agent]  = [];
   delete ltmSearched[agent];
+}
+
+// ── Global search ────────────────────────────────────────────────────────────
+async function runGlobalSearch() {
+  const q = searchQuery.value.trim();
+  if (!q) return;
+  ltmGlobalResults.splice(0);
+  globalSearching.value = true;
+  try {
+    const fetches = agents.map(agent =>
+      axios.get(`/api/memory/ltm/${agent}/query?q=${encodeURIComponent(q)}&k=5`)
+        .then(({ data }) => data.map(r => ({ ...r, agentId: agent })))
+        .catch(() => [])
+    );
+    const flat = (await Promise.all(fetches)).flat().sort((a, b) => b.similarity - a.similarity);
+    ltmGlobalResults.push(...flat);
+  } finally {
+    globalSearching.value = false;
+  }
+}
+
+function clearSearch() {
+  searchQuery.value = '';
+  ltmGlobalResults.splice(0);
+  globalSearching.value = false;
+  searchInputRef.value?.focus();
+}
+
+function navigateToSession(result) {
+  activeAgent.value = result.agentId;
+  activeTab.value   = 'stm';
+  searchQuery.value = '';
+  ltmGlobalResults.splice(0);
+  setTimeout(() => selectSession(result.agentId, result.session_id), 0);
+}
+
+function highlightMatch(text, query) {
+  if (!text || !query) return text || '';
+  const esc = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${esc})`, 'gi'), '<mark class="gsearch-hl">$1</mark>');
 }
 
 // ── Utilities ───────────────────────────────────────────────────────────────
@@ -907,4 +1068,119 @@ onUnmounted(() => {
 .convo-scroll::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.3); border-radius: 2px; }
 .ltm-results::-webkit-scrollbar-thumb  { background: rgba(20,184,166,0.3); border-radius: 2px; }
 .wm-wrap::-webkit-scrollbar-thumb      { background: rgba(245,158,11,0.2); border-radius: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* GLOBAL SEARCH                                                               */
+/* ══════════════════════════════════════════════════════════════════════════ */
+.gsearch-bar { padding: 0 24px 12px; flex-shrink: 0; }
+.gsearch-wrap {
+  display: flex; align-items: center; gap: 10px;
+  height: 40px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px; padding: 0 14px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.gsearch-bar--active .gsearch-wrap,
+.gsearch-wrap:focus-within {
+  border-color: rgba(99,102,241,0.45);
+  background: rgba(99,102,241,0.06);
+}
+.gsearch-icon { flex-shrink: 0; transition: color 0.2s; }
+.gsearch-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  font-size: 14px; color: #E2E8F0;
+}
+.gsearch-input::placeholder { color: rgba(226,232,240,0.25); }
+.gsearch-clear {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(226,232,240,0.45); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.gsearch-clear:hover { background: rgba(255,255,255,0.1); color: #E2E8F0; }
+.gsearch-spinner { display: flex; align-items: center; color: #818CF8; flex-shrink: 0; }
+
+/* Results panel */
+.gsearch-results {
+  flex: 1; overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.gsearch-results::-webkit-scrollbar { width: 4px; }
+.gsearch-results::-webkit-scrollbar-track { background: transparent; }
+.gsearch-results::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.25); border-radius: 2px; }
+
+.gsr-section {
+  display: flex; flex-direction: column;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding-bottom: 4px;
+}
+.gsr-section:last-child { border-bottom: none; }
+
+.gsr-section__header {
+  display: flex; align-items: center; gap: 7px;
+  padding: 12px 24px 8px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: rgba(226,232,240,0.3);
+  flex-shrink: 0;
+}
+.gsr-count {
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 10px;
+  background: rgba(255,255,255,0.07); color: rgba(226,232,240,0.45);
+  text-transform: none; letter-spacing: 0;
+}
+.gsr-searching {
+  display: flex; align-items: center; gap: 5px;
+  margin-left: 4px; font-size: 10px; font-weight: 500; color: #818CF8;
+  text-transform: none; letter-spacing: 0;
+}
+
+.gsr-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 24px;
+  background: transparent; border: none; text-align: left;
+  width: 100%; transition: background 0.12s;
+}
+.gsr-row--session { cursor: pointer; }
+.gsr-row--session:hover { background: rgba(99,102,241,0.05); }
+.gsr-row--ltm     { cursor: default; }
+.gsr-row--ltm:hover { background: rgba(20,184,166,0.04); }
+
+.gsr-badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 700; text-transform: capitalize;
+  border: 1px solid; flex-shrink: 0; margin-top: 1px;
+}
+.gsr-row__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.gsr-row__text {
+  font-size: 13px; color: #CBD5E1;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+}
+.gsr-row__meta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: rgba(226,232,240,0.3);
+}
+
+.gsr-bar {
+  display: inline-block; width: 48px; height: 3px; border-radius: 2px;
+  background: rgba(255,255,255,0.07); vertical-align: middle; flex-shrink: 0;
+}
+.gsr-bar-fill {
+  display: block; height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, #14B8A6, #06B6D4);
+}
+
+.gsearch-hl {
+  background: rgba(99,102,241,0.25); color: #C7D2FE;
+  border-radius: 3px; padding: 0 2px; font-style: normal;
+}
+
+.gsr-empty {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 24px;
+  font-size: 12px; color: rgba(226,232,240,0.25);
+}
 </style>
