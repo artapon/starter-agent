@@ -384,6 +384,14 @@ export async function streamAndEmit(settings, messages, signal, socketManager, s
   const output = stripThinkBlocks(rawOutput);
   recordTokenUsage(agentId, estimateTokens(inputText), estimateTokens(output));
 
+  // Debug mode: log full LLM response when enabled in global_settings
+  try {
+    const row = getDb().table('global_settings').first({ key: 'debug_mode' });
+    if (row?.value === 'true') {
+      streamLogger.debug(`LLM response (${output.length} chars):\n${output}`, { agentId });
+    }
+  } catch { /* never crash the agent over debug logging */ }
+
   // Detect likely truncation:
   //  1. Raw output: JSON started but never closed (e.g. model hit token limit)
   //  2. Stripped output: after removing <think> blocks, the remaining JSON is unclosed

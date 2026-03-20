@@ -75,6 +75,28 @@
               </div>
             </div>
 
+            <!-- Debug Mode -->
+            <div class="panel span-full">
+              <div class="panel__header">
+                <div class="d-flex align-center gap-2">
+                  <v-icon size="15" color="#F59E0B">mdi-bug-outline</v-icon>
+                  <span class="section-title">Debug Mode</span>
+                </div>
+                <v-chip size="x-small" :color="debugMode ? 'warning' : 'default'" variant="tonal">
+                  {{ debugMode ? 'Enabled' : 'Disabled' }}
+                </v-chip>
+              </div>
+              <div class="panel__body">
+                <div class="loop-toggle-row">
+                  <div class="loop-toggle-info">
+                    <div class="loop-toggle-label">Log all LLM responses</div>
+                    <div class="loop-toggle-hint">When enabled, every LLM response is written to <code class="src-code">agent-info.log</code> at debug level. Useful for diagnosing agent output. Disable in production to keep logs clean.</div>
+                  </div>
+                  <v-switch v-model="debugMode" color="warning" hide-details density="compact" inset />
+                </div>
+              </div>
+            </div>
+
             <!-- Workspace -->
             <div class="panel">
               <div class="panel__header">
@@ -584,6 +606,7 @@ const resetting        = ref(false);
 const loopEnabled      = ref(false);
 const maxLoops         = ref(3);
 const recursionLimit   = ref(200);
+const debugMode        = ref(false);
 const researcherMCPEnabled = ref(false);
 const browserTools         = ref([]);
 
@@ -631,6 +654,7 @@ async function saveAllGlobal() {
         workflow_loop_enabled:    loopEnabled.value ? '1' : '0',
         workflow_max_loops:       String(maxLoops.value),
         workflow_recursion_limit: String(recursionLimit.value ?? 0),
+        debug_mode:               String(debugMode.value),
       }),
     ];
     if (selectedSubskill.value !== activeSubskill.value) {
@@ -763,6 +787,7 @@ async function fetchGlobal() {
     maxLoops.value             = parseInt(data.workflow_max_loops || '3', 10);
     recursionLimit.value       = parseInt(data.workflow_recursion_limit || '200', 10);
     researcherMCPEnabled.value = data.researcher_mcp_enabled === '1';
+    debugMode.value            = data.debug_mode === 'true';
   } catch { /* use defaults */ }
 }
 async function fetchBrowserTools() {
