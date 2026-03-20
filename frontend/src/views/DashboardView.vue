@@ -1,17 +1,7 @@
 <template>
   <div class="dash-root">
 
-    <!-- Header -->
-    <div class="dash-header">
-      <div>
-        <div class="page-title">Dashboard</div>
-        <div class="page-subtitle">System overview &amp; live activity</div>
-      </div>
-      <v-btn icon="mdi-refresh" variant="text" size="small" :loading="loading" @click="fetchStats"
-        style="color:rgba(226,232,240,0.5)" />
-    </div>
-
-    <!-- Active run banner -->
+    <!-- Active run banner — top of dashboard -->
     <div v-if="anyAgentWorking" class="run-banner">
       <span class="run-banner__dot" />
       <span class="run-banner__label">Running</span>
@@ -22,6 +12,16 @@
       <span v-if="workingAgents[0]?.currentTask" class="run-banner__task">
         — {{ workingAgents[0].currentTask }}
       </span>
+    </div>
+
+    <!-- Header -->
+    <div class="dash-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">System overview &amp; live activity</div>
+      </div>
+      <v-btn icon="mdi-refresh" variant="text" size="small" :loading="loading" @click="fetchStats"
+        style="color:rgba(226,232,240,0.5)" />
     </div>
 
     <!-- Stat cards -->
@@ -107,10 +107,6 @@
               <span>Running</span>
             </div>
             <div v-else class="idle-badge">{{ agentLiveStatus[agent.agentId] || 'idle' }}</div>
-          </div>
-          <div v-if="agentCurrentTask[agent.agentId]" class="agent-h-card__task">
-            <v-icon size="10" color="#F59E0B" class="mr-1">mdi-chevron-right</v-icon>
-            {{ agentCurrentTask[agent.agentId] }}
           </div>
         </div>
       </div>
@@ -866,12 +862,13 @@ onMounted(() => {
 
 /* Run banner */
 .run-banner {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 6px;
   padding: 10px 14px;
   border-radius: 10px;
   background: rgba(245,158,11,0.07);
   border: 1px solid rgba(245,158,11,0.2);
   font-size: 13px;
+  min-width: 0;
 }
 .run-banner__dot {
   width: 8px; height: 8px; border-radius: 50%;
@@ -879,7 +876,7 @@ onMounted(() => {
   animation: pulse-dot 1.2s ease-in-out infinite;
 }
 .run-banner__label { font-weight: 600; color: #F59E0B !important; }
-.run-banner__task  { font-size: 12px; color: rgba(226,232,240,0.5) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 400px; }
+.run-banner__task  { font-size: 12px; color: rgba(226,232,240,0.5) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; max-width: 90%; }
 
 /* Stat grid */
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
@@ -967,12 +964,6 @@ onMounted(() => {
 }
 .agent-h-card__bottom {
   display: flex; align-items: center; gap: 6px; margin-top: 2px;
-}
-.agent-h-card__task {
-  font-size: 11px; color: #F59E0B;
-  font-style: italic;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  display: flex; align-items: center; margin-top: 2px;
 }
 
 /* Working badge */

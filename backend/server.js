@@ -6,6 +6,7 @@ import { createLogger } from './core/logger/winston.logger.js';
 import { runMigrations } from './core/database/migrator.js';
 import { getDb } from './core/database/db.js';
 import { setToolSocketManager } from './core/tools/tool.implementations.js';
+import { cronService } from './modules/cron/services/cron.service.js';
 
 const logger = createLogger('server');
 const PORT = process.env.PORT || 3000;
@@ -26,6 +27,7 @@ async function bootstrap() {
   // Make socketManager globally accessible
   app.set('socketManager', socketManager);
   setToolSocketManager(socketManager);
+  cronService.init(socketManager);
 
   // 4. Start listening
   httpServer.listen(PORT, () => {

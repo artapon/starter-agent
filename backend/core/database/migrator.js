@@ -12,6 +12,7 @@ export function runMigrations(db) {
   const globalTable = db.table('global_settings');
   globalTable.upsert(['key'], { key: 'workspace_path',        value: DEFAULT_WORKSPACE });
   globalTable.insertOrIgnore(['key'], { key: 'active_subskill',          value: 'default' });
+  globalTable.insertOrIgnore(['key'], { key: 'debug_mode',               value: 'false' });
   globalTable.insertOrIgnore(['key'], { key: 'workflow_loop_enabled',    value: '0' });
   globalTable.insertOrIgnore(['key'], { key: 'workflow_max_loops',       value: '3' });
   globalTable.insertOrIgnore(['key'], { key: 'workflow_recursion_limit', value: '200' });
