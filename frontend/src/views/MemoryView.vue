@@ -107,8 +107,16 @@
                   class="msg"
                   :class="msg.role === 'human' ? 'msg--user' : 'msg--agent'"
                 >
-                  <div class="msg__role">{{ msg.role === 'human' ? 'You' : activeAgent }}</div>
-                  <div class="msg__bubble">{{ msg.content }}</div>
+                  <div class="msg__role" @click="msg.role !== 'human' && toggleMsg(i)">
+                    {{ msg.role === 'human' ? 'You' : activeAgent }}
+                    <v-icon v-if="msg.role !== 'human'" size="11" style="margin-left:4px;opacity:0.5">
+                      {{ collapsedMsgs.has(i) ? 'mdi-chevron-down' : 'mdi-chevron-up' }}
+                    </v-icon>
+                  </div>
+                  <div v-if="!collapsedMsgs.has(i)" class="msg__bubble">{{ msg.content }}</div>
+                  <div v-else class="msg__collapsed" @click="toggleMsg(i)">
+                    {{ msg.content.slice(0, 80) }}{{ msg.content.length > 80 ? '…' : '' }}
+                  </div>
                 </div>
               </div>
               <div class="convo-footer">
@@ -269,6 +277,7 @@ async function loadProjects() {
 
 // ── STM ────────────────────────────────────────────────────────────────────
 const agentSessions    = reactive({});
+const collapsedMsgs    = ref(new Set());
 const selectedSession  = reactive({});
 const sessionSnapshots = reactive({});
 const stmMessages      = reactive({});
@@ -412,9 +421,16 @@ async function fetchReportSessions() {
 }
 
 // ── STM session ─────────────────────────────────────────────────────────────
+function toggleMsg(i) {
+  const s = new Set(collapsedMsgs.value);
+  s.has(i) ? s.delete(i) : s.add(i);
+  collapsedMsgs.value = s;
+}
+
 async function selectSession(agent, sessionId) {
   if (!sessionId) return;
   selectedSession[agent] = sessionId;
+  collapsedMsgs.value = new Set();
   try {
     const { data } = await axios.get(`/api/memory/${agent}?sessionId=${sessionId}`);
     sessionSnapshots[agent] = data;
@@ -616,7 +632,7 @@ onUnmounted(() => {
 
 /* Session sidebar */
 .stm-sidebar {
-  width: 400px; flex-shrink: 0;
+  width: 35%; flex-shrink: 0;
   border-right: 1px solid rgba(255,255,255,0.06);
   display: flex; flex-direction: column;
   overflow-y: auto;
@@ -715,6 +731,17 @@ onUnmounted(() => {
 .msg--agent .msg__bubble {
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: #94A3B8;
 }
+.msg--agent .msg__role { cursor: pointer; user-select: none; }
+.msg--agent .msg__role:hover { color: rgba(226,232,240,0.6); }
+.msg__collapsed {
+  padding: 6px 13px; border-radius: 10px;
+  font-size: 12px; color: rgba(148,163,184,0.45);
+  background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.07);
+  cursor: pointer; max-width: 85%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: background 0.15s;
+}
+.msg__collapsed:hover { background: rgba(255,255,255,0.04); color: rgba(148,163,184,0.7); }
 
 .save-ltm-btn {
   display: flex; align-items: center; gap: 6px;
