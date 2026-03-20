@@ -449,6 +449,10 @@ async function selectSession(agent, sessionId) {
         }));
       }
       stmStats[agent] = { size: Math.round(stmMessages[agent].length / 2) };
+      // Collapse all agent messages by default
+      collapsedMsgs.value = new Set(
+        stmMessages[agent].map((m, i) => m.role !== 'human' ? i : -1).filter(i => i >= 0)
+      );
     }
   } catch { /* ignore */ }
 }
