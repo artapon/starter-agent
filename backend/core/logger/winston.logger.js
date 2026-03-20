@@ -40,12 +40,12 @@ export function createLogger(agentId = 'app') {
       format: combine(colorize(), timestamp({ format: 'HH:mm:ss' }), consoleFormat),
     }),
     new winston.transports.File({
-      filename: path.join(logDir, 'error.log'),
+      filename: path.join(logDir, 'agent-error.log'),
       level: 'warn',
       format: combine(timestamp(), errors({ stack: true }), json()),
     }),
     new winston.transports.File({
-      filename: path.join(logDir, 'combined.log'),
+      filename: path.join(logDir, 'agent-info.log'),
       format: combine(timestamp(), json()),
     }),
   ];
