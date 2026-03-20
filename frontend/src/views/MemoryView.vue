@@ -329,7 +329,7 @@ function filteredSessions(agentId) {
 }
 
 // ── Session pagination ──────────────────────────────────────────────────────
-const PAGE_SIZE   = 20;
+const PAGE_SIZE   = 10;
 const sessionPage = ref(0);
 
 // Reset to page 0 when agent changes
@@ -659,7 +659,7 @@ onUnmounted(() => {
 .session-row__info { flex: 1; min-width: 0; }
 .session-row__label {
   display: block; font-size: 12px; font-weight: 500; color: #CBD5E1;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  word-break: break-all; white-space: normal;
 }
 .session-row__meta { font-size: 10px; color: rgba(226,232,240,0.3); }
 
