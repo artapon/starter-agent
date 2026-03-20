@@ -167,6 +167,7 @@ const router = useRouter();
 
 const projects        = ref([]);
 const loading         = ref(true);
+const redirectPath    = ref(null);
 const folderRecreating = ref({});  // projectId → true while request is in flight
 const folderStatus     = ref({});  // projectId → 'ok' | 'created'
 

@@ -847,9 +847,15 @@ onMounted(() => {
   onUnmounted(() => {
     clearInterval(interval);
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
+    socket.off('queue:updated');
     socket.off('log:entry');
     socket.off('agent:status');
     socket.off('dashboard:stats');
+    socket.off('workflow:started');
+    socket.off('workflow:node_complete');
+    socket.off('workflow:complete');
+    socket.off('workflow:stopped');
+    socket.off('workflow:error');
   });
 });
 </script>
