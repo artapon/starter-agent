@@ -14,7 +14,10 @@
       "Bash(ls:*)",
       "WebFetch(domain:localhost)",
       "Bash(curl -s \"http://localhost:3000/api/reports/45e37735-0a73-452c-a0bb-fc2d03d1b6cf/content\")",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(python -c \":*)",
+      "Bash(node --experimental-sqlite -e \":*)",
+      "Bash(npm i:*)"
     ]
   }
 }
