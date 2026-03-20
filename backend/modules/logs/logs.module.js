@@ -34,7 +34,7 @@ router.delete('/', (req, res, next) => {
  *  page=1 is the LAST (most recent) page. */
 router.get('/files', (req, res, next) => {
   try {
-    const { file = 'info', level = '', search = '', page = 1, perPage = 20 } = req.query;
+    const { file = 'info', level = '', search = '', page = 1, perPage = 25 } = req.query;
     const filename = file === 'error' ? 'agent-error.log' : 'agent-info.log';
     const filePath = join(LOG_DIR, filename);
 

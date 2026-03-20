@@ -174,7 +174,7 @@ const AGENT_COLORS = {
   reviewer: '#F59E0B', http: '#94A3B8', memory: '#A78BFA',
   workflow: '#F472B6', ltm: '#34D399', stm: '#60A5FA', app: '#94A3B8',
 };
-const PER_PAGE = 20;
+const PER_PAGE = 25;
 
 // ── State ────────────────────────────────────────────────────────────────────
 const activeFile   = ref('info');
@@ -366,7 +366,7 @@ onMounted(() => {
 /* Search */
 .search-wrap {
   display: flex; align-items: center; gap: 7px; padding: 0 10px;
-  height: 32px; min-width: 160px; max-width: 40%;
+  height: 32px; width: 40%; min-width: 160px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08); border-radius: 7px;
   transition: border-color 0.15s;
