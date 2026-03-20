@@ -1,7 +1,17 @@
 <template>
   <div class="dash-root">
 
-    <!-- Active run banner — top of dashboard -->
+    <!-- Header -->
+    <div class="dash-header">
+      <div>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">System overview &amp; live activity</div>
+      </div>
+      <v-btn icon="mdi-refresh" variant="text" size="small" :loading="loading" @click="fetchStats"
+        style="color:rgba(226,232,240,0.5)" />
+    </div>
+
+    <!-- Active run banner — bottom of header -->
     <div v-if="anyAgentWorking" class="run-banner">
       <span class="run-banner__dot" />
       <span class="run-banner__label">Running</span>
@@ -12,16 +22,6 @@
       <span v-if="workingAgents[0]?.currentTask" class="run-banner__task">
         — {{ workingAgents[0].currentTask }}
       </span>
-    </div>
-
-    <!-- Header -->
-    <div class="dash-header">
-      <div>
-        <div class="page-title">Dashboard</div>
-        <div class="page-subtitle">System overview &amp; live activity</div>
-      </div>
-      <v-btn icon="mdi-refresh" variant="text" size="small" :loading="loading" @click="fetchStats"
-        style="color:rgba(226,232,240,0.5)" />
     </div>
 
     <!-- Stat cards -->
