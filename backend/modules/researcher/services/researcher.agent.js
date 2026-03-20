@@ -40,15 +40,71 @@ function buildMessages(goal, histMessages = [], webContext = null, ltmContext = 
 
 // ─── JSON parser ─────────────────────────────────────────────────────────────
 
+/**
+ * Coerce an array item to a plain string regardless of what the LLM emitted.
+ * Handles both the expected string format and object shapes like:
+ *   {name, consequence}  {ops, specifics}  {observability, ...}
+ */
+function _flattenItem(item) {
+  if (!item) return '';
+  if (typeof item === 'string') return item;
+  if (typeof item === 'object') {
+    const { name, consequence, ops, specifics, observability, ...rest } = item;
+    const parts = [name, ops, observability, consequence, specifics,
+      ...Object.values(rest).filter(v => typeof v === 'string')]
+      .filter(Boolean);
+    return parts.join(' — ');
+  }
+  return String(item);
+}
+
+/**
+ * Normalize fields that LLMs sometimes emit as objects instead of strings.
+ * antiPatterns / productionConsiderations / potentialChallenges are all string[]
+ * in the schema but models occasionally return {name, consequence} objects.
+ */
+function _normalize(findings) {
+  return {
+    ...findings,
+    antiPatterns:            (findings.antiPatterns            || []).map(_flattenItem).filter(Boolean),
+    productionConsiderations:(findings.productionConsiderations|| []).map(_flattenItem).filter(Boolean),
+    potentialChallenges:     (findings.potentialChallenges     || []).map(_flattenItem).filter(Boolean),
+  };
+}
+
+/**
+ * Pull individual string fields from a malformed JSON blob using targeted
+ * regex — used when extractJSON gives up entirely.
+ * Returns null if nothing useful is recoverable.
+ */
+function _extractByRegex(text, goal) {
+  const str = (key) => {
+    const m = text.match(new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`));
+    return m ? m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').trim() : '';
+  };
+  const summary           = str('summary');
+  const topic             = str('topic') || goal;
+  const recommendedApproach = str('recommendedApproach');
+  const versioningNotes   = str('versioningNotes');
+  if (!summary && !recommendedApproach) return null;
+  return { ..._emptyFindings(goal), summary, topic, recommendedApproach, versioningNotes };
+}
+
 function parseFindings(rawOutput, goal) {
   if (!rawOutput) return _emptyFindings(goal);
   try {
     const parsed = extractJSON(rawOutput);
     if (!parsed) throw new Error('No valid JSON found');
-    if (parsed.topic || parsed.summary || parsed.approaches) return _fillMissing(parsed, goal);
+    if (parsed.topic || parsed.summary || parsed.approaches) {
+      return _normalize(_fillMissing(parsed, goal));
+    }
     throw new Error('JSON found but missing expected fields');
   } catch {
-    return _emptyFindings(goal, rawOutput);
+    // Second attempt: regex-extract individual string fields from the raw blob
+    const partial = _extractByRegex(rawOutput, goal);
+    if (partial) return _normalize(partial);
+    // Last resort: empty findings — NEVER dump rawOutput into summary
+    return _emptyFindings(goal);
   }
 }
 

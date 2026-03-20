@@ -57,6 +57,23 @@ function truncateDesc(text = '', max = 600) {
   return t.length > max ? t.slice(0, max) + '…' : t;
 }
 
+/**
+ * Coerce a research list item to a plain string.
+ * Handles both the expected string format and object shapes the LLM sometimes
+ * emits: {name, consequence}  {ops, specifics}  {observability, ...}
+ */
+function flattenItem(item) {
+  if (!item) return '';
+  if (typeof item === 'string') return item;
+  if (typeof item === 'object') {
+    const { name, consequence, ops, specifics, observability, ...rest } = item;
+    const parts = [name, ops, observability, consequence, specifics,
+      ...Object.values(rest).filter(v => typeof v === 'string')].filter(Boolean);
+    return parts.join(' — ');
+  }
+  return String(item);
+}
+
 /** Detect file extension and return an icon */
 function fileIcon(path = '') {
   const ext = path.split('.').pop().toLowerCase();
@@ -96,7 +113,19 @@ function renderSummary(text) {
   if (!text) return '';
   const trimmed = text.trim();
 
-  // JSON array from the LLM (e.g. ["point one", "point two"])
+  // ── Detect raw JSON dump stored as summary (parseFindings fallback path) ──
+  // This happens when extractJSON fails and rawOutput was saved as summary.
+  // Try to recover the actual "summary" string from the embedded JSON.
+  if (trimmed.startsWith('{') || /```json/.test(trimmed) || /"topic"\s*:/.test(trimmed)) {
+    const m = trimmed.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (m) {
+      const recovered = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').trim();
+      if (recovered) return renderSummary(recovered); // recurse with the clean sentence
+    }
+    return ''; // nothing recoverable — hide the blob
+  }
+
+  // ── JSON array from the LLM (e.g. ["point one", "point two"]) ─────────────
   try {
     const parsed = JSON.parse(trimmed);
     if (Array.isArray(parsed) && parsed.length) {
@@ -105,14 +134,14 @@ function renderSummary(text) {
     }
   } catch { /* not JSON */ }
 
-  // Markdown / plain bullet list (every non-empty line starts with - * or •)
+  // ── Markdown / plain bullet list (every non-empty line starts with - * •) ──
   const lines = trimmed.split('\n').map(l => l.trim()).filter(Boolean);
   if (lines.length > 1 && lines.every(l => /^[-*•]\s/.test(l))) {
     const items = lines.map(l => `<li>${esc(l.replace(/^[-*•]\s+/, ''))}</li>`).join('');
     return `<ul class="summary-list">${items}</ul>`;
   }
 
-  // Prose fallback — md() handles bold, code, headers, etc.
+  // ── Prose fallback — md() handles bold, code, headers, etc. ────────────────
   return md(text);
 }
 
@@ -233,7 +262,7 @@ function phaseResearch(r) {
         <div>
           ${(r.keyConsiderations || []).length ? `
             <div class="section-label">Key Considerations</div>
-            <ul class="consider-list">${(r.keyConsiderations).map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+            <ul class="consider-list">${(r.keyConsiderations).map(c => `<li>${esc(flattenItem(c))}</li>`).join('')}</ul>` : ''}
           ${(r.techStack || []).length ? `
             <div class="section-label" style="margin-top:20px">Tech Stack</div>
             <div class="tech-pills">${(r.techStack).map(t => `<span class="tech-pill">${esc(t)}</span>`).join('')}</div>` : ''}
@@ -241,7 +270,7 @@ function phaseResearch(r) {
         <div>
           ${(r.potentialChallenges || []).length ? `
             <div class="section-label">Potential Blockers</div>
-            <ul class="challenges-list">${(r.potentialChallenges).map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+            <ul class="challenges-list">${(r.potentialChallenges).map(c => `<li>${esc(flattenItem(c))}</li>`).join('')}</ul>` : ''}
         </div>
       </div>
 
@@ -265,11 +294,11 @@ function phaseResearch(r) {
 
       ${(r.antiPatterns || []).length ? `
         <div class="section-label">Anti-Patterns to Avoid</div>
-        <ul class="warn-list warn-list--red">${(r.antiPatterns).map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+        <ul class="warn-list warn-list--red">${(r.antiPatterns).map(a => `<li>${esc(flattenItem(a))}</li>`).join('')}</ul>` : ''}
 
       ${(r.productionConsiderations || []).length ? `
         <div class="section-label">Production Checklist</div>
-        <ul class="warn-list warn-list--amber">${(r.productionConsiderations).map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+        <ul class="warn-list warn-list--amber">${(r.productionConsiderations).map(c => `<li>${esc(flattenItem(c))}</li>`).join('')}</ul>` : ''}
 
       ${r.versioningNotes ? `
         <div class="section-label">Versioning & Compatibility</div>
