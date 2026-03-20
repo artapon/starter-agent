@@ -513,7 +513,13 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
             <span class="card-title">All backend log entries</span>
           </div>
-          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="backendLog = []">Clear</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn" :class="liveLogEnabled ? 'btn-green' : 'btn-grey'" style="font-size:11px;padding:4px 10px" @click="liveLogEnabled = !liveLogEnabled">
+              <v-icon size="12">{{ liveLogEnabled ? 'mdi-pause' : 'mdi-play' }}</v-icon>
+              {{ liveLogEnabled ? 'Pause' : 'Live' }}
+            </button>
+            <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="backendLog = []">Clear</button>
+          </div>
         </div>
         <div class="backend-log" ref="backendLogEl">
           <div v-for="(entry, i) in backendLog" :key="i"
@@ -680,7 +686,13 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
             <span class="card-title">All backend log entries</span>
           </div>
-          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="pBackendLog = []">Clear</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn" :class="liveLogEnabled ? 'btn-green' : 'btn-grey'" style="font-size:11px;padding:4px 10px" @click="liveLogEnabled = !liveLogEnabled">
+              <v-icon size="12">{{ liveLogEnabled ? 'mdi-pause' : 'mdi-play' }}</v-icon>
+              {{ liveLogEnabled ? 'Pause' : 'Live' }}
+            </button>
+            <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="pBackendLog = []">Clear</button>
+          </div>
         </div>
         <div class="backend-log" ref="pBackendLogEl">
           <div v-for="(entry, i) in pBackendLog" :key="i"
@@ -1035,7 +1047,13 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
             <span class="card-title">All backend log entries</span>
           </div>
-          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="wBackendLog = []">Clear</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn" :class="liveLogEnabled ? 'btn-green' : 'btn-grey'" style="font-size:11px;padding:4px 10px" @click="liveLogEnabled = !liveLogEnabled">
+              <v-icon size="12">{{ liveLogEnabled ? 'mdi-pause' : 'mdi-play' }}</v-icon>
+              {{ liveLogEnabled ? 'Pause' : 'Live' }}
+            </button>
+            <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="wBackendLog = []">Clear</button>
+          </div>
         </div>
         <div class="backend-log" ref="wBackendLogEl">
           <div v-for="(entry, i) in wBackendLog" :key="i"
@@ -1180,7 +1198,13 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
             <span class="card-title">All backend log entries</span>
           </div>
-          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="rvBackendLog = []">Clear</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn" :class="liveLogEnabled ? 'btn-green' : 'btn-grey'" style="font-size:11px;padding:4px 10px" @click="liveLogEnabled = !liveLogEnabled">
+              <v-icon size="12">{{ liveLogEnabled ? 'mdi-pause' : 'mdi-play' }}</v-icon>
+              {{ liveLogEnabled ? 'Pause' : 'Live' }}
+            </button>
+            <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="rvBackendLog = []">Clear</button>
+          </div>
         </div>
         <div class="backend-log" ref="rvBackendLogEl">
           <div v-for="(entry, i) in rvBackendLog" :key="i"
@@ -1247,7 +1271,8 @@ const progressTransition = computed(() => progressIndet.value ? 'width 2s ease' 
 // ── Logs ──────────────────────────────────────────────────────────────
 const agentLog    = ref([]);
 const chatBuffer  = ref('');
-const backendLog  = ref([]);
+const backendLog      = ref([]);
+const liveLogEnabled  = ref(false);
 const logStreamEl    = ref(null);
 const chatStreamEl   = ref(null);
 const backendLogEl   = ref(null);
@@ -1971,6 +1996,8 @@ function onMemorySaved(data) {
   appendLog('💾', 'tag-done', `Memory saved — STM: ${data.stm} entry, LTM: ${data.ltm} entries`);
 }
 function onLogEntry(entry) {
+  if (!liveLogEnabled.value) return;
+
   const researcherHighlight = entry.agentId === 'researcher' || (entry.message || '').toLowerCase().includes('researcher') || (entry.message || '').toLowerCase().includes('mcp');
   appendBackendLog(entry.level, entry.agentId || '—', entry.message, researcherHighlight);
 
