@@ -883,6 +883,173 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
       </div>
 
     </div><!-- /tab-body worker -->
+
+    <!-- ── Planner tab ──────────────────────────────────────────────── -->
+    <div v-if="activeTab === 'planner'" class="tab-body">
+
+      <div class="dbg-title">
+        <v-icon size="18" color="#A78BFA">mdi-clipboard-list-outline</v-icon>
+        <div>
+          <div class="dbg-title__name">Planner Agent</div>
+          <div class="dbg-title__sub">Run the Planner agent directly — provide a goal and inspect the generated step-by-step execution plan.</div>
+        </div>
+      </div>
+
+      <!-- Section 1: Generate a Plan -->
+      <div class="section-label">1 — Generate a Plan</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#A78BFA">mdi-play-circle-outline</v-icon>
+            <span class="card-title">Planner Task</span>
+          </div>
+          <span class="badge" :class="pRunBadgeClass">
+            <span class="dot" :class="pRunPulse ? 'dot-pulse' : ''"></span>
+            {{ pRunBadgeText }}
+          </span>
+        </div>
+        <div class="input-row">
+          <input
+            v-model="pGoalInput"
+            class="goal-input"
+            placeholder="Enter a goal to plan… e.g. Build a REST API with JWT auth"
+            @keydown.enter="!pRunning && runPlanner()"
+          />
+          <button class="btn btn-purple" :disabled="pRunning || !pGoalInput.trim()" @click="runPlanner">
+            <v-icon size="13">mdi-play</v-icon> Generate Plan
+          </button>
+          <button class="btn btn-grey" @click="pClearAll">
+            <v-icon size="13">mdi-refresh</v-icon> Clear
+          </button>
+        </div>
+        <div class="progress-bar"><div class="progress-fill progress-fill--purple" :style="{ width: pProgressWidth, transition: pProgressTransition }"></div></div>
+        <div>
+          <div class="log-header">Status Log</div>
+          <div class="log-stream" ref="pLogStreamEl">
+            <div v-for="(entry, i) in pAgentLog" :key="i" class="log-line">
+              <span class="log-ts">{{ entry.ts }}</span>
+              <span class="log-tag" :class="entry.tag">{{ entry.icon }}</span>
+              <span class="log-msg">{{ entry.msg }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 2: Plan Result -->
+      <div class="section-label">2 — Plan Result</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#A78BFA">mdi-clipboard-list-outline</v-icon>
+            <span class="card-title">Generated Plan</span>
+          </div>
+          <span class="badge" :class="pPlan ? 'badge-purple' : 'badge-grey'">
+            {{ pPlan ? `${(pPlan.steps||[]).length} steps` : 'Waiting…' }}
+          </span>
+        </div>
+        <div v-if="!pPlan" class="empty-hint">Run a planner task above — the generated plan will appear here.</div>
+        <template v-else>
+          <!-- Meta row -->
+          <div class="plan-meta">
+            <div class="plan-meta__item plan-meta__item--wide">
+              <div class="plan-meta__label">Goal</div>
+              <div class="plan-meta__val" style="color:#A78BFA">{{ pPlan.goal }}</div>
+            </div>
+            <div v-if="pPlan.priority" class="plan-meta__item">
+              <div class="plan-meta__label">Priority</div>
+              <div class="plan-meta__val">{{ pPlan.priority }}</div>
+            </div>
+            <div v-if="pPlan.estimatedSteps" class="plan-meta__item">
+              <div class="plan-meta__label">Est. Steps</div>
+              <div class="plan-meta__val" style="color:#22D3EE">{{ pPlan.estimatedSteps }}</div>
+            </div>
+            <div v-if="pPlan.sessionId" class="plan-meta__item">
+              <div class="plan-meta__label">Session</div>
+              <div class="plan-meta__val font-mono" style="font-size:11px;color:rgba(226,232,240,0.35)">{{ pPlan.sessionId.slice(0,12) }}…</div>
+            </div>
+          </div>
+
+          <!-- Steps -->
+          <div class="steps-list">
+            <div v-for="(step, i) in (pPlan.steps || [])" :key="step.id || i" class="step-card">
+              <div class="step-card__header">
+                <div class="step-num">{{ i + 1 }}</div>
+                <div class="step-id font-mono">{{ step.id }}</div>
+                <div class="step-desc">{{ step.description }}</div>
+                <span v-if="step.agentHint" class="step-agent-badge">{{ step.agentHint }}</span>
+              </div>
+              <div v-if="step.dependsOn?.length" class="step-deps">
+                <span class="step-deps__label">Depends on:</span>
+                <span v-for="d in step.dependsOn" :key="d" class="step-dep-pill">{{ d }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="raw-json-toggle">
+            <button class="btn btn-grey" style="font-size:11px" @click="pShowRaw = !pShowRaw">
+              <v-icon size="12">{{ pShowRaw ? 'mdi-chevron-up' : 'mdi-code-braces' }}</v-icon>
+              {{ pShowRaw ? 'Hide' : 'Show' }} raw JSON
+            </button>
+          </div>
+          <pre v-if="pShowRaw" class="raw-json">{{ JSON.stringify(pPlan, null, 2) }}</pre>
+        </template>
+      </div>
+
+      <!-- Section 3: Recent Plans -->
+      <div class="section-label">3 — Recent Plans</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="#6366F1">mdi-history</v-icon>
+            <span class="card-title">Plan History</span>
+          </div>
+          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="fetchRecentPlans">
+            <v-icon size="12">mdi-refresh</v-icon> Refresh
+          </button>
+        </div>
+        <div v-if="!pRecentPlans.length" class="empty-hint">No plans yet — run the planner above.</div>
+        <div v-else class="plan-history-list">
+          <div v-for="p in pRecentPlans" :key="p.id"
+            class="plan-history-row"
+            :class="{ 'plan-history-row--active': pSelectedHistoryPlan?.id === p.id }"
+            @click="pSelectedHistoryPlan = p"
+          >
+            <span class="font-mono" style="font-size:10px;color:rgba(226,232,240,0.3)">{{ p.id.slice(0,10) }}</span>
+            <div class="plan-history-row__goal">{{ parsePlanGoal(p) }}</div>
+            <span class="plan-history-row__steps">{{ parsePlanStepCount(p) }} steps</span>
+            <span style="font-size:10px;color:rgba(226,232,240,0.3);flex-shrink:0">
+              {{ p.created_at ? new Date(p.created_at * 1000).toLocaleString() : '' }}
+            </span>
+            <button class="btn btn-grey" style="font-size:10px;padding:2px 8px;margin-left:4px;flex-shrink:0" @click.stop="loadHistoryPlan(p)">
+              <v-icon size="11">mdi-arrow-top-right</v-icon> Load
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Backend Logs -->
+      <div class="section-label">4 — Backend Logs (live)</div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-header-left">
+            <v-icon size="15" color="rgba(226,232,240,0.4)">mdi-console</v-icon>
+            <span class="card-title">All backend log entries</span>
+          </div>
+          <button class="btn btn-grey" style="font-size:11px;padding:4px 10px" @click="pBackendLog = []">Clear</button>
+        </div>
+        <div class="backend-log" ref="pBackendLogEl">
+          <div v-for="(entry, i) in pBackendLog" :key="i"
+            class="backend-log__line"
+            :style="{ color: logColor(entry.level, entry.highlight) }"
+          >
+            <span class="backend-log__ts">{{ entry.ts }}</span>
+            <span class="backend-log__src">[{{ entry.source }}]</span>
+            {{ entry.msg }}
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-body planner -->
   </div>
 </template>
 
@@ -896,6 +1063,7 @@ const socket = useSocket();
 const tabs = [
   { id: 'researcher', label: 'Researcher', icon: 'mdi-magnify' },
   { id: 'worker',     label: 'Worker',     icon: 'mdi-code-braces' },
+  { id: 'planner',    label: 'Planner',    icon: 'mdi-clipboard-list-outline' },
 ];
 const activeTab = ref('researcher');
 
@@ -1374,6 +1542,104 @@ function wClearAll() {
   setWRunBadge('grey', 'Idle');
 }
 
+// ── Planner tab state ─────────────────────────────────────────────────
+const pGoalInput     = ref('Build a REST API with JWT authentication and CRUD endpoints');
+const pRunning       = ref(false);
+const pRunBadgeText  = ref('Idle');
+const pRunBadgeClass = ref('badge-grey');
+const pRunPulse      = ref(false);
+const pProgressPct   = ref(0);
+const pProgressIndet = ref(false);
+const pProgressWidth = computed(() => pProgressIndet.value ? '60%' : pProgressPct.value + '%');
+const pProgressTransition = computed(() => pProgressIndet.value ? 'width 2s ease' : 'width .4s ease');
+const pAgentLog      = ref([]);
+const pBackendLog    = ref([]);
+const pLogStreamEl   = ref(null);
+const pBackendLogEl  = ref(null);
+const pPlan          = ref(null);
+const pShowRaw       = ref(false);
+const pRecentPlans   = ref([]);
+const pSelectedHistoryPlan = ref(null);
+
+function setPRunBadge(color, text, pulse = false) {
+  pRunBadgeClass.value = `badge-${color}`;
+  pRunBadgeText.value  = text;
+  pRunPulse.value      = pulse;
+}
+function pAppendLog(icon, tag, msg) {
+  pAgentLog.value.push({ ts: ts(), icon, tag, msg });
+  nextTick(() => { if (pLogStreamEl.value) pLogStreamEl.value.scrollTop = pLogStreamEl.value.scrollHeight; });
+}
+function pAppendBackendLog(level, source, msg, highlight) {
+  pBackendLog.value.push({ ts: ts(), level, source, msg, highlight });
+  if (pBackendLog.value.length > 500) pBackendLog.value.splice(0, 100);
+  nextTick(() => { if (pBackendLogEl.value) pBackendLogEl.value.scrollTop = pBackendLogEl.value.scrollHeight; });
+}
+function parsePlanGoal(plan) {
+  try {
+    const d = typeof plan.plan_json === 'string' ? JSON.parse(plan.plan_json) : plan;
+    return d.goal || plan.goal || '(no goal)';
+  } catch { return plan.goal || '(no goal)'; }
+}
+function parsePlanStepCount(plan) {
+  try {
+    const d = typeof plan.plan_json === 'string' ? JSON.parse(plan.plan_json) : plan;
+    return (d.steps || []).length;
+  } catch { return 0; }
+}
+function loadHistoryPlan(p) {
+  try {
+    const d = typeof p.plan_json === 'string' ? JSON.parse(p.plan_json) : p;
+    pPlan.value = { ...d, sessionId: p.session_id || d.sessionId };
+    pSelectedHistoryPlan.value = p;
+    pAppendLog('📋', 'tag-wf', `Loaded plan: ${parsePlanGoal(p)}`);
+  } catch (e) {
+    pAppendLog('❌', 'tag-error', `Failed to parse plan: ${e.message}`);
+  }
+}
+async function fetchRecentPlans() {
+  try {
+    const { data } = await axios.get('/api/planner/plans');
+    pRecentPlans.value = data;
+  } catch { /* keep existing */ }
+}
+async function runPlanner() {
+  const goal = pGoalInput.value.trim();
+  if (!goal) return;
+  pAgentLog.value = [];
+  pPlan.value     = null;
+  pShowRaw.value  = false;
+  pRunning.value  = true;
+  setPRunBadge('cyan', '● Planning…', true);
+  pProgressPct.value   = 5;
+  pProgressIndet.value = true;
+  pAppendLog('📋', 'tag-wf', `Goal: "${goal}"`);
+  try {
+    const { data } = await axios.post('/api/planner/plan', { goal });
+    pPlan.value = data;
+    setPRunBadge('green', '✓ Complete');
+    pProgressPct.value   = 100;
+    pProgressIndet.value = false;
+    pRunning.value       = false;
+    pAppendLog('✅', 'tag-done', `Plan complete — ${(data.steps || []).length} steps generated`);
+    fetchRecentPlans();
+  } catch (e) {
+    pAppendLog('❌', 'tag-error', `Planner failed: ${e.response?.data?.error || e.message}`);
+    setPRunBadge('red', '✗ Failed');
+    pProgressPct.value   = 0;
+    pProgressIndet.value = false;
+    pRunning.value       = false;
+  }
+}
+function pClearAll() {
+  pAgentLog.value      = [];
+  pPlan.value          = null;
+  pShowRaw.value       = false;
+  pProgressPct.value   = 0;
+  pProgressIndet.value = false;
+  setPRunBadge('grey', 'Idle');
+}
+
 // ── Socket listeners ──────────────────────────────────────────────────
 function onConnect() {
   connBadgeText.value  = '● Connected';
@@ -1415,6 +1681,14 @@ function onAgentStatus(data) {
     if (data.status === 'working') {
       wProgressIndet.value = true;
       setWRunBadge('cyan', '● Working…', true);
+    }
+  }
+  // ── Planner tab ───────────────────────────────────────────
+  if (data.agentId === 'planner') {
+    pAppendLog('⚡', 'tag-status', `[planner] ${data.status}${data.currentTask ? ': ' + data.currentTask : ''}`);
+    if (data.status === 'working') {
+      pProgressIndet.value = true;
+      setPRunBadge('cyan', '● Working…', true);
     }
   }
 }
@@ -1480,6 +1754,9 @@ function onLogEntry(entry) {
 
   const workerHighlight = entry.agentId === 'worker' || (entry.message || '').toLowerCase().includes('worker') || (entry.message || '').toLowerCase().includes('blueprint') || (entry.message || '').toLowerCase().includes('wrote:');
   wAppendBackendLog(entry.level, entry.agentId || '—', entry.message, workerHighlight);
+
+  const plannerHighlight = entry.agentId === 'planner' || (entry.message || '').toLowerCase().includes('planner') || (entry.message || '').toLowerCase().includes('plan');
+  pAppendBackendLog(entry.level, entry.agentId || '—', entry.message, plannerHighlight);
 }
 
 onMounted(async () => {
@@ -1504,6 +1781,7 @@ onMounted(async () => {
     await checkBackend();
     await checkMCPSetting();
     await wCheckBackend();
+    fetchRecentPlans();
   }, 500);
 });
 
@@ -2034,5 +2312,77 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
   font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.65;
   color: rgba(226,232,240,0.85); white-space: pre-wrap; word-break: break-word;
   max-height: 600px; overflow-y: auto;
+}
+
+/* ── Planner tab ─────────────────────────────────────────────────────── */
+.btn-purple { background: rgba(167,139,250,0.1); color: #A78BFA; border-color: rgba(167,139,250,0.3); }
+.badge-purple { background: rgba(167,139,250,0.1); color: #A78BFA; border: 1px solid rgba(167,139,250,0.3); }
+.progress-fill--purple { background: linear-gradient(90deg, #7C3AED, #A78BFA); }
+
+.plan-meta {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.plan-meta__item { display: flex; flex-direction: column; gap: 3px; }
+.plan-meta__item--wide { flex: 1; min-width: 200px; }
+.plan-meta__label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(226,232,240,0.35); }
+.plan-meta__val { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.9); }
+
+.steps-list { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; }
+.step-card {
+  background: rgba(167,139,250,0.04);
+  border: 1px solid rgba(167,139,250,0.12);
+  border-radius: 8px; padding: 10px 14px;
+}
+.step-card__header {
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.step-num {
+  flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #A78BFA;
+}
+.step-id {
+  flex-shrink: 0;
+  font-size: 10px; color: rgba(226,232,240,0.3);
+  padding-top: 4px;
+}
+.step-desc { flex: 1; font-size: 13px; color: rgba(226,232,240,0.85); line-height: 1.5; }
+.step-agent-badge {
+  flex-shrink: 0;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+  padding: 2px 7px; border-radius: 10px;
+  background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.2); color: #22D3EE;
+}
+.step-deps {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 5px;
+  margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.04);
+  font-size: 11px;
+}
+.step-deps__label { color: rgba(226,232,240,0.35); }
+.step-dep-pill {
+  padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 600;
+  background: rgba(255,255,255,0.06); color: rgba(226,232,240,0.5);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.plan-history-list { display: flex; flex-direction: column; }
+.plan-history-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  cursor: pointer; transition: background 0.12s;
+}
+.plan-history-row:last-child { border-bottom: none; }
+.plan-history-row:hover { background: rgba(167,139,250,0.04); }
+.plan-history-row--active { background: rgba(167,139,250,0.07) !important; border-left: 2px solid #A78BFA; padding-left: 14px; }
+.plan-history-row__goal {
+  flex: 1; font-size: 12px; color: rgba(226,232,240,0.75);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.plan-history-row__steps {
+  font-size: 11px; font-weight: 600; color: #A78BFA; flex-shrink: 0;
 }
 </style>
