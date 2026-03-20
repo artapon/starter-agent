@@ -88,7 +88,7 @@
               <v-icon size="13" :color="sessionTypeColor(s.session_id)">{{ sessionTypeIcon(s.session_id) }}</v-icon>
               <div class="session-row__info">
                 <span class="session-row__label">{{ s.preview || sessionLabel(s.session_id) }}</span>
-                <span class="session-row__meta">{{ sessionLabel(s.session_id) }} · {{ s.snapshot_count }} turn{{ s.snapshot_count !== 1 ? 's' : '' }}</span>
+                <span class="session-row__meta">{{ sessionTypeLabel(s.session_id) }} · {{ s.snapshot_count }} turn{{ s.snapshot_count !== 1 ? 's' : '' }}</span>
               </div>
               <router-link v-if="reportSessions.has(s.session_id)"
                 :to="`/report/${s.session_id}`"
@@ -309,6 +309,13 @@ function sessionLabel(sessionId) {
     return (name ? name + ' · ' : '') + 'Run ' + runId.slice(0, 8);
   }
   return sessionId.slice(0, 12) + '…';
+}
+
+function sessionTypeLabel(sessionId) {
+  const { type } = parseSessionId(sessionId);
+  if (type === 'chat')     return 'Chat';
+  if (type === 'workflow') return 'Workflow';
+  return 'Session';
 }
 
 function sessionTypeIcon(sessionId) {
