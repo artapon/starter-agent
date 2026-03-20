@@ -85,6 +85,37 @@ function parseWorkerFiles(resultStr = '') {
   return m[2].split(',').map(f => f.trim()).filter(Boolean);
 }
 
+/**
+ * Render the research summary text as an <ul> bullet list when the content
+ * is structured (JSON array or markdown bullet lines), otherwise as prose.
+ *   – JSON array  → each element becomes a <li>
+ *   – Lines all starting with - / * / • → strip prefix, wrap in <ul>
+ *   – Anything else → md() prose
+ */
+function renderSummary(text) {
+  if (!text) return '';
+  const trimmed = text.trim();
+
+  // JSON array from the LLM (e.g. ["point one", "point two"])
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed) && parsed.length) {
+      const items = parsed.map(item => `<li>${esc(String(item))}</li>`).join('');
+      return `<ul class="summary-list">${items}</ul>`;
+    }
+  } catch { /* not JSON */ }
+
+  // Markdown / plain bullet list (every non-empty line starts with - * or •)
+  const lines = trimmed.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length > 1 && lines.every(l => /^[-*•]\s/.test(l))) {
+    const items = lines.map(l => `<li>${esc(l.replace(/^[-*•]\s+/, ''))}</li>`).join('');
+    return `<ul class="summary-list">${items}</ul>`;
+  }
+
+  // Prose fallback — md() handles bold, code, headers, etc.
+  return md(text);
+}
+
 /** Score color: ≥8 green, 5–7 amber, <5 red */
 function scoreColor(score) {
   if (score >= 8) return '#10B981';
@@ -184,7 +215,7 @@ function phaseResearch(r) {
       ${r.topic || r.summary ? `
         <div class="research-hero">
           ${r.topic ? `<div class="research-topic">${esc(r.topic)}</div>` : ''}
-          ${r.summary ? `<div class="research-summary">${md(r.summary)}</div>` : ''}
+          ${r.summary ? `<div class="research-summary">${renderSummary(r.summary)}</div>` : ''}
         </div>` : ''}
 
       ${r.recommendedApproach ? `
@@ -642,7 +673,7 @@ code,kbd{
 .toc-link--final:hover{border-color:var(--green);background:rgba(52,211,153,.05)}
 
 /* ── Main layout ─────────────────────────────────────────────────────────── */
-.main{max-width:1200px;margin:0 auto;padding:32px 48px 96px}
+.main{padding:32px 48px 96px}
 
 /* ── Stats panel ─────────────────────────────────────────────────────────── */
 .stats-panel{
@@ -732,6 +763,23 @@ code,kbd{
 .research-summary p:last-child{margin-bottom:0}
 .research-summary strong{color:var(--text);font-weight:700}
 .research-summary code{font-size:13px}
+.summary-list{
+  list-style:none;padding:0;margin:0;
+  display:flex;flex-direction:column;gap:8px;
+}
+.summary-list li{
+  padding:8px 12px 8px 32px;
+  position:relative;
+  background:rgba(255,255,255,.025);
+  border-radius:7px;
+  line-height:1.6;
+}
+.summary-list li::before{
+  content:'›';
+  position:absolute;left:11px;top:8px;
+  font-size:15px;font-weight:700;
+  color:var(--cyan);line-height:1.6;
+}
 .section-label{
   font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.15em;
   color:var(--text-faint);margin:24px 0 12px;
