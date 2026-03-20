@@ -22,13 +22,13 @@
         :key="route.path"
         :to="route.path"
         class="nav-item"
-        :class="{ 'nav-item--active': currentPath === route.path }"
+        :class="{ 'nav-item--active': $route.path === route.path }"
       >
         <div class="nav-item__icon-wrap">
           <v-icon size="16" class="nav-item__icon">{{ route.meta.icon }}</v-icon>
         </div>
         <span class="nav-item__label">{{ route.meta.title }}</span>
-        <span v-if="currentPath === route.path" class="nav-item__bar" />
+        <span v-if="$route.path === route.path" class="nav-item__bar" />
       </router-link>
     </div>
 
@@ -47,15 +47,16 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router';
+import { useRouter } from 'vue-router';
 
 const model = defineModel({ type: Boolean });
 const router = useRouter();
-const route  = useRoute();
 
-const currentPath = computed(() => route.path);
-const navRoutes   = computed(() => router.options.routes.filter(r => r.meta?.title && r.meta?.nav !== false));
+// Static — routes are defined once at startup and never change at runtime.
+// Using a plain array (not computed) avoids reactive slot tracking that
+// triggers Vue's "Slot invoked outside render function" warning from
+// VNavigationDrawer's internal Transition.
+const navRoutes = router.options.routes.filter(r => r.meta?.title && r.meta?.nav !== false);
 </script>
 
 <style scoped>
