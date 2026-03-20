@@ -41,16 +41,35 @@
         </button>
       </div>
 
-      <!-- Right actions -->
+      <!-- Right actions + pager -->
       <div class="toolbar-actions">
         <span class="stat-chip">
           <v-icon size="11">mdi-format-list-numbered</v-icon>
           {{ total }} lines
         </span>
-        <span class="stat-chip" v-if="fileSize">
-          <v-icon size="11">mdi-database-outline</v-icon>
-          {{ formatSize(fileSize) }}
-        </span>
+
+        <!-- Pager inline in toolbar -->
+        <div class="pager">
+          <button class="pg-btn" :disabled="currentPage >= totalPages" @click="goPage(totalPages)" title="Oldest">
+            <v-icon size="14">mdi-page-first</v-icon>
+          </button>
+          <button class="pg-btn" :disabled="currentPage >= totalPages" @click="goPage(currentPage + 1)">
+            <v-icon size="14">mdi-chevron-left</v-icon>
+          </button>
+          <div class="pg-pages">
+            <button v-for="p in visiblePages" :key="p"
+              class="pg-num" :class="{ 'pg-num--active': p === currentPage }"
+              @click="goPage(p)">{{ p }}</button>
+          </div>
+          <button class="pg-btn" :disabled="currentPage <= 1" @click="goPage(currentPage - 1)">
+            <v-icon size="14">mdi-chevron-right</v-icon>
+          </button>
+          <button class="pg-btn" :disabled="currentPage <= 1" @click="goPage(1)" title="Newest">
+            <v-icon size="14">mdi-page-last</v-icon>
+          </button>
+          <span class="pg-info">{{ currentPage }} / {{ totalPages }}</span>
+        </div>
+
         <button class="action-btn" :class="{ 'action-btn--spin': loading }" @click="reload" title="Reload">
           <v-icon size="13">mdi-refresh</v-icon>
         </button>
@@ -107,33 +126,10 @@
       </table>
     </div>
 
-    <!-- ── Pagination + footer ────────────────────────────────────────── -->
+    <!-- ── Footer ────────────────────────────────────────────────────── -->
     <div class="lm-footer">
       <span class="footer-file">{{ activeFile === 'info' ? 'agent-info.log' : 'agent-error.log' }}</span>
-
-      <div class="pager">
-        <button class="pg-btn" :disabled="currentPage >= totalPages" @click="goPage(totalPages)" title="Oldest">
-          <v-icon size="14">mdi-page-first</v-icon>
-        </button>
-        <button class="pg-btn" :disabled="currentPage >= totalPages" @click="goPage(currentPage + 1)">
-          <v-icon size="14">mdi-chevron-left</v-icon>
-        </button>
-
-        <div class="pg-pages">
-          <button v-for="p in visiblePages" :key="p"
-            class="pg-num" :class="{ 'pg-num--active': p === currentPage }"
-            @click="goPage(p)">{{ p }}</button>
-        </div>
-
-        <button class="pg-btn" :disabled="currentPage <= 1" @click="goPage(currentPage - 1)">
-          <v-icon size="14">mdi-chevron-right</v-icon>
-        </button>
-        <button class="pg-btn" :disabled="currentPage <= 1" @click="goPage(1)" title="Newest">
-          <v-icon size="14">mdi-page-last</v-icon>
-        </button>
-
-        <span class="pg-info">{{ currentPage }} / {{ totalPages }}</span>
-      </div>
+      <span class="footer-size" v-if="fileSize">{{ formatSize(fileSize) }}</span>
     </div>
 
     <!-- ── Confirm clear dialog ───────────────────────────────────────── -->
@@ -178,7 +174,7 @@ const AGENT_COLORS = {
   reviewer: '#F59E0B', http: '#94A3B8', memory: '#A78BFA',
   workflow: '#F472B6', ltm: '#34D399', stm: '#60A5FA', app: '#94A3B8',
 };
-const PER_PAGE = 30;
+const PER_PAGE = 20;
 
 // ── State ────────────────────────────────────────────────────────────────────
 const activeFile   = ref('info');
@@ -478,6 +474,7 @@ onMounted(() => {
   font-size: 11px;
 }
 .footer-file { color: rgba(226,232,240,0.25); font-family: monospace; }
+.footer-size { color: rgba(226,232,240,0.2); }
 
 .pager { display: flex; align-items: center; gap: 4px; }
 
