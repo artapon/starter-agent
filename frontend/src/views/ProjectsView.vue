@@ -55,13 +55,7 @@
           </div>
         </div>
         <div class="proj-card__actions">
-          <button class="proj-select-btn"
-            @click="openInChat(project)"
-            title="Open in Chat">
-            <v-icon size="12">mdi-chat-outline</v-icon>
-            <span>Open Chat</span>
-          </button>
-          <v-btn size="x-small" variant="text" icon="mdi-pencil-outline"
+<v-btn size="x-small" variant="text" icon="mdi-pencil-outline"
             style="color:rgba(226,232,240,0.4)" @click="openEdit(project)" />
           <v-btn size="x-small" variant="text"
             :icon="folderStatus[project.id] === 'ok' ? 'mdi-folder-check' : folderStatus[project.id] === 'created' ? 'mdi-folder-plus' : 'mdi-folder-sync-outline'"
