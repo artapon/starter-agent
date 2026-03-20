@@ -55,11 +55,23 @@
                 Sessions
                 <span class="sidebar-count">{{ filteredSessions(activeAgent).length }}</span>
               </span>
-              <button v-if="selectedSession[activeAgent]"
-                class="danger-btn" title="Clear session"
-                @click="clearSession(activeAgent, selectedSession[activeAgent])">
-                <v-icon size="13">mdi-delete-outline</v-icon>
-              </button>
+              <div class="sidebar-header__right">
+                <!-- Pagination inline in header -->
+                <div v-if="totalPages > 1" class="sidebar-pager">
+                  <button class="pager-btn" :disabled="sessionPage === 0" @click="sessionPage--">
+                    <v-icon size="14">mdi-chevron-left</v-icon>
+                  </button>
+                  <span class="pager-info">{{ sessionPage + 1 }} / {{ totalPages }}</span>
+                  <button class="pager-btn" :disabled="sessionPage >= totalPages - 1" @click="sessionPage++">
+                    <v-icon size="14">mdi-chevron-right</v-icon>
+                  </button>
+                </div>
+                <button v-if="selectedSession[activeAgent]"
+                  class="danger-btn" title="Clear session"
+                  @click="clearSession(activeAgent, selectedSession[activeAgent])">
+                  <v-icon size="13">mdi-delete-outline</v-icon>
+                </button>
+              </div>
             </div>
 
             <div v-if="!filteredSessions(activeAgent).length" class="empty-hint">
@@ -84,17 +96,6 @@
                 <v-icon size="9">mdi-file-chart-outline</v-icon>
               </router-link>
             </button>
-
-            <!-- Pagination -->
-            <div v-if="totalPages > 1" class="sidebar-pager">
-              <button class="pager-btn" :disabled="sessionPage === 0" @click="sessionPage--">
-                <v-icon size="14">mdi-chevron-left</v-icon>
-              </button>
-              <span class="pager-info">{{ sessionPage + 1 }} / {{ totalPages }}</span>
-              <button class="pager-btn" :disabled="sessionPage >= totalPages - 1" @click="sessionPage++">
-                <v-icon size="14">mdi-chevron-right</v-icon>
-              </button>
-            </div>
           </div>
 
           <!-- Conversation view -->
@@ -629,11 +630,10 @@ onUnmounted(() => {
   text-transform: none; letter-spacing: 0;
 }
 
+.sidebar-header__right { display: flex; align-items: center; gap: 6px; }
+
 .sidebar-pager {
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 10px 16px;
-  border-top: 1px solid rgba(255,255,255,0.05);
-  margin-top: auto; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
 }
 .pager-btn {
   width: 28px; height: 28px; border-radius: 6px;
