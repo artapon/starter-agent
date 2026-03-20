@@ -7,6 +7,7 @@ import { SocketEvents }       from '../../../core/socket/socket.events.js';
 import { createAbortController, abortById, clearAbortController } from '../../../core/abort/abort.registry.js';
 import { generateReport }     from '../../../core/reports/report.generator.js';
 import { memoryStore }        from '../../memory/services/memory.store.js';
+import { deleteSTM }         from '../../../core/memory/stm.store.js';
 import { setActiveRunWorkspace, clearActiveRunWorkspace } from '../../../core/tools/tool.implementations.js';
 import { projectStore }       from '../../../core/projects/project.store.js';
 import { getWorkspacePath, toFolderName } from '../../../core/workspace/workspace.path.js';
@@ -191,6 +192,10 @@ export class WorkflowRunner {
       clearAbortController(runId);
       memoryStore.clearWorkingMemory(runId);
       clearActiveRunWorkspace();
+      // Release per-session STM so memory doesn't accumulate across runs
+      for (const agentId of ['researcher', 'planner', 'worker', 'reviewer']) {
+        deleteSTM(agentId, sessionId);
+      }
     }
   }
 

@@ -4,12 +4,15 @@ import { config } from '../../config/index.js';
 
 const DB_PATH = path.resolve(config.dbPath.replace(/\.db$/, '.json'));
 
+// Max age for log entries (7 days in ms)
+const LOG_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 class TableOps {
-  constructor(name, store, meta, persist) {
+  constructor(name, store, meta, schedulePersist) {
     this._name = name;
     this._store = store;
     this._meta = meta;
-    this._persist = persist;
+    this._schedulePersist = schedulePersist;
   }
 
   _match(record, where) {
@@ -40,6 +43,7 @@ class TableOps {
 
   // Count matching records
   count(where = {}) {
+    if (!where || !Object.keys(where).length) return this._store.length;
     return this._store.filter(r => this._match(r, where)).length;
   }
 
@@ -51,7 +55,7 @@ class TableOps {
       entry.id = this._meta.lastId;
     }
     this._store.push(entry);
-    this._persist();
+    this._schedulePersist();
     return entry;
   }
 
@@ -68,7 +72,7 @@ class TableOps {
     const idx = this._store.findIndex(r => this._match(r, where));
     if (idx >= 0) {
       this._store[idx] = { ...this._store[idx], ...record };
-      this._persist();
+      this._schedulePersist();
       return this._store[idx];
     }
     return this.insert(record);
@@ -83,7 +87,7 @@ class TableOps {
         count++;
       }
     }
-    if (count) this._persist();
+    if (count) this._schedulePersist();
     return count;
   }
 
@@ -93,7 +97,7 @@ class TableOps {
     const keep = this._store.filter(r => !this._match(r, where));
     this._store.length = 0;
     this._store.push(...keep);
-    if (this._store.length !== before) this._persist();
+    if (this._store.length !== before) this._schedulePersist();
     return before - this._store.length;
   }
 }
@@ -102,7 +106,17 @@ class JsonDb {
   constructor(filePath) {
     this._filePath = filePath;
     this._data = null;
+    this._persistTimer = null;
     this._load();
+    this._pruneOldLogs();
+
+    // Final flush on process exit (sync fallback)
+    process.on('exit', () => {
+      if (this._persistTimer) {
+        clearTimeout(this._persistTimer);
+        this._flushSync();
+      }
+    });
   }
 
   _load() {
@@ -117,24 +131,52 @@ class JsonDb {
     }
   }
 
-  _persist() {
-    fs.writeFileSync(this._filePath, JSON.stringify(this._data, null, 2), 'utf-8');
+  // Prune log entries older than LOG_MAX_AGE_MS on startup to keep DB small
+  _pruneOldLogs() {
+    if (!Array.isArray(this._data.logs)) return;
+    const cutoff = Date.now() - LOG_MAX_AGE_MS;
+    const before = this._data.logs.length;
+    this._data.logs = this._data.logs.filter(r => (r.ts || 0) > cutoff);
+    const pruned = before - this._data.logs.length;
+    if (pruned > 0) {
+      console.log(`[db] Pruned ${pruned} log entries older than 7 days`);
+      this._schedulePersist();
+    }
+  }
+
+  // Debounced async write — coalesces rapid consecutive writes into one
+  _schedulePersist() {
+    if (this._persistTimer) return;
+    this._persistTimer = setTimeout(() => {
+      this._persistTimer = null;
+      const json = JSON.stringify(this._data);
+      fs.writeFile(this._filePath, json, 'utf-8', (err) => {
+        if (err) console.error('[db] persist failed:', err.message);
+      });
+    }, 200);
+  }
+
+  // Synchronous flush for process exit
+  _flushSync() {
+    try {
+      fs.writeFileSync(this._filePath, JSON.stringify(this._data), 'utf-8');
+    } catch (err) {
+      console.error('[db] final flush failed:', err.message);
+    }
   }
 
   // Returns a TableOps for the given table name (creates table if missing)
   table(name) {
     if (!this._data[name]) this._data[name] = [];
     if (!this._data._meta[name]) this._data._meta[name] = { lastId: 0 };
-    return new TableOps(name, this._data[name], this._data._meta[name], () => this._persist());
+    return new TableOps(name, this._data[name], this._data._meta[name], () => this._schedulePersist());
   }
 
-  // Run a function atomically (simple transaction shim — persists once at end)
+  // Run a function atomically — persists once at end
   transaction(fn) {
-    return () => {
-      const result = fn();
-      this._persist();
-      return result;
-    };
+    const result = fn();
+    this._schedulePersist();
+    return result;
   }
 }
 

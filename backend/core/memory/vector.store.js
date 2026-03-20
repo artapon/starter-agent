@@ -14,7 +14,7 @@
  * Using hnswlib-node directly (ESM-compatible via dynamic import cached below).
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, writeFile, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { embed, getEmbedDim } from './embedder.js';
@@ -175,7 +175,11 @@ class AgentVectorStore {
   _save() {
     try {
       this.index.writeIndex(this.idxPath);
-      writeFileSync(this.metaPath, JSON.stringify({ dim: this.dim, entries: this.metadata }, null, 2), 'utf8');
+      // Write metadata asynchronously to avoid blocking the event loop
+      const json = JSON.stringify({ dim: this.dim, entries: this.metadata });
+      writeFile(this.metaPath, json, 'utf8', (err) => {
+        if (err) logger.warn(`[${this.agentId}] LTM metadata save failed: ${err.message}`);
+      });
     } catch (err) {
       logger.warn(`[${this.agentId}] LTM save failed: ${err.message}`);
     }
