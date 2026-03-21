@@ -43,7 +43,7 @@
         <!-- reviewer → loop_reset -->
         <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('reviewer','loop_reset')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
         <!-- loop_reset → researcher -->
-        <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('loop_reset','researcher')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('loop_reset','researcher')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','researcher')})`"/>
+        <path d="M297,170 L209,170 L209,64" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('loop_reset','researcher')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('loop_reset','researcher')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','researcher')})`"/>
         <!-- assembler → done -->
         <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
         <!-- Edge labels -->
