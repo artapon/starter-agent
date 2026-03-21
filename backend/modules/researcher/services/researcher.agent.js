@@ -229,7 +229,7 @@ export class ResearcherAgent {
       const techKeywords = extractKeywords(goal, 60);
       if (isDebugMode()) logger.info(`Queries — web: "${webQuery.slice(0,60)}", tech: "${techKeywords}"`, { agentId: 'researcher' });
 
-      // ── Phase 1: Parallel searches (driven by SEARCH_ADAPTERS registry) ────
+      // ── Phase 1: Parallel searches + LTM query (all concurrent) ────────────
       sm?.emitAgentStatus('researcher', 'working', 'Searching...');
 
       // Register placeholder source cards before results arrive
@@ -248,7 +248,12 @@ export class ResearcherAgent {
           return { key, adapter, promise: byName[adapter.toolName].invoke({ query: q }, { signal }) };
         });
 
-      const settled = await Promise.allSettled(activeTasks.map(t => t.promise));
+      // LTM query runs concurrently with web searches — both are I/O-bound
+      const ltmContextPromise = memoryStore.getLTMContext('researcher', goal, 3);
+      const [settled] = await Promise.all([
+        Promise.allSettled(activeTasks.map(t => t.promise)),
+        ltmContextPromise.catch(() => null),
+      ]);
 
       // Map results back by adapter key
       const searchResults = {};
@@ -290,24 +295,33 @@ export class ResearcherAgent {
       }
 
       const pageContents = [];
-      let successfulBrowses = 0;
 
-      for (const { url, type } of urlsToBrowse) {
-        if (successfulBrowses >= 7) break;
-        sm?.emitAgentStatus('researcher', 'working', `Reading: ${url}`);
-        addSource(url, type);
-        try {
-          const text = await byName['browse_url'].invoke({ url }, { signal });
+      // Browse up to 7 URLs in parallel — eliminates the sequential per-URL latency
+      const candidates = urlsToBrowse.slice(0, 10);
+      if (candidates.length) {
+        sm?.emitAgentStatus('researcher', 'working', `Reading ${candidates.length} source${candidates.length !== 1 ? 's' : ''}…`);
+        candidates.forEach(({ url, type }) => addSource(url, type));
+
+        const browseSettled = await Promise.allSettled(
+          candidates.map(({ url, type }) =>
+            byName['browse_url'].invoke({ url }, { signal }).then(text => ({ url, type, text }))
+          )
+        );
+
+        for (const result of browseSettled) {
+          if (pageContents.length >= 7) break;
+          if (result.status === 'rejected') {
+            logger.error(`Browse failed: ${result.reason?.message || result.reason}`, { agentId: 'researcher' });
+            continue;
+          }
+          const { url, type, text } = result.value;
           if (text.startsWith('Failed to read') || text.startsWith('[binary')) {
             logger.error(`Browse skipped: ${text.slice(0, 80)}`, { agentId: 'researcher' });
           } else {
             addSource(url, type, text.slice(0, 300));
             pageContents.push({ url, text, type });
-            successfulBrowses++;
             logger.info(`Read ${url} (${text.length} chars)`, { agentId: 'researcher' });
           }
-        } catch (err) {
-          logger.error(`Browse failed for ${url}: ${err.message}`, { agentId: 'researcher' });
         }
       }
 
@@ -372,7 +386,8 @@ export class ResearcherAgent {
       const histMessages = runId
         ? []
         : toLMStudioMessages((await memory.loadMemoryVariables({})).chat_history || []);
-      const ltmContext   = await memoryStore.getLTMContext('researcher', goal, 3);
+      // ltmContextPromise was started concurrently with Phase 1 — just await the result
+      const ltmContext   = await ltmContextPromise.catch(() => null);
       const messages     = buildMessages(compressString(goal, 2048), histMessages, webContext, ltmContext || null);
 
       const rawOutput = await streamAndEmit(adapter._settings, messages, signal, sm, sessionId, 'researcher');

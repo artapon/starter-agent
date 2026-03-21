@@ -110,9 +110,14 @@ export function createNodes(socketManager) {
       ? `\n[Previously completed — ${previousResults.length} of ${steps.length} step(s) done]\n${previousResults.join('\n')}\nDo NOT re-implement or overwrite files already created above unless this task explicitly modifies them.\n`
       : '';
 
-    // Re-read workspace after previous steps wrote files
-    const latestWs = buildWorkspaceContext(state.workspaceFolder || undefined);
-    const currentWorkspaceContext = latestWs.isEmpty ? null : latestWs.context;
+    // Step 0: reuse planner's workspace scan — no new files exist yet.
+    // Step 1+: re-scan to pick up files written by previous steps.
+    const currentWorkspaceContext = state.currentStepIdx === 0
+      ? state.workspaceContext
+      : (() => {
+          const ws = buildWorkspaceContext(state.workspaceFolder || undefined);
+          return ws.isEmpty ? null : ws.context;
+        })();
 
     const enrichedTask = [
       `# Overall Goal: ${state.userGoal}\n`,
