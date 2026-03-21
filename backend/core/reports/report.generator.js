@@ -549,8 +549,8 @@ function renderIteration({ researchFindings, plan, subtaskResults, reviewFeedbac
         </div>` : ''}
     </div>
     <div class="iter-phases">
-      ${isFirst ? phaseResearch(researchFindings) : ''}
       ${phasePlan(plan)}
+      ${isFirst ? phaseResearch(researchFindings) : ''}
       ${phaseWorker(subtaskResults, plan?.steps)}
       ${phaseReview(reviewFeedback)}
     </div>
