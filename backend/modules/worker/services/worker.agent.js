@@ -143,13 +143,23 @@ function extractBlueprintByStrings(text) {
     const contentKeyIdx = text.indexOf('"content"', pathResult.end);
     if (contentKeyIdx === -1) break;
 
-    // Skip to the opening quote of the content value
+    // Skip to the opening quote (or backtick) of the content value
     let j = contentKeyIdx + 9;
-    while (j < text.length && text[j] !== '"') j++;
+    while (j < text.length && text[j] !== '"' && text[j] !== '`') j++;
     if (j >= text.length) break;
-    j++; // step past opening quote
+    const contentDelim = text[j];
+    j++; // step past opening delimiter
 
-    const contentResult = readJSONString(text, j);
+    let contentResult;
+    if (contentDelim === '`') {
+      // Model used template-literal syntax: read until closing backtick
+      const btEnd = text.indexOf('`', j);
+      contentResult = btEnd !== -1
+        ? { value: text.slice(j, btEnd), end: btEnd + 1 }
+        : { value: text.slice(j), end: text.length };
+    } else {
+      contentResult = readJSONString(text, j);
+    }
     if (!contentResult) break;
 
     files.push({ path: pathResult.value, content: contentResult.value });

@@ -194,16 +194,29 @@ export function createNodes(socketManager) {
       status: 'complete', approved: review.approved, score,
     });
 
-    // Not all steps done, or revision still needed with retries remaining → route accordingly
-    // approved + more steps → 'approved' (graph sends to researcher for next step)
-    // revision needed → 'revision_needed' (graph sends back to worker)
+    // Route: approved → next step (researcher) or final assembly; revision_needed → retry same step
     const maxRetries = 3;
-    if (!allDone || (state.status === 'revision_needed' && state.retryCount < maxRetries)) {
+    const newRetryCount = (state.retryCount || 0) + 1;
+
+    if (!review.approved && newRetryCount < maxRetries) {
+      // Retry the same step: decrement currentStepIdx so worker re-processes it
       return {
         reviewFeedback: review,
-        retryCount: review.approved ? 0 : state.retryCount + 1,
-        status: review.approved ? 'approved' : 'revision_needed',
+        retryCount:     newRetryCount,
+        currentStepIdx: state.currentStepIdx - 1,
+        status:         'revision_needed',
       };
+    }
+
+    if (!review.approved) {
+      // Max retries exhausted — warn and fall through to advance or assemble
+      emitStatus(state.sessionId, 'reviewer',
+        `\n⚠️ **Max retries (${maxRetries}) reached** — moving past this step.\n`);
+    }
+
+    // Approved (or max retries hit) with steps remaining → advance to researcher
+    if (!allDone) {
+      return { reviewFeedback: review, retryCount: 0, status: 'approved' };
     }
 
     // All done — improvement loop (researcher will research the improvement goal)

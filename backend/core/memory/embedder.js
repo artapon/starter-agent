@@ -84,7 +84,7 @@ export async function embed(text) {
     return vec;
   } catch (err) {
     if (_useLMStudio) {
-      logger.error(`LM Studio embeddings unavailable — using hash fallback: ${err.message}`);
+      logger.warn(`LM Studio embeddings unavailable — using hash fallback: ${err.message}`);
     }
     _useLMStudio = false;
     _retryAfter  = now + RETRY_DELAY;

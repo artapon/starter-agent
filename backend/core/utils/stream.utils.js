@@ -171,6 +171,42 @@ function stripThinkBlocks(text) {
 const JSON_ESCAPE_CHARS = new Set(['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u']);
 
 /**
+ * Replace backtick-delimited JSON values with properly escaped double-quoted
+ * strings. Some models emit template-literal syntax inside what should be JSON:
+ *   "content":`<!DOCTYPE html>...`  →  "content":"<!DOCTYPE html>..."
+ * Only converts a backtick when it has a matching closing backtick; unmatched
+ * backticks are left as-is so we don't corrupt non-backtick output.
+ */
+function fixBacktickValues(text) {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '`') {
+      let j = i + 1;
+      let value = '';
+      while (j < text.length && text[j] !== '`') {
+        const ch = text[j];
+        if      (ch === '"')  { value += '\\"';  j++;      }
+        else if (ch === '\\') { value += '\\\\'; j += 2;   }
+        else if (ch === '\n') { value += '\\n';  j++;      }
+        else if (ch === '\r') { value += '\\r';  j++;      }
+        else if (ch === '\t') { value += '\\t';  j++;      }
+        else                  { value += ch;     j++;      }
+      }
+      if (j < text.length) {  // found closing backtick
+        out += '"' + value + '"';
+        i = j + 1;
+      } else {
+        out += text[i++];     // no closing backtick — leave untouched
+      }
+    } else {
+      out += text[i++];
+    }
+  }
+  return out;
+}
+
+/**
  * Repair common JSON encoding faults produced by LLMs (especially thinking
  * models like Qwen3 that embed raw file content inside JSON string values):
  *
@@ -274,6 +310,13 @@ export function extractJSON(text) {
   // ── Pass 1: direct parse (model output is already valid JSON) ──────────────
   try { return JSON.parse(trimmed); } catch { /* continue */ }
   try { return JSON.parse(repairJSON(trimmed)); } catch { /* continue */ }
+
+  // ── Pass 1b: backtick value fix — "key":`value` → "key":"value" ───────────
+  const btFixed = fixBacktickValues(trimmed);
+  if (btFixed !== trimmed) {
+    try { return JSON.parse(btFixed); }             catch { /* continue */ }
+    try { return JSON.parse(repairJSON(btFixed)); } catch { /* continue */ }
+  }
 
   // ── Pass 2: markdown code fences ───────────────────────────────────────────
   const fenceRe = /```(?:json)?\s*\n?([\s\S]*?)\n?```/g;
