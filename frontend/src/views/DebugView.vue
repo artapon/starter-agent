@@ -629,6 +629,14 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             </div>
           </div>
 
+          <!-- Agent Skills -->
+          <div v-if="pPlan.agentSkills" class="plan-skills-row">
+            <span class="plan-skills-label">Agent Skills</span>
+            <span class="plan-skill-chip plan-skill-chip--researcher">🔬 researcher: <strong>{{ pPlan.agentSkills.researcher || 'general' }}</strong></span>
+            <span class="plan-skill-chip plan-skill-chip--worker">💻 worker: <strong>{{ pPlan.agentSkills.worker || 'general' }}</strong></span>
+            <span class="plan-skill-chip plan-skill-chip--reviewer">🔍 reviewer: <strong>{{ pPlan.agentSkills.reviewer || 'general' }}</strong></span>
+          </div>
+
           <!-- Steps -->
           <div class="steps-list">
             <div v-for="(step, i) in (pPlan.steps || [])" :key="step.id || i" class="step-card">
@@ -1257,12 +1265,12 @@ import axios from 'axios';
 const socket = useSocket();
 
 const tabs = [
-  { id: 'researcher', label: 'Researcher', icon: 'mdi-magnify' },
   { id: 'planner',    label: 'Planner',    icon: 'mdi-clipboard-list-outline' },
+  { id: 'researcher', label: 'Researcher', icon: 'mdi-magnify' },
   { id: 'worker',     label: 'Worker',     icon: 'mdi-code-braces' },
   { id: 'reviewer',   label: 'Reviewer',   icon: 'mdi-eye-check-outline' },
 ];
-const activeTab = ref('researcher');
+const activeTab = ref('planner');
 
 // ── Library skill selectors ───────────────────────────────────────────
 const researcherSkills = [
@@ -2650,6 +2658,14 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
 .plan-meta__item--wide { flex: 1; min-width: 200px; }
 .plan-meta__label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(226,232,240,0.35); }
 .plan-meta__val { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.9); }
+
+.plan-skills-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 16px; border-top: 1px solid rgba(255,255,255,0.05); margin-top: 2px; }
+.plan-skills-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(226,232,240,0.35); margin-right: 4px; }
+.plan-skill-chip { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); color: rgba(226,232,240,0.55); }
+.plan-skill-chip strong { font-weight: 800; }
+.plan-skill-chip--researcher { border-color: rgba(34,211,238,0.35); color: #22D3EE; }
+.plan-skill-chip--worker     { border-color: rgba(52,211,153,0.35);  color: #34D399; }
+.plan-skill-chip--reviewer   { border-color: rgba(251,191,36,0.35);  color: #FBBF24; }
 
 .steps-list { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; }
 .step-card {

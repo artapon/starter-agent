@@ -582,6 +582,7 @@ function buildHtml({ state, runId, sessionId, startedAt, endedAt, status, loopIt
   const allIters   = [...(loopIterations || [])];
   const loopCount  = loopIterations?.length ?? 0;
   const statusColor = { complete: '#10B981', error: '#EF4444', stopped: '#6B7280', running: '#F59E0B' }[status] || '#6B7280';
+  const agentSkills = state?.plan?.agentSkills || null;
 
   // Final iteration (current state)
   allIters.push({
@@ -678,6 +679,10 @@ code,kbd{
   border:1px solid var(--border);color:var(--text-dim);
   display:flex;align-items:center;gap:5px;
 }
+.skill-chip strong{font-weight:800;margin-left:2px}
+.skill-chip--researcher{border-color:rgba(34,211,238,.3);color:var(--cyan)}
+.skill-chip--worker{border-color:rgba(52,211,153,.3);color:var(--green)}
+.skill-chip--reviewer{border-color:rgba(251,191,36,.3);color:var(--amber)}
 .header-meta{display:flex;flex-wrap:wrap;gap:20px;font-size:12px;color:var(--text-faint)}
 .header-meta strong{color:var(--text-dim);font-weight:600}
 .status-dot{
@@ -1072,6 +1077,10 @@ code,kbd{
     <span class="header-chip"><span class="status-dot"></span>${esc(status)}</span>
     ${loopCount > 0 ? `<span class="header-chip">🔄 ${loopCount} improvement loop${loopCount !== 1 ? 's' : ''}</span>` : ''}
     ${totalIters > 1 ? `<span class="header-chip">📊 ${totalIters} iterations</span>` : ''}
+    ${agentSkills ? `
+    <span class="header-chip skill-chip skill-chip--researcher">🔬 researcher: <strong>${esc(agentSkills.researcher || 'general')}</strong></span>
+    <span class="header-chip skill-chip skill-chip--worker">💻 worker: <strong>${esc(agentSkills.worker || 'general')}</strong></span>
+    <span class="header-chip skill-chip skill-chip--reviewer">🔍 reviewer: <strong>${esc(agentSkills.reviewer || 'general')}</strong></span>` : ''}
   </div>
   <div class="header-meta">
     <span><strong>Run ID</strong>&nbsp; ${esc(runId)}</span>

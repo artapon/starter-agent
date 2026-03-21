@@ -178,7 +178,11 @@ export class PlannerAgent {
     this.socketManager?.emit('memory:updated', { agentId: 'planner', sessionId });
 
     const stepSummary = plan.steps.map((s, i) => `${i + 1}. ${s.description.slice(0, 60)}`).join(' | ');
-    logger.info(`Plan created — ${plan.steps.length} step(s) [${plan.priority}]: ${stepSummary}`, { agentId: 'planner', planId });
+    const skills = plan.agentSkills;
+    const skillsSummary = skills
+      ? `researcher=${skills.researcher || 'general'}, worker=${skills.worker || 'general'}, reviewer=${skills.reviewer || 'general'}`
+      : 'none';
+    logger.info(`Plan created — ${plan.steps.length} step(s) [${plan.priority}] skills=[${skillsSummary}]: ${stepSummary}`, { agentId: 'planner', planId });
     return { planId, ...plan };
   }
 }
