@@ -438,6 +438,15 @@ onUnmounted(() => {
 <style scoped>
 .wf-graph-wrap { display: flex; flex-direction: column; }
 
+.panel__header {
+  display: flex; align-items: center; gap: 7px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  justify-content: space-between;
+}
+.panel__header > div { display: flex; align-items: center; gap: 7px; }
+.section-title { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.85); }
+
 /* Graph panel */
 .graph-body { padding: 4px 16px 12px; }
 .graph-svg  { width: 100%; height: auto; display: block; }
