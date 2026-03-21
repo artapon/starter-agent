@@ -250,33 +250,35 @@ export function getLibrarySkillRaw(agentId, skillName) {
 
 /**
  * Get raw library skill prompt for agents that build messages manually (no brace-escaping).
- * Falls back to getRawSkillPrompt() if skill not found.
+ * Defaults to the library's "general" skill when skillName is null/missing.
+ * Falls back to getRawSkillPrompt() only if the library file is also missing.
  * @param {'researcher'|'worker'|'reviewer'} agentId
  * @param {string|null} skillName
  * @returns {string}
  */
 export function getRawLibrarySkillPrompt(agentId, skillName) {
-  if (!skillName) return getRawSkillPrompt(agentId);
-  const content = getLibrarySkillRaw(agentId, skillName);
+  const name    = skillName || 'general';
+  const content = getLibrarySkillRaw(agentId, name);
   if (!content) return getRawSkillPrompt(agentId);
   const label = agentId.charAt(0).toUpperCase() + agentId.slice(1);
-  return `\n\n---\n## ${label} Expert Skills — ${skillName}\n${content}`;
+  return `\n\n---\n## ${label} Expert Skills — ${name}\n${content}`;
 }
 
 /**
  * Get brace-escaped library skill prompt for agents that use ChatPromptTemplate.
- * Falls back to getSkillPrompt() if skill not found.
+ * Defaults to the library's "general" skill when skillName is null/missing.
+ * Falls back to getSkillPrompt() only if the library file is also missing.
  * @param {'researcher'|'worker'|'reviewer'} agentId
  * @param {string|null} skillName
  * @returns {string}
  */
 export function getLibrarySkillPrompt(agentId, skillName) {
-  if (!skillName) return getSkillPrompt(agentId);
-  const content = getLibrarySkillRaw(agentId, skillName);
+  const name    = skillName || 'general';
+  const content = getLibrarySkillRaw(agentId, name);
   if (!content) return getSkillPrompt(agentId);
   const escaped = content.replace(/\{/g, '{{').replace(/\}/g, '}}');
   const label = agentId.charAt(0).toUpperCase() + agentId.slice(1);
-  return `\n\n---\n## ${label} Expert Skills — ${skillName}\n${escaped}`;
+  return `\n\n---\n## ${label} Expert Skills — ${name}\n${escaped}`;
 }
 
 /**
@@ -295,6 +297,6 @@ export function buildSkillMenu() {
     }
     lines.push('');
   }
-  lines.push('Example: {"agentSkills":{"researcher":"design","worker":"html-css","reviewer":"design"}}');
+  lines.push('Example: {{"agentSkills":{{"researcher":"design","worker":"html-css","reviewer":"design"}}}}');
   return lines.join('\n');
 }

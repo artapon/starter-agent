@@ -130,6 +130,15 @@
             </span>
           </div>
         </div>
+        <div class="skill-selector-row">
+          <span class="skill-selector-label">Skill:</span>
+          <button
+            v-for="sk in researcherSkills" :key="sk.id"
+            class="skill-chip"
+            :class="{ 'skill-chip--active': researcherSkill === sk.id }"
+            @click="researcherSkill = sk.id"
+          >{{ sk.label }}</button>
+        </div>
         <div class="input-row">
           <input
             v-model="goalInput"
@@ -817,6 +826,15 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             :disabled="wRunning"
           ></textarea>
         </div>
+        <div class="skill-selector-row">
+          <span class="skill-selector-label">Skill:</span>
+          <button
+            v-for="sk in workerSkills" :key="sk.id"
+            class="skill-chip"
+            :class="{ 'skill-chip--active': workerSkill === sk.id }"
+            @click="workerSkill = sk.id"
+          >{{ sk.label }}</button>
+        </div>
         <div class="input-row">
           <button class="btn btn-green" :disabled="wRunning || !wTaskInput.trim()" @click="runWorker()">
             <v-icon size="13">mdi-play</v-icon> Run Worker
@@ -1113,6 +1131,15 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             ></textarea>
           </div>
         </div>
+        <div class="skill-selector-row">
+          <span class="skill-selector-label">Skill:</span>
+          <button
+            v-for="sk in reviewerSkills" :key="sk.id"
+            class="skill-chip"
+            :class="{ 'skill-chip--active': reviewerSkill === sk.id }"
+            @click="reviewerSkill = sk.id"
+          >{{ sk.label }}</button>
+        </div>
         <div class="input-row">
           <button class="btn btn-amber" :disabled="rvRunning || !rvContentInput.trim() || !rvTaskInput.trim()" @click="runReviewer">
             <v-icon size="13">mdi-play</v-icon> Run Review
@@ -1236,6 +1263,29 @@ const tabs = [
   { id: 'reviewer',   label: 'Reviewer',   icon: 'mdi-eye-check-outline' },
 ];
 const activeTab = ref('researcher');
+
+// ── Library skill selectors ───────────────────────────────────────────
+const researcherSkills = [
+  { id: 'general',  label: 'General' },
+  { id: 'design',   label: 'Design' },
+  { id: 'backend',  label: 'Backend' },
+];
+const workerSkills = [
+  { id: 'general',   label: 'General' },
+  { id: 'html-css',  label: 'HTML/CSS' },
+  { id: 'nodejs',    label: 'Node.js' },
+  { id: 'vue',       label: 'Vue' },
+  { id: 'fullstack', label: 'Full-Stack' },
+];
+const reviewerSkills = [
+  { id: 'general',   label: 'General' },
+  { id: 'design',    label: 'Design' },
+  { id: 'backend',   label: 'Backend' },
+  { id: 'fullstack', label: 'Full-Stack' },
+];
+const researcherSkill = ref('general');
+const workerSkill     = ref('general');
+const reviewerSkill   = ref('general');
 
 // ── Shared debug workspace path (both tabs) ───────────────────────────
 const debugWorkspacePath = ref('');
@@ -1417,7 +1467,7 @@ async function runResearch() {
     appendLog('🔬', 'tag-wf', `Research only: "${goal}"`);
     try {
       progressIndet.value = true;
-      const { data } = await axios.post('/api/researcher/research', { goal });
+      const { data } = await axios.post('/api/researcher/research', { goal, skill: researcherSkill.value });
       currentRunId.value = data.runId;
       if (data.debugWorkspace) debugWorkspacePath.value = data.debugWorkspace;
       appendLog('🆔', 'tag-wf', `runId: ${data.runId}`);
@@ -1659,7 +1709,7 @@ async function runWorker(isContinue = false) {
     wAppendLog('📁', 'tag-wf', `Workspace: ${debugWorkspacePath.value || 'workspace/debug'}`);
   }
 
-  const body = { task };
+  const body = { task, skill: workerSkill.value };
   if (isContinue && wLastRawOutput.value) body.continueFrom = wLastRawOutput.value;
 
   try {
@@ -1854,7 +1904,7 @@ async function runReviewer() {
   rvProgressIndet.value = true;
   rvAppendLog('🔍', 'tag-wf', `Task: "${task}" — ${content.length} chars to review`);
   try {
-    const { data } = await axios.post('/api/reviewer/review', { content, task });
+    const { data } = await axios.post('/api/reviewer/review', { content, task, skill: reviewerSkill.value });
     rvResult.value        = data;
     rvProgressPct.value   = 100;
     rvProgressIndet.value = false;
@@ -2206,6 +2256,27 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
 .toggle--sm .slider::before { width: 12px; height: 12px; left: 3px; bottom: 3px; }
 .toggle--sm input:checked + .slider::before { transform: translateX(14px); }
 .mode-toggle-label { font-size: 11px; font-weight: 700; transition: color 0.2s; white-space: nowrap; }
+
+/* ── Skill selector ──────────────────────────────────────────────────── */
+.skill-selector-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 16px 4px; flex-wrap: wrap;
+}
+.skill-selector-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;
+  color: rgba(226,232,240,0.3); margin-right: 2px; white-space: nowrap;
+}
+.skill-chip {
+  padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04); color: rgba(226,232,240,0.5);
+  cursor: pointer; transition: all 0.15s;
+}
+.skill-chip:hover { background: rgba(255,255,255,0.08); color: rgba(226,232,240,0.8); }
+.skill-chip--active {
+  border-color: rgba(99,102,241,0.5); background: rgba(99,102,241,0.12);
+  color: #A78BFA;
+}
 
 /* ── Research run ────────────────────────────────────────────────────── */
 .input-row { display: flex; gap: 8px; padding: 12px 16px; align-items: center; }

@@ -50,30 +50,6 @@
 
           <div class="global-grid">
 
-            <!-- Skill Profile -->
-            <div class="panel span-full">
-              <div class="panel__header">
-                <div class="d-flex align-center gap-2">
-                  <v-icon size="15" color="#6366F1">mdi-book-cog-outline</v-icon>
-                  <span class="section-title">Skill Profile</span>
-                </div>
-                <v-chip size="x-small" color="primary" variant="tonal">{{ activeSubskill }}</v-chip>
-              </div>
-              <div class="panel__body">
-                <div class="subskill-grid">
-                  <button
-                    v-for="sk in subskillProfiles" :key="sk"
-                    class="subskill-card"
-                    :class="{ 'subskill-card--active': selectedSubskill === sk }"
-                    @click="selectedSubskill = sk"
-                  >
-                    <v-icon size="20" class="subskill-card__icon">{{ subskillIcon(sk) }}</v-icon>
-                    <div class="subskill-card__name">{{ subskillLabel(sk) }}</div>
-                    <div class="subskill-card__desc">{{ subskillDesc(sk) }}</div>
-                  </button>
-                </div>
-              </div>
-            </div>
 
             <!-- Debug Mode -->
             <div class="panel span-full">
@@ -601,9 +577,6 @@ const AGENT_ORDER   = ['planner', 'researcher', 'worker', 'reviewer'];
 const section       = ref('global');
 const workspacePath = ref('./workspace');
 
-const subskillProfiles = ref([]);
-const activeSubskill   = ref('default');
-const selectedSubskill = ref('default');
 const confirmReset     = ref(false);
 const resetting        = ref(false);
 const loopEnabled      = ref(false);
@@ -660,12 +633,7 @@ async function saveAllGlobal() {
         debug_mode:               String(debugMode.value),
       }),
     ];
-    if (selectedSubskill.value !== activeSubskill.value) {
-      calls.push(
-        axios.put('/api/settings/subskill', { name: selectedSubskill.value })
-          .then(({ data }) => { activeSubskill.value = data.active; })
-      );
-    }
+
     await Promise.all(calls);
     showSnack('Global settings saved');
   } catch (e) { showSnack(`Error: ${e.message}`, 'error'); }
@@ -722,13 +690,6 @@ async function applyModel(agentId, modelName) {
   forms[agentId].model_name = modelName;
 }
 
-const SUBSKILL_META = {
-  default:        { label: 'Default',        icon: 'mdi-cog-outline',             desc: 'Balanced general-purpose agents for everyday development tasks.' },
-  software_house: { label: 'Software House', icon: 'mdi-office-building-outline', desc: 'Enterprise-grade delivery: JSDoc, error handling, README, client handoff standards.' },
-};
-function subskillLabel(sk) { return SUBSKILL_META[sk]?.label || sk.replace(/_/g, ' '); }
-function subskillIcon(sk)  { return SUBSKILL_META[sk]?.icon  || 'mdi-book-outline'; }
-function subskillDesc(sk)  { return SUBSKILL_META[sk]?.desc  || ''; }
 
 // Label and description come from the API (SEARCH_ADAPTERS metadata).
 // Only color needs a local fallback; new source_types get a default colour automatically.
@@ -848,14 +809,7 @@ async function deleteSource(source_name) {
     showSnack('Source removed');
   } catch (e) { showSnack(`Error: ${e.response?.data?.error || e.message}`, 'error'); }
 }
-async function fetchSubskills() {
-  try {
-    const { data } = await axios.get('/api/settings/subskills');
-    subskillProfiles.value = data.available || [];
-    activeSubskill.value   = data.active || 'default';
-    selectedSubskill.value = data.active || 'default';
-  } catch { /* use defaults */ }
-}
+
 async function fetchSettings() {
   const { data } = await axios.get('/api/settings');
   for (const s of data) {
@@ -915,7 +869,7 @@ async function doReset() {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchGlobal(), fetchSettings(), fetchSubskills(), fetchBrowserTools()]);
+  await Promise.all([fetchGlobal(), fetchSettings(), fetchBrowserTools()]);
   for (const s of agentSettings.value) fetchModels(s.agent_id);
 });
 </script>
@@ -1095,25 +1049,6 @@ onMounted(async () => {
   font-size: 11px; color: rgba(226,232,240,0.3);
   border-top: 1px solid rgba(255,255,255,0.04);
 }
-
-/* ── Subskill cards ──────────────────────────────────────────────────── */
-.subskill-grid { display: flex; gap: 12px; flex-wrap: wrap; }
-.subskill-card {
-  flex: 1; min-width: 180px; max-width: 300px;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
-  padding: 14px 16px; border-radius: 10px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.02);
-  cursor: pointer; text-align: left;
-  transition: border-color 0.15s, background 0.15s;
-}
-.subskill-card:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
-.subskill-card--active { border-color: rgba(99,102,241,0.5) !important; background: rgba(99,102,241,0.08) !important; }
-.subskill-card__icon { color: rgba(226,232,240,0.4); }
-.subskill-card--active .subskill-card__icon { color: #A78BFA; }
-.subskill-card__name { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.85); }
-.subskill-card--active .subskill-card__name { color: #A78BFA; }
-.subskill-card__desc { font-size: 11px; color: rgba(226,232,240,0.35); line-height: 1.5; }
 
 /* ── MCP Browser panel ───────────────────────────────────────────────── */
 

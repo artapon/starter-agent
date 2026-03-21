@@ -22,7 +22,7 @@ router.get('/status', (req, res) => {
 
 // Run researcher only (no full workflow) — used by Debug page "Research only" mode
 router.post('/research', async (req, res) => {
-  const { goal, sessionId: sid } = req.body;
+  const { goal, sessionId: sid, skill = null } = req.body;
   if (!goal?.trim()) return res.status(400).json({ error: 'goal is required' });
   const sessionId      = sid || uuidv4();
   const runId          = uuidv4();
@@ -30,7 +30,7 @@ router.post('/research', async (req, res) => {
   const agent          = new ResearcherAgent(sm);
   const debugWorkspace = ensureDebugWorkspace();
   try {
-    const findings = await agent.research(goal.trim(), sessionId, runId);
+    const findings = await agent.research(goal.trim(), sessionId, runId, skill || null);
     res.json({ findings, sessionId, runId, debugWorkspace });
   } catch (err) {
     if (err.name === 'AbortError') return res.status(499).json({ error: 'Aborted' });

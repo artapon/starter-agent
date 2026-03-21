@@ -112,12 +112,11 @@ export class WorkflowRunner {
       maxLoops,
       loopCount: 0,
     };
-    let finalState = initialState;
+    let finalState     = initialState;
+    const loopIterations = []; // snapshots of each cycle before loop_reset clears state
 
     try {
       const stream = await graph.stream(initialState, { recursionLimit });
-
-      const loopIterations = []; // snapshots of each cycle before loop_reset clears state
 
       for await (const chunk of stream) {
         // Check abort between nodes

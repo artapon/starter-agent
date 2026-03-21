@@ -10,9 +10,9 @@ export class WorkerController {
 
   execute = async (req, res, next) => {
     try {
-      const { task, sessionId = uuidv4(), planId, continueFrom } = req.body;
+      const { task, sessionId = uuidv4(), planId, skill } = req.body;
       if (!task) return res.status(400).json({ error: 'task is required' });
-      const result = await this.agent.execute(task, sessionId, planId, null, continueFrom || null);
+      const result = await this.agent.execute(task, sessionId, planId, null, skill || null);
       res.json({ sessionId, ...result });
     } catch (e) { next(e); }
   };
