@@ -37,74 +37,119 @@ starter-agent/
 │   │   ├── memory/            # STM / LTM / Working memory stores
 │   │   ├── browser/           # Web search tools (Google, DuckDuckGo, GitHub, fetch)
 │   │   ├── rl/                # Reinforcement learning store (outcome replay)
-│   │   ├── reports/           # HTML report generator
+│   │   ├── reports/           # HTML report generator (walkthrough.html with skill chips)
 │   │   ├── mcp/               # MCP tool manager (Puppeteer web search bridge)
 │   │   ├── projects/          # Project store (JSON file)
 │   │   ├── queue/             # In-memory sequential job queue
 │   │   ├── workspace/         # Workspace path resolver + file reader
-│   │   └── skills/            # Skill profile system
+│   │   └── skills/            # Skill system
+│   │       ├── skill.loader.js        # Profile + library skill loader, cache, buildSkillMenu()
+│   │       └── skill.requests.js      # Track missing skills requested by the Planner
 │   └── modules/               # HMVC feature modules
 │       ├── workflow/          # LangGraph StateGraph + runner
-│       ├── planner/           # Planner agent
-│       ├── researcher/        # Researcher agent (web search + MCP)
-│       ├── worker/            # Worker agent (RL-guided)
-│       ├── reviewer/          # Reviewer agent (RL-calibrated)
+│       ├── planner/           # Planner agent (selects agentSkills from library)
+│       ├── researcher/        # Researcher agent (web search + MCP, library skill)
+│       ├── worker/            # Worker agent (two-phase file-by-file, library skill, RL-guided)
+│       ├── reviewer/          # Reviewer agent (library skill, RL-calibrated)
 │       ├── chat/              # Direct chat API
 │       ├── cron/              # Cron job scheduler (service + controller + module)
 │       ├── memory/            # Memory API routes
 │       ├── projects/          # Projects CRUD API + folder management
 │       ├── queue/             # Job queue API
-│       ├── settings/          # Global + per-agent + browser tools settings
+│       ├── settings/          # Global + per-agent + browser tools settings + skill requests API
 │       ├── workspace/         # Workspace file browser API
 │       └── dashboard/         # Stats aggregation
 ├── frontend/
 │   └── src/
 │       ├── views/             # Page components
-│       │   ├── DashboardView  # Live stats, workflow graph, agent status, job queue, recent runs
-│       │   ├── ProjectsView   # Project management — select active project, workspace folder per project
-│       │   ├── WorkflowView   # Run + monitor pipelines, project selector, run history
-│       │   ├── ScheduleView   # Cron job scheduler — create, edit, run-now, live status
-│       │   ├── ChatView       # Real-time chat with typing animation + agent avatars
-│       │   ├── MemoryView     # STM / LTM / working memory per agent, project-filtered
-│       │   ├── WalkthroughView # Embedded workflow report viewer
-│       │   ├── DebugView      # Researcher debug tool
-│       │   ├── LogsView       # Live log stream with pagination and search
-│       │   └── SettingsView   # Global + per-agent + MCP Browser config + App Reset
+│       │   ├── DashboardView        # Live stats, workflow graph, agent status, job queue, recent runs
+│       │   ├── ProjectsView         # Project management — select active project, workspace folder per project
+│       │   ├── WorkflowView         # Run + monitor pipelines, project selector, run history
+│       │   ├── SkillRequestsView    # Missing library skills requested by the Planner — dismiss or create
+│       │   ├── ScheduleView         # Cron job scheduler — create, edit, run-now, live status
+│       │   ├── ChatView             # Real-time chat with typing animation + agent avatars
+│       │   ├── MemoryView           # STM / LTM / working memory per agent, project-filtered
+│       │   ├── WalkthroughView      # Embedded workflow report viewer
+│       │   ├── DebugView            # Per-agent debug tabs (Planner first) with skill selectors
+│       │   ├── LogsView             # Live log stream with pagination and search
+│       │   └── SettingsView         # Global + per-agent + MCP Browser config + App Reset
 │       ├── composables/       # useActiveProject (global project state)
 │       ├── components/        # Shared UI components
 │       └── plugins/           # Router, Vuetify, Socket.IO
 ├── workspace/                 # Agent file sandbox root
 │   └── <Project_Folder>/      # Per-project isolated workspace (auto-created)
 ├── reports/                   # Generated workflow HTML reports
-├── skills/                    # Skill profiles (default, software_house)
+├── skills/
+│   ├── default/               # Active skill profile (SKILL.md, PLANNER.md, …)
+│   └── library/               # Named skill files loaded dynamically per run
+│       ├── researcher/        # design.md, backend.md, general.md
+│       ├── worker/            # html-css.md, nodejs.md, vue.md, fullstack.md, general.md
+│       └── reviewer/          # design.md, backend.md, fullstack.md, general.md
 ├── install.bat                # One-click dependency installer (Windows)
 └── start.bat                  # One-click launcher (Windows)
 ```
 
 ### Workflow Pipeline
 
-4-agent LangGraph pipeline:
+4-agent LangGraph pipeline with dynamic skill selection:
 
 ```
 User Goal  (+ active Project)
    │
    ▼
-[Researcher + Planner]  → web search (MCP or native) + step-by-step plan
-                           workspace scanned for existing project files
+[Planner]   → decomposes goal into steps + selects agentSkills from library
+               (researcher / worker / reviewer skill names injected into plan JSON)
+               workspace scanned for existing project files
+               missing skills recorded → visible in Requested Skills page
    │
    ▼
-[Worker]    → executes each plan step; writes files to workspace/<Project>/
-              RL patterns injected into system prompt
-              workspace re-read after each step (sees files written by prior steps)
+[Researcher] → web search (MCP or native) using planner-selected skill
+               step-specific research query from plan
    │
    ▼
-[Reviewer]  → quality checks output (0–10 score)
-              score ≥ 7 → approved → final answer + HTML report
-              score < 7 → RL-guided improvement loop (target ≥ 9/10, up to N retries)
+[Worker]    → two-phase execution per step:
+               Phase 1: LLM outputs a file plan (short call)
+               Phase 2: one LLM call per file — no truncation, full file content
+               RL patterns injected; workspace re-read after each step
+               uses planner-selected worker skill
+   │
+   ▼
+[Reviewer]  → quality checks output (0–10 score) using planner-selected reviewer skill
+               score ≥ 7 → approved → final answer + HTML report (with skill chips)
+               score < 7 → RL-guided improvement loop (target ≥ 9/10, up to N retries)
    │
    ▼
 Final Answer + HTML Report
 ```
+
+### Dynamic Agent Skill Selection
+
+The Planner analyzes each goal and selects the most appropriate skill from the library for each agent:
+
+- **Planner output** includes `agentSkills: { researcher, worker, reviewer }` — e.g. `{ researcher: "design", worker: "html-css", reviewer: "design" }` for a portfolio task
+- **Skill library** lives in `skills/library/<agent>/<skill>.md` — add a new `.md` file to create a new skill
+- **Fallback** — if a requested skill file doesn't exist, the agent falls back to `general`; the missing skill is recorded in the DB
+- **Requested Skills page** — shows all skills the Planner has tried to use that don't exist yet, with the exact file path to create
+- **Chat stream** — selected skills are shown inline after the plan (`🎯 Skills selected — researcher: design, worker: html-css, reviewer: design`)
+- **HTML report** — skill chips appear in the report header with per-agent colors
+- **Debug page** — each agent tab has a skill selector so you can test any skill directly
+
+Available library skills out of the box:
+
+| Agent | Skills |
+|---|---|
+| researcher | `design`, `backend`, `general` |
+| worker | `html-css`, `nodejs`, `vue`, `fullstack`, `general` |
+| reviewer | `design`, `backend`, `fullstack`, `general` |
+
+### Worker — File-by-File Execution
+
+The Worker runs each plan step in two phases to eliminate context-window truncation:
+
+1. **Phase 1 — File Plan**: a short LLM call returns a JSON list of files to create/modify
+2. **Phase 2 — Per-file**: one focused LLM call per file produces the complete content
+
+If Phase 1 fails to produce a valid plan, the Worker falls back to a single-call implementation.
 
 ### Projects
 
@@ -276,7 +321,8 @@ cd frontend && npm run dev
 3. Click **Select** on the project card to set it as active
 4. Navigate to **Chat** or **Workflow** — the active project is pre-selected
 5. Enter a goal and run — agents will read and write files inside the project's workspace folder
-6. Optionally go to **Schedule** to set up recurring automated runs scoped to a project
+6. After a workflow run, check **Requested Skills** (nav item after Workflow) to see if the Planner wants skills you haven't created yet
+7. Optionally go to **Schedule** to set up recurring automated runs scoped to a project
 
 ---
 
@@ -286,6 +332,10 @@ cd frontend && npm run dev
 |---|---|
 | **Projects** | Create/edit/delete projects; each project gets an isolated `workspace/<Name>/` folder. Required before using Chat, Workflow, Memory, or Schedule. |
 | **Project Workspace** | Files written by agents go into `workspace/<Project>/`. Folder is auto-created on project creation, can be recreated from the Projects page if deleted. |
+| **Dynamic Skill Selection** | Planner analyzes each goal and selects the best skill from the library for Researcher, Worker, and Reviewer. Skills shown in chat stream, plan result, and HTML report. |
+| **Skill Library** | Named skill files in `skills/library/<agent>/<skill>.md`. Add a new `.md` file to create a new skill — no code changes needed. |
+| **Requested Skills** | Dedicated page (nav after Workflow) listing skills the Planner selected that don't exist yet, with the exact file path to create. Amber badge shows pending count. |
+| **Worker File-by-File** | Worker executes each plan step in two phases: file plan (short call) + one LLM call per file. Eliminates truncation on large tasks. |
 | **Schedule** | Cron job manager — 16 schedule presets + custom expressions, per-job project assignment (required), live socket status, run-now, toggle pause. All runs go through the job queue. |
 | **Job Queue** | All workflow, chat, and scheduled jobs run sequentially. Live queue visible on the Dashboard with project name, type, position, and cancel button. |
 | **Dashboard** | Live stats: active run banner, workflow graph, token usage (per agent), agent status, job queue, recent runs with project badges, live log stream |
@@ -295,13 +345,27 @@ cd frontend && npm run dev
 | **Settings** | Sidebar-nav layout: configure LLM model, tools, workflow loop, debug mode, MCP Browser sources per agent; Reset Application clears all data |
 | **MCP Browser** | Enable/disable and tune browse depth per search source; add custom URL-template sources; Google AI Overview prioritized first |
 | **Debug Mode** | Toggle from Settings → Global; logs full LLM responses at debug level for troubleshooting |
+| **Debug Page** | Per-agent tabs (Planner, Researcher, Worker, Reviewer) with skill selectors; run each agent directly and inspect output |
 | **Thinking Model Support** | All agents work with both plain models and thinking models (Qwen3, DeepSeek, QwQ). `<think>` blocks stripped automatically. |
 | **Reinforcement Learning** | Worker + Reviewer automatically improve over runs via experience replay |
 | **Logs** | Live log stream from the backend with level filtering, pagination (25 lines/page), and search |
-| **Debug** | Interactive Researcher Agent walkthrough and backend connection tester |
-| **Reports** | Auto-generated HTML walkthrough after each workflow run, viewable in-app |
-| **Skill Profiles** | Switchable system prompt bundles per agent (default, software_house) |
+| **Reports** | Auto-generated HTML walkthrough after each workflow run, viewable in-app. Header shows selected agent skills with color-coded chips. |
 | **Reset Application** | One-click wipe of all memory, logs, token stats, run history, and reports — agent settings and projects are preserved |
+
+---
+
+## Adding a Custom Skill
+
+1. Create a Markdown file at `skills/library/<agent>/<skill-name>.md`
+   - `<agent>` is one of: `researcher`, `worker`, `reviewer`
+   - File content is the system prompt addition injected for that agent
+2. The Planner will automatically see the new skill in its menu on the next run
+3. If the Planner had previously requested this skill, it will disappear from the **Requested Skills** page automatically
+
+Example — add a `mobile` skill for the Worker:
+```
+skills/library/worker/mobile.md
+```
 
 ---
 
@@ -352,13 +416,16 @@ GET    /api/memory/wm/:agentId              Working memory context
 # Settings
 GET    /api/settings/:agentId/tools         Get agent tool config
 PUT    /api/settings/:agentId/tools         Update agent tools
-GET    /api/settings/global                 Get global settings (debug_mode, active_subskill, etc.)
+GET    /api/settings/global                 Get global settings (debug_mode, etc.)
 PUT    /api/settings/global                 Update global settings
 GET    /api/settings/browser/tools          List MCP Browser search sources
 PUT    /api/settings/browser/tools          Bulk update source enable/browse-count
 POST   /api/settings/browser/tools          Add a custom search source
 PUT    /api/settings/browser/tools/:name    Edit a custom source
 DELETE /api/settings/browser/tools/:name    Delete a custom source
+GET    /api/settings/skill-requests         List pending skill requests from the Planner
+DELETE /api/settings/skill-requests/:id     Dismiss a single skill request
+DELETE /api/settings/skill-requests/all     Clear all skill requests
 POST   /api/settings/reset                  Reset application data (preserves settings + projects)
 
 # Other
@@ -406,6 +473,9 @@ GET    /api/health                          Backend health check
 
 **MCP Browser not searching**
 → Ensure **MCP Browser** is toggled on in Settings for the Researcher agent, and at least one source is enabled in the MCP Browser panel.
+
+**Planner selects a skill that doesn't exist**
+→ The agent falls back to `general` automatically. Go to **Requested Skills** in the nav to see which file to create, then add it to `skills/library/<agent>/<skill>.md`.
 
 **Cron job fires at wrong time**
 → Schedule expressions use the **server's local timezone** (shown next to the expression in the Schedule UI). The active timezone is also logged on startup: `Cron service started — timezone: Asia/Bangkok`. Adjust your expressions accordingly.
