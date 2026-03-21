@@ -5,6 +5,8 @@ import { ReviewerAgent }   from '../../reviewer/services/reviewer.agent.js';
 import { memoryStore }     from '../../memory/services/memory.store.js';
 import { getRLStore }      from '../../../core/rl/rl.store.js';
 import { buildWorkspaceContext, buildWorkspaceSummary } from '../../../core/workspace/workspace.reader.js';
+import { checkAndRecordSkillRequests } from '../../../core/skills/skill.requests.js';
+import { getLibrarySkillRaw } from '../../../core/skills/skill.loader.js';
 
 export function createNodes(socketManager) {
   const researcherAgent = new ResearcherAgent(socketManager);
@@ -43,10 +45,25 @@ export function createNodes(socketManager) {
 
     const stepList = (plan.steps || []).map((s, i) => `  ${i + 1}. ${s.description}`).join('\n');
     const skills = plan.agentSkills;
+
+    // Check requested skills against the library; record any that are missing
+    const missingSkills = [];
+    if (skills) {
+      checkAndRecordSkillRequests(skills, state.userGoal);
+      for (const [agentId, skillName] of Object.entries(skills)) {
+        if (skillName && skillName !== 'general') {
+          if (!getLibrarySkillRaw(agentId, skillName)) missingSkills.push(`${agentId}:${skillName}`);
+        }
+      }
+    }
+
     const skillsLine = skills
-      ? `\n🎯 **Skills selected** — researcher: \`${skills.researcher || 'default'}\`, worker: \`${skills.worker || 'default'}\`, reviewer: \`${skills.reviewer || 'default'}\``
+      ? `\n🎯 **Skills selected** — researcher: \`${skills.researcher || 'general'}\`, worker: \`${skills.worker || 'general'}\`, reviewer: \`${skills.reviewer || 'general'}\``
       : '';
-    emitStatus(state.sessionId, 'planner', `\n\n✅ **Plan ready** — ${plan.steps?.length || 0} step(s):\n${stepList}\n${skillsLine}\n`);
+    const missingLine = missingSkills.length
+      ? `\n⚠️ **Requested skills not found in library** (falling back to general): ${missingSkills.map(s => `\`${s}\``).join(', ')} — see Settings → Requested Skills`
+      : '';
+    emitStatus(state.sessionId, 'planner', `\n\n✅ **Plan ready** — ${plan.steps?.length || 0} step(s):\n${stepList}\n${skillsLine}${missingLine}\n`);
 
     socketManager?.emitWorkflowNode(state.runId, 'planner', { status: 'complete', plan });
     return { plan, currentStepIdx: 0, status: 'running', workspaceContext, workspaceSummary, agentSkills: skills || null };

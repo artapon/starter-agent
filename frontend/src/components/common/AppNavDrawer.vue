@@ -28,6 +28,9 @@
           <v-icon size="16" class="nav-item__icon">{{ route.meta.icon }}</v-icon>
         </div>
         <span class="nav-item__label">{{ route.meta.title }}</span>
+        <span v-if="route.path === '/skill-requests' && skillRequestCount > 0" class="nav-item__badge">
+          {{ skillRequestCount }}
+        </span>
         <span v-if="$route.path === route.path" class="nav-item__bar" />
       </router-link>
     </div>
@@ -47,7 +50,9 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import axios from 'axios';
 
 const model = defineModel({ type: Boolean });
 const router = useRouter();
@@ -57,6 +62,17 @@ const router = useRouter();
 // triggers Vue's "Slot invoked outside render function" warning from
 // VNavigationDrawer's internal Transition.
 const navRoutes = router.options.routes.filter(r => r.meta?.title && r.meta?.nav !== false);
+
+const skillRequestCount = ref(0);
+
+async function fetchSkillRequestCount() {
+  try {
+    const { data } = await axios.get('/api/settings/skill-requests');
+    skillRequestCount.value = Array.isArray(data) ? data.length : 0;
+  } catch { /* ignore */ }
+}
+
+onMounted(fetchSkillRequestCount);
 </script>
 
 <style scoped>
@@ -121,6 +137,19 @@ const navRoutes = router.options.routes.filter(r => r.meta?.title && r.meta?.nav
   position: absolute; right: 0; top: 8px; bottom: 8px;
   width: 3px; border-radius: 2px 0 0 2px;
   background: linear-gradient(180deg, #6366F1, #A78BFA);
+}
+.nav-item__badge {
+  margin-left: auto;
+  background: rgba(245,158,11,0.18);
+  color: #F59E0B;
+  border: 1px solid rgba(245,158,11,0.35);
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 800;
+  padding: 1px 6px;
+  line-height: 1.4;
+  min-width: 18px;
+  text-align: center;
 }
 
 /* Footer */

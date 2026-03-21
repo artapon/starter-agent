@@ -13,6 +13,11 @@ export function createSettingsRouter(controller) {
   router.get('/subskills', controller.getSubskills);
   router.put('/subskill', controller.setSubskill);
 
+  // Skill requests — must be before /:agentId to avoid route conflict
+  router.get('/skill-requests',        controller.getSkillRequests);
+  router.delete('/skill-requests/all', controller.clearSkillRequests);
+  router.delete('/skill-requests/:id', controller.dismissSkillRequest);
+
   // Browser search source settings — must be before /:agentId
   router.get('/browser/tools',                  controller.getBrowserTools);
   router.put('/browser/tools',                  controller.updateBrowserTools);

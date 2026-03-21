@@ -1240,4 +1240,5 @@ onMounted(async () => {
 .alert-slide-leave-active { transition: opacity 0.25s, transform 0.25s; }
 .alert-slide-enter-from   { opacity: 0; transform: translateY(-8px); }
 .alert-slide-leave-to     { opacity: 0; transform: translateY(-4px); }
+
 </style>

@@ -4,6 +4,7 @@ import { clearLTM } from '../../../core/memory/vector.store.js';
 import { rmSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getSkillRequests, dismissSkillRequest, clearSkillRequests } from '../../../core/skills/skill.requests.js';
 
 const REPORTS_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../../reports');
 const AGENTS = ['researcher', 'planner', 'worker', 'reviewer'];
@@ -104,6 +105,26 @@ export class SettingsController {
   deleteBrowserTool = (req, res, next) => {
     try { res.json(this.service.deleteBrowserTool(req.params.sourceName)); }
     catch (e) { e.status = 400; next(e); }
+  };
+
+  // ── Skill Requests ─────────────────────────────────────────────────────────
+
+  getSkillRequests = (req, res, next) => {
+    try { res.json(getSkillRequests()); } catch (e) { next(e); }
+  };
+
+  dismissSkillRequest = (req, res, next) => {
+    try {
+      dismissSkillRequest(req.params.id);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  };
+
+  clearSkillRequests = (req, res, next) => {
+    try {
+      clearSkillRequests();
+      res.json({ ok: true });
+    } catch (e) { next(e); }
   };
 
   reset = (req, res, next) => {
