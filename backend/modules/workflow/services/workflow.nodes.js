@@ -155,8 +155,11 @@ export function createNodes(socketManager) {
     socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'running' });
     emitStatus(state.sessionId, 'reviewer', `\n---\n🔍 **Reviewing:** ${step?.description || 'output'}\n\n`);
 
-    const reviewContent = state.workspaceContext
-      ? `${lastResult.result || ''}\n\n${state.workspaceContext}`
+    // Use current workspace state (after worker wrote files) so reviewer sees actual output
+    const currentWs = buildWorkspaceContext(state.workspaceFolder || undefined);
+    const currentWsContext = currentWs.isEmpty ? null : currentWs.context;
+    const reviewContent = currentWsContext
+      ? `${lastResult.result || ''}\n\n${currentWsContext}`
       : (lastResult.result || '');
 
     const reviewTask = state.userGoal

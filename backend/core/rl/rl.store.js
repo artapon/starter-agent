@@ -144,10 +144,15 @@ export class RLStore {
       lines.push('');
     }
 
-    // Section 1: Required fixes from this reviewer pass
-    lines.push('## REQUIRED FIXES (apply all of these):');
-    if (suggestions && suggestions.length) {
-      suggestions.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
+    // Section 1: Required fixes — output quality improvements only
+    // Filter out process suggestions (git, README, deployment) that don't improve the actual output
+    const PROCESS_PATTERNS = /\b(git|commit|version control|readme|deploy|ci\/cd|pipeline|push|branch|pull request|npm install|yarn|docker|environment variable|\.env)\b/i;
+    const qualityFixes = (suggestions || []).filter(s => !PROCESS_PATTERNS.test(s));
+    const fixesToShow  = qualityFixes.length ? qualityFixes : (suggestions || []);
+
+    lines.push('## REQUIRED FIXES (improve the output quality — focus on the actual code/design):');
+    if (fixesToShow.length) {
+      fixesToShow.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
     } else if (feedback) {
       lines.push(`1. ${feedback}`);
     }
