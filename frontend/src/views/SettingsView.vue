@@ -594,7 +594,7 @@ const SOURCE_TYPE_DISPLAY = {
 import axios from 'axios';
 
 const agentSettings = ref([]);
-const AGENT_ORDER   = ['researcher', 'planner', 'worker', 'reviewer'];
+const AGENT_ORDER   = ['planner', 'researcher', 'worker', 'reviewer'];
 const section       = ref('global');
 const workspacePath = ref('./workspace');
 

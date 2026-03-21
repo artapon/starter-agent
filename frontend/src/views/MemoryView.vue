@@ -335,8 +335,8 @@ import axios from 'axios';
 const socket = useSocket();
 const router = useRouter();
 
-const agents      = ['researcher', 'planner', 'worker', 'reviewer'];
-const activeAgent = ref('researcher');
+const agents      = ['planner', 'researcher', 'worker', 'reviewer'];
+const activeAgent = ref('planner');
 const activeTab   = ref('stm');
 const loading     = ref(false);
 
