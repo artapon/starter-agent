@@ -65,7 +65,7 @@
               Stop
             </v-btn>
             <span v-if="!projectId" class="wf-tip" style="color:rgba(167,139,250,0.7)">Select a project to run</span>
-            <span v-else class="wf-tip">Researcher → Planner → Worker → Reviewer</span>
+            <span v-else class="wf-tip">Planner → Researcher → Worker → Reviewer</span>
           </div>
         </div>
       </div>
@@ -103,34 +103,34 @@
                 <path d="M0,0 L0,6 L7,3 z" :fill="m.color"/>
               </marker>
             </defs>
-            <!-- researcher → planner -->
-            <path d="M120,42 L153,42" :stroke-dasharray="edgeDash('researcher','planner')" :stroke-dashoffset="edgeOffset('researcher','planner')" :stroke="edgeColor('researcher','planner')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','planner')})`"/>
-            <!-- planner → worker -->
-            <path d="M263,42 L297,42" :stroke-dasharray="edgeDash('planner','worker')" :stroke-dashoffset="edgeOffset('planner','worker')" :stroke="edgeColor('planner','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','worker')})`"/>
+            <!-- planner → researcher -->
+            <path d="M120,42 L153,42" :stroke-dasharray="edgeDash('planner','researcher')" :stroke-dashoffset="edgeOffset('planner','researcher')" :stroke="edgeColor('planner','researcher')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('planner','researcher')})`"/>
+            <!-- researcher → worker -->
+            <path d="M263,42 L297,42" :stroke-dasharray="edgeDash('researcher','worker')" :stroke-dashoffset="edgeOffset('researcher','worker')" :stroke="edgeColor('researcher','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','worker')})`"/>
             <!-- worker → reviewer -->
             <path d="M407,42 L441,42" :stroke-dasharray="edgeDash('worker','reviewer')" :stroke-dashoffset="edgeOffset('worker','reviewer')" :stroke="edgeColor('worker','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('worker','reviewer')})`"/>
             <!-- reviewer → assembler -->
             <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
             <!-- reviewer → loop_reset -->
             <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('reviewer','loop_reset')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
-            <!-- loop_reset → worker -->
-            <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('loop_reset','worker')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('loop_reset','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','worker')})`"/>
+            <!-- loop_reset → researcher -->
+            <path d="M353,148 L352,64" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('loop_reset','researcher')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('loop_reset','researcher')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','researcher')})`"/>
             <!-- assembler → done -->
             <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
             <!-- Edge labels -->
             <text x="615" y="120" class="edge-label" text-anchor="middle" transform="rotate(-90,615,120)">score &lt; 10</text>
             <text x="510" y="108" class="edge-label">10/10 ✓</text>
-            <!-- researcher -->
-            <g :class="['graph-node-g', nodeClass('researcher')]">
-              <rect x="10" y="20" width="110" height="44" rx="8" :fill="nodeFill('researcher')" :stroke="nodeStroke('researcher')" stroke-width="1.5"/>
-              <text x="65" y="38" class="node-icon" text-anchor="middle">🔬</text>
-              <text x="65" y="56" class="node-label" text-anchor="middle">Researcher</text>
-            </g>
-            <!-- planner -->
+            <!-- planner (first node) -->
             <g :class="['graph-node-g', nodeClass('planner')]">
-              <rect x="155" y="20" width="108" height="44" rx="8" :fill="nodeFill('planner')" :stroke="nodeStroke('planner')" stroke-width="1.5"/>
-              <text x="209" y="38" class="node-icon" text-anchor="middle">📋</text>
-              <text x="209" y="56" class="node-label" text-anchor="middle">Planner</text>
+              <rect x="10" y="20" width="110" height="44" rx="8" :fill="nodeFill('planner')" :stroke="nodeStroke('planner')" stroke-width="1.5"/>
+              <text x="65" y="38" class="node-icon" text-anchor="middle">📋</text>
+              <text x="65" y="56" class="node-label" text-anchor="middle">Planner</text>
+            </g>
+            <!-- researcher (second node) -->
+            <g :class="['graph-node-g', nodeClass('researcher')]">
+              <rect x="155" y="20" width="108" height="44" rx="8" :fill="nodeFill('researcher')" :stroke="nodeStroke('researcher')" stroke-width="1.5"/>
+              <text x="209" y="38" class="node-icon" text-anchor="middle">🔬</text>
+              <text x="209" y="56" class="node-label" text-anchor="middle">Researcher</text>
             </g>
             <!-- worker -->
             <g :class="['graph-node-g', nodeClass('worker')]">
@@ -470,24 +470,28 @@ onMounted(() => {
     const st   = data.state?.status;
     const phase = data.state?.phase;
 
-    // ── analyze node → maps to researcher + planner ──────────────────────
-    if (node === 'analyze') {
+    // ── planner node ──────────────────────────────────────────────────────
+    if (node === 'planner') {
       if (st === 'running') {
-        if (phase === 'research') {
-          graphNodeStatus['researcher'] = 'running';
-          graphCurrentNode.value = 'researcher';
-        } else if (phase === 'plan') {
-          graphNodeStatus['researcher'] = 'complete';
-          graphNodeStatus['planner'] = 'running';
-          graphCurrentNode.value = 'planner';
-        }
+        graphNodeStatus['planner'] = 'running';
+        graphCurrentNode.value = 'planner';
       } else if (st === 'complete') {
-        graphNodeStatus['researcher'] = 'complete';
         graphNodeStatus['planner'] = 'complete';
         if (data.state?.plan?.steps)
           graphTotalSteps.value = data.state.plan.steps.length;
-        if (graphCurrentNode.value === 'researcher' || graphCurrentNode.value === 'planner')
-          graphCurrentNode.value = null;
+        if (graphCurrentNode.value === 'planner') graphCurrentNode.value = null;
+      }
+      return;
+    }
+
+    // ── researcher node ───────────────────────────────────────────────────
+    if (node === 'researcher') {
+      if (st === 'running') {
+        graphNodeStatus['researcher'] = 'running';
+        graphCurrentNode.value = 'researcher';
+      } else if (st === 'complete') {
+        graphNodeStatus['researcher'] = 'complete';
+        if (graphCurrentNode.value === 'researcher') graphCurrentNode.value = null;
       }
       return;
     }
@@ -523,6 +527,8 @@ onMounted(() => {
         setTimeout(() => {
           isLoopResetting.value = false;
           graphNodeStatus['loop_reset'] = 'complete';
+          if (graphNodeStatus['researcher'] !== 'running' && graphNodeStatus['researcher'] !== 'complete')
+            graphNodeStatus['researcher'] = 'pending';
           if (graphNodeStatus['worker'] !== 'running' && graphNodeStatus['worker'] !== 'complete')
             graphNodeStatus['worker'] = 'pending';
           if (graphNodeStatus['reviewer'] !== 'running' && graphNodeStatus['reviewer'] !== 'complete')

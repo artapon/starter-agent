@@ -16,70 +16,62 @@ export function createNodes(socketManager) {
     socketManager?.emitChatChunk(sessionId, text, agentId);
   }
 
-  // ── Node 1: Analyze (researcher + planner) ──────────────────────────────
-  async function analyzeNode(state) {
-    // Scan the workspace once — full context for worker/reviewer, compact summary for planner
-    // Use the project's subfolder when a project is active, otherwise fall back to root workspace
-    const ws = buildWorkspaceContext(state.workspaceFolder || undefined);
-    const wsSummary = buildWorkspaceSummary(state.workspaceFolder || undefined);
-    const workspaceContext = ws.isEmpty ? null : ws.context;
-    const workspaceSummary = wsSummary.isEmpty ? null : wsSummary.summary;
+  // ── Node 1: Planner ─────────────────────────────────────────────────────
+  async function plannerNode(state) {
+    // Scan workspace for context — compact summary for planner, full context saved for worker
+    const ws         = buildWorkspaceContext(state.workspaceFolder || undefined);
+    const wsSummary  = buildWorkspaceSummary(state.workspaceFolder || undefined);
+    const workspaceContext  = ws.isEmpty ? null : ws.context;
+    const workspaceSummary  = wsSummary.isEmpty ? null : wsSummary.summary;
+
     if (!ws.isEmpty) {
       emitStatus(state.sessionId, 'planner',
         `\n📂 **Workspace scanned** — ${ws.fileCount} file${ws.fileCount !== 1 ? 's' : ''} found. Agents will extend the existing project.\n`);
     }
 
-    // Research phase
-    memoryStore.setWorkingContext('researcher', state.runId, { goal: state.userGoal, sessionId: state.sessionId });
-    socketManager?.emitWorkflowNode(state.runId, 'analyze', { status: 'running', phase: 'research' });
-    emitStatus(state.sessionId, 'researcher', `\n🔬 **Researching:** ${state.userGoal}\n\n`);
-
-    const findings = await researcherAgent.research(state.userGoal, state.sessionId, state.runId);
-
-    const approaches = (findings.approaches || []).map((a) => `  - **${a.name}**`).join('\n');
-    emitStatus(
-      state.sessionId, 'researcher',
-      `\n✅ **Research complete** — ${findings.topic || state.userGoal}\n${findings.summary || ''}\n${approaches ? `\nApproaches:\n${approaches}` : ''}\n\n> Recommended: ${findings.recommendedApproach || 'N/A'}\n`,
-    );
-
-    // Plan phase
-    memoryStore.setWorkingContext('planner', state.runId, {
-      goal:                state.userGoal,
-      researchSummary:     findings.summary || '',
-      recommendedApproach: findings.recommendedApproach || '',
-    });
-    socketManager?.emitWorkflowNode(state.runId, 'analyze', { status: 'running', phase: 'plan' });
+    memoryStore.setWorkingContext('planner', state.runId, { goal: state.userGoal, sessionId: state.sessionId });
+    socketManager?.emitWorkflowNode(state.runId, 'planner', { status: 'running' });
     emitStatus(state.sessionId, 'planner', `\n📋 **Planning:** ${state.userGoal}\n\n`);
 
-    const researchContext = [
-      `Summary: ${findings.summary || ''}`,
-      findings.recommendedApproach ? `Recommended approach: ${findings.recommendedApproach}` : '',
-      findings.techStack?.length ? `Tech stack: ${findings.techStack.join(', ')}` : '',
-      findings.recommendedPackages?.length ? `Recommended packages: ${findings.recommendedPackages.join(', ')}` : '',
-      findings.antiPatterns?.length ? `Anti-patterns to avoid: ${findings.antiPatterns.join('; ')}` : '',
-      findings.potentialChallenges?.length ? `Key challenges: ${findings.potentialChallenges.join('; ')}` : '',
-      findings.productionConsiderations?.length ? `Production notes: ${findings.productionConsiderations.join('; ')}` : '',
-    ].filter(Boolean).join('\n');
+    // Planner receives goal + workspace summary (no research context — researcher runs after)
+    const goalWithContext = workspaceSummary
+      ? `${workspaceSummary}\n${state.userGoal}`
+      : state.userGoal;
 
-    // Workspace summary comes FIRST so compression never truncates it
-    const goalWithContext = [
-      workspaceSummary ? `${workspaceSummary}\n` : '',
-      state.userGoal,
-      researchContext ? `\n[Research Context]\n${researchContext}` : '',
-    ].join('');
-
-    // Use projectId-scoped memory key when a project is selected
     const plannerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
     const plan = await plannerAgent.plan(goalWithContext, state.sessionId, plannerMemKey);
 
     const stepList = (plan.steps || []).map((s, i) => `  ${i + 1}. ${s.description}`).join('\n');
     emitStatus(state.sessionId, 'planner', `\n\n✅ **Plan ready** — ${plan.steps?.length || 0} step(s):\n${stepList}\n`);
 
-    socketManager?.emitWorkflowNode(state.runId, 'analyze', { status: 'complete', findings, plan });
-    return { researchFindings: findings, plan, currentStepIdx: 0, status: 'running', workspaceContext, workspaceSummary };
+    socketManager?.emitWorkflowNode(state.runId, 'planner', { status: 'complete', plan });
+    return { plan, currentStepIdx: 0, status: 'running', workspaceContext, workspaceSummary };
   }
 
-  // ── Node 2: Worker ───────────────────────────────────────────────────────
+  // ── Node 2: Researcher ───────────────────────────────────────────────────
+  async function researcherNode(state) {
+    const steps = state.plan?.steps || [];
+    const step  = steps[state.currentStepIdx];
+    // Research the current step's specific requirements; fall back to overall goal
+    const researchGoal = step?.description || state.userGoal;
+
+    memoryStore.setWorkingContext('researcher', state.runId, { goal: researchGoal, sessionId: state.sessionId });
+    socketManager?.emitWorkflowNode(state.runId, 'researcher', { status: 'running' });
+    emitStatus(state.sessionId, 'researcher', `\n🔬 **Researching:** ${researchGoal}\n\n`);
+
+    const findings = await researcherAgent.research(researchGoal, state.sessionId, state.runId);
+
+    const approaches = (findings.approaches || []).map((a) => `  - **${a.name}**`).join('\n');
+    emitStatus(
+      state.sessionId, 'researcher',
+      `\n✅ **Research complete** — ${findings.topic || researchGoal}\n${findings.summary || ''}\n${approaches ? `\nApproaches:\n${approaches}` : ''}\n\n> Recommended: ${findings.recommendedApproach || 'N/A'}\n`,
+    );
+
+    socketManager?.emitWorkflowNode(state.runId, 'researcher', { status: 'complete', findings });
+    return { researchFindings: findings };
+  }
+
+  // ── Node 3: Worker ───────────────────────────────────────────────────────
   async function workerNode(state) {
     const steps = state.plan?.steps || [];
     const step  = steps[state.currentStepIdx];
@@ -97,7 +89,7 @@ export function createNodes(socketManager) {
     });
     emitStatus(state.sessionId, 'worker', `\n---\n💻 **${label}:** ${step.description}\n\n`);
 
-    // Enrich task with research context + existing workspace project
+    // Enrich task with research context from researcherNode
     const findings = state.researchFindings || {};
     const techHint = [
       findings.recommendedApproach ? `Approach: ${findings.recommendedApproach}` : '',
@@ -110,8 +102,7 @@ export function createNodes(socketManager) {
       findings.productionConsiderations?.length ? `Production requirements: ${findings.productionConsiderations.slice(0, 3).join('; ')}` : '',
     ].filter(Boolean).join('\n');
 
-    // Build a detailed summary of what has already been written in earlier steps.
-    // This prevents the worker from re-implementing files and tells it what exists.
+    // Build summary of previously completed steps so worker doesn't re-implement them
     const previousResults = (state.subtaskResults || [])
       .map((r, i) => r?.result ? `Step ${i + 1}: ${r.result}` : null)
       .filter(Boolean);
@@ -119,8 +110,7 @@ export function createNodes(socketManager) {
       ? `\n[Previously completed — ${previousResults.length} of ${steps.length} step(s) done]\n${previousResults.join('\n')}\nDo NOT re-implement or overwrite files already created above unless this task explicitly modifies them.\n`
       : '';
 
-    // Re-read workspace after previous steps wrote files, so the worker sees the
-    // latest state — not the snapshot taken before the run started.
+    // Re-read workspace after previous steps wrote files
     const latestWs = buildWorkspaceContext(state.workspaceFolder || undefined);
     const currentWorkspaceContext = latestWs.isEmpty ? null : latestWs.context;
 
@@ -132,7 +122,6 @@ export function createNodes(socketManager) {
       currentWorkspaceContext ? `\n${currentWorkspaceContext}` : '',
     ].join('');
 
-    // Use projectId-scoped memory key when a project is selected
     const workerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
     const result = await workerAgent.execute(
       enrichedTask, state.sessionId, state.plan?.planId, workerMemKey,
@@ -144,7 +133,7 @@ export function createNodes(socketManager) {
     return { subtaskResults: result, currentStepIdx: state.currentStepIdx + 1 };
   }
 
-  // ── Node 3: Reviewer (review + loop_reset + assembler) ───────────────────
+  // ── Node 4: Reviewer ─────────────────────────────────────────────────────
   async function reviewerNode(state) {
     const lastResult = state.subtaskResults[state.subtaskResults.length - 1];
     if (!lastResult) return { status: 'complete', finalAnswer: 'No results to review.' };
@@ -161,7 +150,6 @@ export function createNodes(socketManager) {
     socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'running' });
     emitStatus(state.sessionId, 'reviewer', `\n---\n🔍 **Reviewing:** ${step?.description || 'output'}\n\n`);
 
-    // Build review content: worker result + workspace context for completeness checks
     const reviewContent = state.workspaceContext
       ? `${lastResult.result || ''}\n\n${state.workspaceContext}`
       : (lastResult.result || '');
@@ -169,13 +157,13 @@ export function createNodes(socketManager) {
     const reviewTask = state.userGoal
       ? `Goal: ${state.userGoal}\nStep being reviewed: ${step?.description || 'Review task'}`
       : (step?.description || 'Review task');
-    // Use projectId-scoped memory key when a project is selected
+
     const reviewerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
-    const review   = await reviewerAgent.review(
+    const review = await reviewerAgent.review(
       reviewContent, reviewTask,
       state.sessionId, lastResult.subtaskId, reviewerMemKey,
     );
-    const score    = review.score ?? 10;
+    const score = review.score ?? 10;
 
     // Record outcome for reinforcement learning
     getRLStore().recordOutcome({
@@ -190,6 +178,7 @@ export function createNodes(socketManager) {
       approved:      review.approved,
       loopCount:     state.loopCount || 0,
     });
+
     const scoreBar = '█'.repeat(Math.round(score / 2)) + '░'.repeat(5 - Math.round(score / 2));
     const willLoop = allDone && state.loopEnabled && state.loopCount < state.maxLoops && score < 10;
     const suggestionLines = (review.suggestions || []).map(s => `  - ${s}`).join('\n');
@@ -205,7 +194,9 @@ export function createNodes(socketManager) {
       status: 'complete', approved: review.approved, score,
     });
 
-    // Not all steps done, or revision needed with retries remaining → back to worker
+    // Not all steps done, or revision still needed with retries remaining → route accordingly
+    // approved + more steps → 'approved' (graph sends to researcher for next step)
+    // revision needed → 'revision_needed' (graph sends back to worker)
     const maxRetries = 3;
     if (!allDone || (state.status === 'revision_needed' && state.retryCount < maxRetries)) {
       return {
@@ -215,9 +206,9 @@ export function createNodes(socketManager) {
       };
     }
 
-    // All done — improvement loop (was loop_reset node)
+    // All done — improvement loop (researcher will research the improvement goal)
     if (willLoop) {
-      const nextLoop    = state.loopCount + 1;
+      const nextLoop = state.loopCount + 1;
       const improvementDesc = getRLStore().buildImprovementContext(
         step?.description || '',
         score,
@@ -233,6 +224,7 @@ export function createNodes(socketManager) {
       );
       socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'loop', loop: nextLoop, score });
 
+      // Return 'running' — graph routes to researcher for improvement research
       return {
         reviewFeedback: review,
         loopCount:      nextLoop,
@@ -247,7 +239,7 @@ export function createNodes(socketManager) {
       };
     }
 
-    // All done — final assembly (was assembler node)
+    // All done — final assembly
     const results = (Array.isArray(state.subtaskResults) ? state.subtaskResults : [])
       .map((r, i) => {
         const stepLabel = steps[i]?.description ? `**Step ${i + 1}:** ${steps[i].description}` : `**Step ${i + 1}**`;
@@ -258,13 +250,12 @@ export function createNodes(socketManager) {
     const loopSummary = state.loopCount > 0
       ? `\n\n> ✨ Refined through ${state.loopCount} improvement loop${state.loopCount > 1 ? 's' : ''}.`
       : '';
-
     const scoreInfo = score > 0 ? `\n\n> **Quality score:** ${score}/10` : '';
-
     const finalAnswer = `# ✅ Completed: ${state.userGoal}${loopSummary}${scoreInfo}\n\n---\n\n${results}`;
+
     socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'assembled' });
     return { finalAnswer, status: 'complete' };
   }
 
-  return { analyzeNode, workerNode, reviewerNode };
+  return { plannerNode, researcherNode, workerNode, reviewerNode };
 }
