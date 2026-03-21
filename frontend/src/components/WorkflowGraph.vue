@@ -25,7 +25,7 @@
 
     <!-- SVG graph -->
     <div class="graph-body">
-      <svg viewBox="0 0 640 235" class="graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox="0 0 640 210" class="graph-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
         <defs>
           <marker v-for="m in markerIds" :key="m.id"
             :id="m.id" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
@@ -38,17 +38,17 @@
         <path d="M263,42 L297,42" :stroke-dasharray="edgeDash('researcher','worker')" :stroke-dashoffset="edgeOffset('researcher','worker')" :stroke="edgeColor('researcher','worker')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('researcher','worker')})`"/>
         <!-- worker → reviewer -->
         <path d="M407,42 L441,42" :stroke-dasharray="edgeDash('worker','reviewer')" :stroke-dashoffset="edgeOffset('worker','reviewer')" :stroke="edgeColor('worker','reviewer')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('worker','reviewer')})`"/>
-        <!-- reviewer → assembler -->
-        <path d="M501,64 L501,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
-        <!-- reviewer → loop_reset -->
-        <path d="M551,42 L615,42 L615,218 L353,218 L353,192" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('reviewer','loop_reset')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
-        <!-- loop_reset → researcher -->
-        <path d="M297,170 L209,170 L209,64" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('loop_reset','researcher')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('loop_reset','researcher')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','researcher')})`"/>
+        <!-- reviewer → assembler (straight down — exit path, center) -->
+        <path d="M496,64 L496,148" :stroke="edgeColor('reviewer','assembler')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','assembler')})`"/>
+        <!-- reviewer → loop_reset (down through inter-row gap, left to worker column) -->
+        <path d="M441,64 L441,97 L352,97 L352,148" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('reviewer','loop_reset')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('reviewer','loop_reset')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('reviewer','loop_reset')})`"/>
+        <!-- loop_reset → researcher (left from loop_reset, then up) -->
+        <path d="M296,170 L209,170 L209,64" stroke-dasharray="5,3" :stroke-dashoffset="edgeStatus('loop_reset','researcher')==='loop' ? loopDashOffset : 0" :stroke="edgeColor('loop_reset','researcher')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('loop_reset','researcher')})`"/>
         <!-- assembler → done -->
         <path d="M551,170 L582,170" :stroke="edgeColor('assembler','done')" stroke-width="1.5" fill="none" :marker-end="`url(#arr-${edgeStatus('assembler','done')})`"/>
         <!-- Edge labels -->
-        <text x="615" y="120" class="edge-label" text-anchor="middle" transform="rotate(-90,615,120)">score &lt; 10</text>
-        <text x="510" y="108" class="edge-label">10/10 ✓</text>
+        <text x="397" y="93" class="edge-label" text-anchor="middle">score &lt; 10</text>
+        <text x="504" y="108" class="edge-label">10/10 ✓</text>
         <!-- planner -->
         <g :class="['graph-node-g', nodeClass('planner')]">
           <rect x="10" y="20" width="110" height="44" rx="8" :fill="nodeFill('planner')" :stroke="nodeStroke('planner')" stroke-width="1.5"/>
@@ -74,11 +74,11 @@
           <text x="496" y="38" class="node-icon" text-anchor="middle">🔍</text>
           <text x="496" y="56" class="node-label" text-anchor="middle">Reviewer</text>
         </g>
-        <!-- loop_reset -->
+        <!-- loop_reset (under Worker column) -->
         <g :class="['graph-node-g', nodeClass('loop_reset')]" :opacity="nodeClass('loop_reset') === 'node-loop-active' ? loopNodeOpacity : 1">
-          <rect x="297" y="148" width="112" height="44" rx="8" :fill="nodeFill('loop_reset')" :stroke="nodeStroke('loop_reset')" stroke-width="1.5"/>
-          <text x="353" y="166" class="node-icon" text-anchor="middle">🔄</text>
-          <text x="353" y="184" class="node-label" text-anchor="middle">Loop Reset</text>
+          <rect x="296" y="148" width="112" height="44" rx="8" :fill="nodeFill('loop_reset')" :stroke="nodeStroke('loop_reset')" stroke-width="1.5"/>
+          <text x="352" y="166" class="node-icon" text-anchor="middle">🔄</text>
+          <text x="352" y="184" class="node-label" text-anchor="middle">Loop Reset</text>
         </g>
         <!-- assembler -->
         <g :class="['graph-node-g', nodeClass('assembler')]">
