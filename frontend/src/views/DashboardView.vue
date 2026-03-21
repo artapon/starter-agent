@@ -391,7 +391,7 @@ const agentCurrentTask = ref({});
 const logContainer = ref(null);
 
 // ── Workflow graph state ───────────────────────────────────────────────────
-const GRAPH_NODES = ['researcher','planner','worker','reviewer','loop_reset','assembler','done'];
+const GRAPH_NODES = ['planner','researcher','worker','reviewer','loop_reset','assembler','done'];
 const graphNodeStatus  = reactive(Object.fromEntries(GRAPH_NODES.map(n => [n, 'idle'])));
 const graphRunId         = ref(null);
 const graphOverallStatus = ref('idle');
@@ -583,7 +583,7 @@ async function fetchStats() {
     ]);
     projects.value = projs || [];
     stats.value = data;
-    const order = ['researcher', 'planner', 'worker', 'reviewer'];
+    const order = ['planner', 'researcher', 'worker', 'reviewer'];
     agentStatuses.value = (data.agents || []).sort((a, b) => {
       const ai = order.indexOf(a.agentId), bi = order.indexOf(b.agentId);
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
