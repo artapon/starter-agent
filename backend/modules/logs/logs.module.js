@@ -64,7 +64,7 @@ router.get('/files', (req, res, next) => {
     // page=1 = last page (most recent), page=totalPages = first page (oldest)
     const p          = Math.min(Math.max(1, Number(page)), totalPages);
     const fromEnd    = (p - 1) * pp;
-    const slice      = entries.slice(total - fromEnd - pp, total - fromEnd);
+    const slice      = entries.slice(total - fromEnd - pp, total - fromEnd).reverse();
 
     res.json({ lines: slice, total, page: p, totalPages, size: stat.size, filename });
   } catch (e) { next(e); }

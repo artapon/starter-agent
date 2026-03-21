@@ -108,6 +108,7 @@ export class PlannerAgent {
       });
 
       const signal = runId ? getAbortSignal(runId) : undefined;
+      logger.info(`Calling LLM (model: ${adapter._settings?.model_name || 'unknown'})`, { agentId: 'planner' });
       // Suppress raw JSON streaming — only the formatted step list is shown in chat
       rawOutput = await streamAndEmit(
         adapter._settings,
@@ -117,6 +118,7 @@ export class PlannerAgent {
         sessionId,
         'planner'
       );
+      logger.info(`LLM response received (${rawOutput.length} chars)`, { agentId: 'planner' });
 
       await memory.saveContext({ input: goal }, { output: rawOutput });
     } catch (err) {
@@ -137,6 +139,7 @@ export class PlannerAgent {
         researchQuery: (s.researchQuery || '').replace(/\s+/g, ' ').trim() || undefined,
       }));
     } catch {
+      logger.warn('Plan JSON parse failed — falling back to single-step plan', { agentId: 'planner' });
       // Strip research/workspace context injected for the LLM — use only the user's original goal
       const baseGoal = compressedGoal
         .split('\n[Research Context]')[0]
@@ -164,7 +167,8 @@ export class PlannerAgent {
     this.socketManager?.emitAgentStatus('planner', 'idle');
     this.socketManager?.emit('memory:updated', { agentId: 'planner', sessionId });
 
-    logger.info(`Plan created with ${plan.steps.length} steps`, { agentId: 'planner', planId });
+    const stepSummary = plan.steps.map((s, i) => `${i + 1}. ${s.description.slice(0, 60)}`).join(' | ');
+    logger.info(`Plan created — ${plan.steps.length} step(s) [${plan.priority}]: ${stepSummary}`, { agentId: 'planner', planId });
     return { planId, ...plan };
   }
 }

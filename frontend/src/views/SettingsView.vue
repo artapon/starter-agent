@@ -572,10 +572,13 @@
       </v-card>
     </v-dialog>
 
-    <!-- Snackbar -->
-    <v-snackbar v-model="snack.show" :color="snack.color" timeout="3000" location="bottom right" rounded="lg">
-      {{ snack.message }}
-    </v-snackbar>
+    <!-- Alert message -->
+    <transition name="alert-slide">
+      <div v-if="snack.show" class="alert-message bottom" :class="`alert-message--${snack.color}`">
+        <span class="alert-message__dot" />
+        <span class="section-heading">{{ snack.message }}</span>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -762,7 +765,12 @@ function applyPreset(agentId, preset) {
 function categoryIcon(cat) {
   return { filesystem: 'mdi-folder-outline', scaffold: 'mdi-rocket-launch-outline', workflow: 'mdi-sitemap' }[cat] || 'mdi-wrench';
 }
-function showSnack(message, color = 'success') { Object.assign(snack, { show: true, message, color }); }
+let _snackTimer = null;
+function showSnack(message, color = 'success') {
+  if (_snackTimer) clearTimeout(_snackTimer);
+  Object.assign(snack, { show: true, message, color });
+  _snackTimer = setTimeout(() => { snack.show = false; }, 3000);
+}
 
 async function fetchModels(agentId) {
   loadingModels[agentId] = true;
@@ -1252,4 +1260,49 @@ onMounted(async () => {
 }
 
 .font-mono { font-family: 'JetBrains Mono', 'Fira Code', monospace !important; }
+
+/* ── Alert message (run-banner style) ────────────────────────────────── */
+.alert-message {
+  position: fixed;
+  z-index: 9999;
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid;
+  font-size: 13px;
+  max-width: 340px;
+  pointer-events: none;
+}
+.alert-message.bottom { top: 24px; right: 24px; }
+.alert-message .section-heading { margin-bottom: 0; font-weight: 600; }
+
+.alert-message__dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  animation: pulse-dot 1.2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+.alert-message--success { background: rgba(16,185,129,0.07);  border-color: rgba(16,185,129,0.2); }
+.alert-message--success .alert-message__dot   { background: #10B981; }
+.alert-message--success .section-heading      { color: #10B981 !important; }
+
+.alert-message--error   { background: rgba(239,68,68,0.07);   border-color: rgba(239,68,68,0.2); }
+.alert-message--error   .alert-message__dot   { background: #EF4444; }
+.alert-message--error   .section-heading      { color: #EF4444 !important; }
+
+.alert-message--warning { background: rgba(245,158,11,0.07);  border-color: rgba(245,158,11,0.2); }
+.alert-message--warning .alert-message__dot   { background: #F59E0B; }
+.alert-message--warning .section-heading      { color: #F59E0B !important; }
+
+.alert-message--info    { background: rgba(99,102,241,0.07);  border-color: rgba(99,102,241,0.2); }
+.alert-message--info    .alert-message__dot   { background: #818CF8; }
+.alert-message--info    .section-heading      { color: #818CF8 !important; }
+
+.alert-slide-enter-active { transition: opacity 0.2s, transform 0.2s; }
+.alert-slide-leave-active { transition: opacity 0.25s, transform 0.25s; }
+.alert-slide-enter-from   { opacity: 0; transform: translateY(-8px); }
+.alert-slide-leave-to     { opacity: 0; transform: translateY(-4px); }
 </style>

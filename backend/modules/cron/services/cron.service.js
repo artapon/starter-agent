@@ -92,6 +92,8 @@ class CronService {
   }
 
   _loadAll() {
+    // Reset any jobs stuck in 'running' from a previous server crash/restart
+    this.db.table('cron_jobs').update({ last_status: 'running' }, { last_status: 'idle' });
     const jobs = this.db.table('cron_jobs').all({ enabled: 1 });
     for (const job of jobs) this._schedule(job);
     logger.info(`Cron service started — ${jobs.length} job(s) active (timezone: ${SERVER_TZ})`);

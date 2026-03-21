@@ -311,12 +311,12 @@ export class ResearcherAgent {
         for (const result of browseSettled) {
           if (pageContents.length >= 7) break;
           if (result.status === 'rejected') {
-            logger.error(`Browse failed: ${result.reason?.message || result.reason}`, { agentId: 'researcher' });
+            logger.warn(`Browse failed: ${result.reason?.message || result.reason}`, { agentId: 'researcher' });
             continue;
           }
           const { url, type, text } = result.value;
           if (text.startsWith('Failed to read') || text.startsWith('[binary')) {
-            logger.error(`Browse skipped: ${text.slice(0, 80)}`, { agentId: 'researcher' });
+            logger.warn(`Browse skipped: ${text.slice(0, 80)}`, { agentId: 'researcher' });
           } else {
             addSource(url, type, text.slice(0, 300));
             pageContents.push({ url, text, type });

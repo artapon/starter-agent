@@ -65,6 +65,45 @@ function getSystemPrompt() {
   return BASE_PROMPT + getSkillPrompt('worker') + getRLStore().buildWorkerContext();
 }
 
+// ── File-by-file mode prompts ──────────────────────────────────────────────
+
+const PLAN_PROMPT = `You are a Worker Agent — expert implementer. Plan which files to create.
+
+Output ONLY a single valid JSON object listing every file needed:
+{"files":[{"path":"relative/path/file.ext","description":"what this file does"}],"summary":"one sentence: what will be built"}
+
+Rules:
+- List EVERY file that needs creating or modifying for the task to work end-to-end
+- Paths are relative to workspace root (e.g. "src/routes/auth.js")
+- No markdown, no explanation — ONLY the JSON`;
+
+const FILE_PROMPT = `You are a Worker Agent — expert implementer writing one file at a time.
+
+## Output instruction
+After reasoning, output ONLY this JSON — immediately after closing any <think> block:
+{"path":"the/file/path.ext","content":"complete file content"}
+
+## JSON encoding rules
+- Every newline inside content → \\n (backslash + n)
+- Every tab → \\t, every backslash → \\\\, every double-quote → \\"
+- Response must be parseable by JSON.parse()
+- Do NOT wrap in markdown fences
+
+## Completeness (non-negotiable)
+- Write the COMPLETE file — no placeholders, no TODOs, no stubs, no "// rest of code"
+- Every import must resolve to a file in the workspace or a file already listed as written
+- Every function you reference must be implemented
+
+Your final output MUST be the JSON object.`;
+
+function getPlanSystemPrompt() {
+  return PLAN_PROMPT + getSkillPrompt('worker');
+}
+
+function getFileSystemPrompt() {
+  return FILE_PROMPT + getSkillPrompt('worker') + getRLStore().buildWorkerContext();
+}
+
 /**
  * Read a JSON string value from `text` starting at `pos` (the character AFTER
  * the opening double-quote). Returns { value, end } or null if unterminated.
@@ -360,137 +399,104 @@ export class WorkerAgent {
     return { written, summary: '' };
   }
 
-  async execute(task, sessionId, planId = null, runId = null, continueFrom = null) {
+  async execute(task, sessionId, planId = null, runId = null) {
     logger.info(`Executing task${isDebugMode() ? ': ' + task : ''}`, { agentId: 'worker', sessionId });
     this.socketManager?.emitAgentStatus('worker', 'working', task);
 
-    const compressedTask = compressString(task, 8192);
+    const compressedTask = compressString(task, 2000);
     const adapter = getAdapter('worker');
-    // Use run-scoped memory to prevent cross-run context contamination
-    const memory = memoryStore.getMemory('worker', runId || sessionId);
+    const memory  = memoryStore.getMemory('worker', runId || sessionId);
+    const signal  = runId ? getAbortSignal(runId) : undefined;
 
     let result        = '';
-    let truncated     = false;
     let fullRawOutput = '';
 
     try {
-      const prompt = ChatPromptTemplate.fromMessages([
-        ['system', getSystemPrompt()],
-        new MessagesPlaceholder('chat_history'),
-        ['human', 'Task: {task}\n\nRemember: output ONLY the JSON blueprint starting with {{"files":[. No explanations, no markdown fences around the JSON, no prose.'],
-      ]);
-      // Workflow runs (runId set): skip STM history — previous step JSON blobs
-      // in chat history confuse the model. Context is already injected via enrichedTask.
-      const chatHistory = runId ? [] : (await memory.loadMemoryVariables({})).chat_history || [];
-      let langchainMessages = await prompt.formatMessages({
-        task: compressedTask,
-        chat_history: chatHistory,
-      });
+      // ── Phase 1: Ask the model which files it will create ─────────────────
+      const planMessages = [
+        { role: 'system', content: getPlanSystemPrompt() },
+        { role: 'user',   content: `Task:\n${compressedTask}\n\nOutput ONLY the JSON file plan.` },
+      ];
+      const planStream = await streamAndEmit(
+        adapter._settings, planMessages, signal,
+        this.socketManager, sessionId, 'worker', true
+      );
 
-      // Continuation mode: inject only the TAIL of the previous output as context.
-      // Do NOT inject the full continueFrom as an AIMessage — at 8000+ chars it
-      // consumes ~2000 tokens before generation even starts, leaving almost no room
-      // for the continuation output and causing it to also truncate.
-      // Instead, send only the last 600 chars as a HumanMessage reference so the
-      // model knows exactly where to continue from, preserving most of the budget.
-      if (continueFrom) {
-        const TAIL_LEN = 600;
-        const tail = continueFrom.slice(-TAIL_LEN);
-        langchainMessages = [
-          ...langchainMessages,
-          new HumanMessage(
-            `Your previous response was truncated mid-output. Continue the JSON from EXACTLY where it stopped.\n` +
-            `The last ${Math.min(TAIL_LEN, continueFrom.length)} characters of your previous output were:\n\n` +
-            `...${tail}\n\n` +
-            `Output ONLY the continuation — no preamble, no restart, no repetition. ` +
-            `Begin immediately from the next character after the cut-off point.`
-          ),
-        ];
-        logger.info(`Continue mode: tail context ${Math.min(TAIL_LEN, continueFrom.length)} chars (full output was ${continueFrom.length} chars)`, { agentId: 'worker' });
+      let filePlan = null;
+      try { filePlan = await new JsonOutputParser().parse(planStream.output); } catch { /* fall through */ }
+      if (!filePlan) filePlan = extractJSON(planStream.output) || extractJSON(planStream.rawOutput);
+
+      if (!filePlan?.files?.length) {
+        // Plan parsing failed — fall back to single-call mode
+        logger.warn('File plan not parseable — falling back to single-call mode', { agentId: 'worker' });
+        return await this._executeSingleCall(task, compressedTask, sessionId, planId, runId, signal, memory);
       }
 
-      const signal = runId ? getAbortSignal(runId) : undefined;
-      const streamResult = await streamAndEmit(
-        adapter._settings,
-        toLMStudioMessages(langchainMessages),
-        signal,
-        this.socketManager,
-        sessionId,
-        'worker',
-        true  // returnRaw — needed so we can search inside think blocks as fallback
-      );
-      // In continue mode, concatenate previous output with the new continuation
-      let output    = continueFrom ? continueFrom + streamResult.output    : streamResult.output;
-      fullRawOutput = continueFrom ? continueFrom + streamResult.rawOutput : streamResult.rawOutput;
-      // Re-check truncation on the combined output — a continuation stream may have
-      // completed normally while the full combined JSON is still malformed/incomplete.
-      let combinedTrimmed = fullRawOutput.trimEnd();
-      truncated = streamResult.truncated ||
-        (combinedTrimmed.includes('{') && !combinedTrimmed.endsWith('}') && !combinedTrimmed.endsWith(']'));
+      this.socketManager?.emitChatChunk(sessionId,
+        `\n📋 **File plan** (${filePlan.files.length} file${filePlan.files.length !== 1 ? 's' : ''}): ${filePlan.summary || ''}\n`,
+        'worker');
 
-      // Auto-continuation: if the model was cut off, re-prompt up to 2 more times
-      const MAX_AUTO_CONTINUATIONS = 2;
-      let autoContCount = 0;
-      while (truncated && autoContCount < MAX_AUTO_CONTINUATIONS) {
-        autoContCount++;
-        logger.info(`Auto-continuing truncated output (attempt ${autoContCount}/${MAX_AUTO_CONTINUATIONS})`, { agentId: 'worker' });
-        this.socketManager?.emitChatChunk(sessionId, `\n[Continuing truncated output…]\n`, 'worker');
+      // ── Phase 2: Write each file in its own LLM call ──────────────────────
+      const allWritten = [];
+      for (let i = 0; i < filePlan.files.length; i++) {
+        const fileSpec = filePlan.files[i];
+        if (signal?.aborted) throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
 
-        const TAIL_LEN = 600;
-        const tail = output.slice(-TAIL_LEN);
-        const contPromptMessages = await prompt.formatMessages({ task: compressedTask, chat_history: [] });
-        const contMessages = [
-          ...contPromptMessages,
-          new HumanMessage(
-            `Your previous response was truncated mid-output. Continue from EXACTLY where it stopped.\n` +
-            `Last ${Math.min(TAIL_LEN, output.length)} characters of your previous output:\n\n...${tail}\n\n` +
-            `Output ONLY the continuation — no preamble, no restart, no repetition. Begin immediately from the next character.`
-          ),
+        const label = `${i + 1}/${filePlan.files.length}`;
+        this.socketManager?.emitChatChunk(sessionId,
+          `\n📝 **Writing ${label}:** \`${fileSpec.path}\`\n`, 'worker');
+
+        const writtenContext = allWritten.length
+          ? `\nFiles already written:\n${allWritten.map(p => `  - ${p}`).join('\n')}`
+          : '';
+
+        const fileMessages = [
+          { role: 'system', content: getFileSystemPrompt() },
+          { role: 'user',   content: [
+              `## Overall Task\n${compressedTask}`,
+              `## File to write now (${label})\nPath: ${fileSpec.path}\nPurpose: ${fileSpec.description || fileSpec.path}`,
+              writtenContext,
+              `\nOutput the JSON object with the complete content of this file.`,
+            ].filter(Boolean).join('\n\n'),
+          },
         ];
 
-        const contResult = await streamAndEmit(
-          adapter._settings,
-          toLMStudioMessages(contMessages),
-          signal,
+        const fileStream = await streamAndEmit(
+          adapter._settings, fileMessages, signal,
           this.socketManager, sessionId, 'worker', true
         );
+        fullRawOutput += fileStream.rawOutput + '\n';
 
-        output        = output        + contResult.output;
-        fullRawOutput = fullRawOutput + contResult.rawOutput;
-        combinedTrimmed = fullRawOutput.trimEnd();
-        truncated = contResult.truncated ||
-          (combinedTrimmed.includes('{') && !combinedTrimmed.endsWith('}') && !combinedTrimmed.endsWith(']'));
+        // Parse single-file JSON — try all extraction methods
+        let fileBP = null;
+        try { fileBP = await new JsonOutputParser().parse(fileStream.output); } catch { /* fall through */ }
+        if (!fileBP) fileBP = extractJSON(fileStream.output) || extractJSON(fileStream.rawOutput);
+        if (!fileBP?.content) {
+          const bp = extractBlueprintByStrings(fileStream.output) || extractBlueprintByStrings(fileStream.rawOutput);
+          if (bp?.files?.[0]) fileBP = bp.files[0];
+        }
+
+        if (fileBP?.content != null) {
+          const contentStr = String(fileBP.content);
+          const filePath   = fileBP.path || fileSpec.path;
+          if (contentStr.trim().length >= 5) {
+            const writeResult = await writeFileTool.func({ path: filePath, content: contentStr });
+            allWritten.push(filePath);
+            logger.info(`Wrote: ${filePath}`, { agentId: 'worker' });
+            this.socketManager?.emitChatChunk(sessionId, `\n✓ ${writeResult}`, 'worker');
+          } else {
+            logger.error(`Skipping ${fileSpec.path} — content empty or near-empty (${contentStr.length} chars)`, { agentId: 'worker' });
+          }
+        } else {
+          logger.error(`Could not extract content for ${fileSpec.path} — skipping`, { agentId: 'worker' });
+        }
       }
 
-      // Always write the full raw LLM response to a debug file for inspection
-      try {
-        const debugDir = join(getWorkspacePath(), 'debug');
-        mkdirSync(debugDir, { recursive: true });
-        const debugFile = join(debugDir, '_debug_llm_response.txt');
-        writeFileSync(debugFile,
-          `=== Worker LLM Response Debug ===\n` +
-          `Timestamp : ${new Date().toISOString()}\n` +
-          `Task      : ${task.slice(0, 300)}\n` +
-          `Output    : ${output.length} chars (stripped)\n` +
-          `Raw       : ${fullRawOutput.length} chars (with think blocks)\n` +
-          `Truncated : ${truncated}\n` +
-          `\n=== STRIPPED OUTPUT ===\n${output}` +
-          `\n\n=== FULL RAW OUTPUT (incl. think blocks) ===\n${fullRawOutput}`
-        );
-        logger.info(`LLM response written to workspace/debug/_debug_llm_response.txt`, { agentId: 'worker' });
-      } catch (e) {
-        logger.error(`Could not write debug response file: ${e.message}`, { agentId: 'worker' });
-      }
+      result = allWritten.length > 0
+        ? `Implemented ${allWritten.length} file(s): ${allWritten.join(', ')} — ${filePlan.summary || ''}`
+        : 'No files were written';
 
-      if (truncated) {
-        logger.error(`Worker response was truncated — file content may be incomplete. Consider increasing context window in LM Studio or simplifying the task.`, { agentId: 'worker' });
-      }
-
-      const { written, summary: blueprintSummary } = await this._applyBlueprint(output, fullRawOutput, sessionId);
-      await memory.saveContext({ input: task }, { output });
-      result = written.length > 0
-        ? `Implemented ${written.length} file(s): ${written.join(', ')}${blueprintSummary ? ` — ${blueprintSummary}` : ''}`
-        : output;
+      await memory.saveContext({ input: task }, { output: result });
 
     } catch (err) {
       if (err.name === 'AbortError') throw err;
@@ -514,6 +520,81 @@ export class WorkerAgent {
     this.socketManager?.emit('memory:updated', { agentId: 'worker', sessionId });
 
     logger.info('Task execution complete', { agentId: 'worker', subtaskId });
+    return { subtaskId, result, truncated: false, rawOutput: fullRawOutput };
+  }
+
+  /**
+   * Fallback: write all files in a single LLM call (used when file-plan parsing fails).
+   * Kept for resilience — file-by-file mode is preferred.
+   */
+  async _executeSingleCall(task, compressedTask, sessionId, planId, runId, signal, memory) {
+    const adapter = getAdapter('worker');
+    let result = '';
+    let fullRawOutput = '';
+    let truncated = false;
+
+    const prompt = ChatPromptTemplate.fromMessages([
+      ['system', getSystemPrompt()],
+      new MessagesPlaceholder('chat_history'),
+      ['human', 'Task: {task}\n\nRemember: output ONLY the JSON blueprint starting with {{"files":[. No explanations, no markdown fences around the JSON, no prose.'],
+    ]);
+    const chatHistory = runId ? [] : (await memory.loadMemoryVariables({})).chat_history || [];
+    const langchainMessages = await prompt.formatMessages({ task: compressedTask, chat_history: chatHistory });
+
+    const streamResult = await streamAndEmit(
+      adapter._settings,
+      toLMStudioMessages(langchainMessages),
+      signal,
+      this.socketManager, sessionId, 'worker', true
+    );
+    let output = streamResult.output;
+    fullRawOutput = streamResult.rawOutput;
+    const combinedTrimmed = fullRawOutput.trimEnd();
+    truncated = streamResult.truncated ||
+      (combinedTrimmed.includes('{') && !combinedTrimmed.endsWith('}') && !combinedTrimmed.endsWith(']'));
+
+    if (truncated) {
+      // One minimal continuation attempt
+      const tail = output.slice(-600);
+      const contMessages = [
+        { role: 'system', content: 'You are a JSON completion assistant. Output ONLY the continuation of the truncated JSON — no preamble, no explanation, no restart.' },
+        { role: 'user', content: `Continue this truncated JSON from exactly where it stopped:\n\n...${tail}\n\nContinue immediately:` },
+      ];
+      const contResult = await streamAndEmit(
+        adapter._settings, contMessages, signal,
+        this.socketManager, sessionId, 'worker', true
+      );
+      output        += contResult.output;
+      fullRawOutput += contResult.rawOutput;
+      truncated = contResult.truncated;
+    }
+
+    if (truncated) {
+      logger.error(`Worker response truncated — file content may be incomplete. Increase context window in LM Studio.`, { agentId: 'worker' });
+    }
+
+    const { written, summary: blueprintSummary } = await this._applyBlueprint(output, fullRawOutput, sessionId);
+    await memory.saveContext({ input: task }, { output });
+    result = written.length > 0
+      ? `Implemented ${written.length} file(s): ${written.join(', ')}${blueprintSummary ? ` — ${blueprintSummary}` : ''}`
+      : output;
+
+    const subtaskId = uuidv4();
+    this.db.table('subtasks').insert({
+      id: subtaskId,
+      plan_id: planId || '',
+      step_id: uuidv4(),
+      description: task,
+      result_json: JSON.stringify({ content: result }),
+      status: 'complete',
+      created_at: Math.floor(Date.now() / 1000),
+    });
+
+    await memoryStore.snapshotMemory('worker', runId || sessionId);
+    this.socketManager?.emitAgentStatus('worker', 'idle');
+    this.socketManager?.emit('memory:updated', { agentId: 'worker', sessionId });
+
+    logger.info('Task execution complete (single-call fallback)', { agentId: 'worker', subtaskId });
     return { subtaskId, result, truncated, rawOutput: fullRawOutput };
   }
 }

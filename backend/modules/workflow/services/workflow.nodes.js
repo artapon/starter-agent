@@ -111,12 +111,12 @@ export function createNodes(socketManager) {
       : '';
 
     // Step 0: reuse planner's workspace scan — no new files exist yet.
-    // Step 1+: re-scan to pick up files written by previous steps.
+    // Step 1+: re-scan using compact summary to reduce worker input tokens.
     const currentWorkspaceContext = state.currentStepIdx === 0
       ? state.workspaceContext
       : (() => {
-          const ws = buildWorkspaceContext(state.workspaceFolder || undefined);
-          return ws.isEmpty ? null : ws.context;
+          const ws = buildWorkspaceSummary(state.workspaceFolder || undefined);
+          return ws.isEmpty ? null : ws.summary;
         })();
 
     const enrichedTask = [
