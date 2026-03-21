@@ -6,7 +6,7 @@ import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
-import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
+import { getSkillPrompt, buildSkillMenu } from '../../../core/skills/skill.loader.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('planner');
@@ -19,7 +19,7 @@ The JSON must appear OUTSIDE and AFTER any reasoning/thinking block — never in
 Close all thinking first, then immediately output the JSON on the very next line.
 
 Output format — a single valid JSON object, nothing else:
-{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<detailed actionable description>","researchQuery":"<focused research question the Researcher should answer before this step is implemented>","dependsOn":[],"agentHint":"worker"}}],"priority":"<low|medium|high|critical>","estimatedSteps":<number>}}
+{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<detailed actionable description>","researchQuery":"<focused research question the Researcher should answer before this step is implemented>","dependsOn":[],"agentHint":"worker"}}],"priority":"<low|medium|high|critical>","estimatedSteps":<number>,"agentSkills":{{"researcher":"<skill>","worker":"<skill>","reviewer":"<skill>"}}}}
 
 ## ⚠️ CRITICAL: Working with an Existing Project
 
@@ -74,7 +74,7 @@ If the prompt contains an "=== EXISTING WORKSPACE PROJECT ===" section, you MUST
 Your final output MUST be the JSON object — output it immediately after closing any thinking block.`;
 
 
-function getSystemPrompt() { return BASE_PROMPT + getSkillPrompt('planner'); }
+function getSystemPrompt() { return BASE_PROMPT + buildSkillMenu() + getSkillPrompt('planner'); }
 
 export class PlannerAgent {
   constructor(socketManager) {
@@ -138,6 +138,16 @@ export class PlannerAgent {
         description: (s.description || '').replace(/\s+/g, ' ').trim(),
         researchQuery: (s.researchQuery || '').replace(/\s+/g, ' ').trim() || undefined,
       }));
+      // Normalise agentSkills — keep only recognised keys
+      if (plan.agentSkills && typeof plan.agentSkills === 'object') {
+        plan.agentSkills = {
+          researcher: plan.agentSkills.researcher || null,
+          worker:     plan.agentSkills.worker     || null,
+          reviewer:   plan.agentSkills.reviewer   || null,
+        };
+      } else {
+        plan.agentSkills = null;
+      }
     } catch {
       logger.warn('Plan JSON parse failed — falling back to single-step plan', { agentId: 'planner' });
       // Strip research/workspace context injected for the LLM — use only the user's original goal

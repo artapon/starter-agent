@@ -9,6 +9,32 @@ const logger = createLogger('skill-loader');
 // Project root is 3 levels up from backend/core/skills/
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const SKILLS_ROOT   = join(PROJECT_ROOT, 'skills');
+const LIBRARY_ROOT  = join(SKILLS_ROOT, 'library');
+
+// Skill library metadata — descriptions used in the planner skill menu
+const LIBRARY_SKILL_DESCRIPTIONS = {
+  researcher: {
+    'design':   'HTML/CSS/UI/UX, portfolio, landing page, visual design, typography, accessibility',
+    'backend':  'API design, authentication, security, packages, performance, error handling',
+    'general':  'general-purpose — detects task type and applies the right research focus',
+  },
+  worker: {
+    'html-css':  'HTML/CSS/design tasks: portfolio, landing page, visual components',
+    'nodejs':    'Node.js/Express backend: APIs, services, middleware, error handling',
+    'vue':       'Vue 3 + Vuetify frontend: components, Composition API, scoped styles',
+    'fullstack': 'full-stack: HTML/CSS or Vue frontend + Node.js backend together',
+    'general':   'general-purpose — covers any task type with core quality rules',
+  },
+  reviewer: {
+    'design':    'visual quality, real content, responsiveness, semantic HTML, accessibility',
+    'backend':   'code correctness, security, error handling, completeness, performance',
+    'fullstack': 'design quality + code correctness + frontend/backend integration',
+    'general':   'general-purpose — detects task type and applies the matching lens',
+  },
+};
+
+// Library skill cache: { 'researcher:design': string }
+const libraryCache = {};
 
 const SKILL_FILES = {
   global:     'SKILL.md',
@@ -178,4 +204,97 @@ export function getSkillPrompt(agentId) {
 
   if (!parts.length) return '';
   return `\n\n---\n${parts.join('\n\n')}`;
+}
+
+// ── Library skill API ──────────────────────────────────────────────────────────
+
+/**
+ * List available skill names for an agent from the library.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @returns {string[]}
+ */
+export function listLibrarySkills(agentId) {
+  return Object.keys(LIBRARY_SKILL_DESCRIPTIONS[agentId] || {});
+}
+
+/**
+ * Read the raw content of a library skill file.
+ * Returns empty string if not found.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string} skillName
+ * @returns {string}
+ */
+export function getLibrarySkillRaw(agentId, skillName) {
+  if (!agentId || !skillName) return '';
+  const key = `${agentId}:${skillName}`;
+  if (key in libraryCache) return libraryCache[key];
+  const filePath = join(LIBRARY_ROOT, agentId, `${skillName}.md`);
+  if (!existsSync(filePath)) {
+    logger.warn(`Library skill not found: ${agentId}/${skillName}.md`);
+    libraryCache[key] = '';
+    return '';
+  }
+  try {
+    libraryCache[key] = readFileSync(filePath, 'utf8').trim();
+    // Watch for changes
+    watchFile(filePath, { interval: 2000 }, () => {
+      delete libraryCache[key];
+      logger.info(`Library skill changed, cache cleared: ${agentId}/${skillName}`);
+    });
+  } catch (err) {
+    logger.error(`Could not read library skill ${agentId}/${skillName}: ${err.message}`);
+    libraryCache[key] = '';
+  }
+  return libraryCache[key];
+}
+
+/**
+ * Get raw library skill prompt for agents that build messages manually (no brace-escaping).
+ * Falls back to getRawSkillPrompt() if skill not found.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string|null} skillName
+ * @returns {string}
+ */
+export function getRawLibrarySkillPrompt(agentId, skillName) {
+  if (!skillName) return getRawSkillPrompt(agentId);
+  const content = getLibrarySkillRaw(agentId, skillName);
+  if (!content) return getRawSkillPrompt(agentId);
+  const label = agentId.charAt(0).toUpperCase() + agentId.slice(1);
+  return `\n\n---\n## ${label} Expert Skills — ${skillName}\n${content}`;
+}
+
+/**
+ * Get brace-escaped library skill prompt for agents that use ChatPromptTemplate.
+ * Falls back to getSkillPrompt() if skill not found.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string|null} skillName
+ * @returns {string}
+ */
+export function getLibrarySkillPrompt(agentId, skillName) {
+  if (!skillName) return getSkillPrompt(agentId);
+  const content = getLibrarySkillRaw(agentId, skillName);
+  if (!content) return getSkillPrompt(agentId);
+  const escaped = content.replace(/\{/g, '{{').replace(/\}/g, '}}');
+  const label = agentId.charAt(0).toUpperCase() + agentId.slice(1);
+  return `\n\n---\n## ${label} Expert Skills — ${skillName}\n${escaped}`;
+}
+
+/**
+ * Build a formatted skill selection menu for injection into the Planner prompt.
+ * Lists every available library skill with its description.
+ * @returns {string}
+ */
+export function buildSkillMenu() {
+  const lines = ['\n\n---\n## Agent Skill Selection\n'];
+  lines.push('Choose the best skill for each agent based on the task type.');
+  lines.push('Add an `"agentSkills"` key to your JSON output.\n');
+  for (const [agent, skills] of Object.entries(LIBRARY_SKILL_DESCRIPTIONS)) {
+    lines.push(`### ${agent} skills`);
+    for (const [name, desc] of Object.entries(skills)) {
+      lines.push(`- "${name}" — ${desc}`);
+    }
+    lines.push('');
+  }
+  lines.push('Example: {"agentSkills":{"researcher":"design","worker":"html-css","reviewer":"design"}}');
+  return lines.join('\n');
 }

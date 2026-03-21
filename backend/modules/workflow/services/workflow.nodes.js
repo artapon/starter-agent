@@ -42,10 +42,14 @@ export function createNodes(socketManager) {
     const plan = await plannerAgent.plan(goalWithContext, state.sessionId, plannerMemKey);
 
     const stepList = (plan.steps || []).map((s, i) => `  ${i + 1}. ${s.description}`).join('\n');
-    emitStatus(state.sessionId, 'planner', `\n\n✅ **Plan ready** — ${plan.steps?.length || 0} step(s):\n${stepList}\n`);
+    const skills = plan.agentSkills;
+    const skillsLine = skills
+      ? `\n🎯 **Skills selected** — researcher: \`${skills.researcher || 'default'}\`, worker: \`${skills.worker || 'default'}\`, reviewer: \`${skills.reviewer || 'default'}\``
+      : '';
+    emitStatus(state.sessionId, 'planner', `\n\n✅ **Plan ready** — ${plan.steps?.length || 0} step(s):\n${stepList}\n${skillsLine}\n`);
 
     socketManager?.emitWorkflowNode(state.runId, 'planner', { status: 'complete', plan });
-    return { plan, currentStepIdx: 0, status: 'running', workspaceContext, workspaceSummary };
+    return { plan, currentStepIdx: 0, status: 'running', workspaceContext, workspaceSummary, agentSkills: skills || null };
   }
 
   // ── Node 2: Researcher ───────────────────────────────────────────────────
@@ -59,7 +63,8 @@ export function createNodes(socketManager) {
     socketManager?.emitWorkflowNode(state.runId, 'researcher', { status: 'running' });
     emitStatus(state.sessionId, 'researcher', `\n🔬 **Researching:** ${researchGoal}\n\n`);
 
-    const findings = await researcherAgent.research(researchGoal, state.sessionId, state.runId);
+    const researcherSkill = state.agentSkills?.researcher || null;
+    const findings = await researcherAgent.research(researchGoal, state.sessionId, state.runId, researcherSkill);
 
     const approaches = (findings.approaches || []).map((a) => `  - **${a.name}**`).join('\n');
     emitStatus(
@@ -128,8 +133,9 @@ export function createNodes(socketManager) {
     ].join('');
 
     const workerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
+    const workerSkill  = state.agentSkills?.worker || null;
     const result = await workerAgent.execute(
-      enrichedTask, state.sessionId, state.plan?.planId, workerMemKey,
+      enrichedTask, state.sessionId, state.plan?.planId, workerMemKey, workerSkill,
     );
 
     socketManager?.emitWorkflowNode(state.runId, 'worker', {
@@ -167,9 +173,10 @@ export function createNodes(socketManager) {
       : (step?.description || 'Review task');
 
     const reviewerMemKey = state.projectId ? `${state.projectId}:${state.runId}` : state.runId;
+    const reviewerSkill  = state.agentSkills?.reviewer || null;
     const review = await reviewerAgent.review(
       reviewContent, reviewTask,
-      state.sessionId, lastResult.subtaskId, reviewerMemKey,
+      state.sessionId, lastResult.subtaskId, reviewerMemKey, reviewerSkill,
     );
     const score = review.score ?? 10;
 

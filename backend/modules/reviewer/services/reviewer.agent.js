@@ -7,7 +7,7 @@ import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
-import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
+import { getLibrarySkillPrompt } from '../../../core/skills/skill.loader.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
 
 const logger = createLogger('reviewer');
@@ -83,8 +83,8 @@ These are process artifacts irrelevant to HTML/CSS output quality.
 Your final output MUST be the JSON object — output it immediately after closing any thinking block.`;
 
 
-function getSystemPrompt() {
-  return BASE_PROMPT + getSkillPrompt('reviewer') + getRLStore().buildReviewerContext();
+function getSystemPrompt(skill = null) {
+  return BASE_PROMPT + getLibrarySkillPrompt('reviewer', skill) + getRLStore().buildReviewerContext();
 }
 
 export class ReviewerAgent {
@@ -93,7 +93,7 @@ export class ReviewerAgent {
     this.db = getDb();
   }
 
-  async review(content, task, sessionId, subtaskId = null, runId = null) {
+  async review(content, task, sessionId, subtaskId = null, runId = null, skill = null) {
     logger.info(`Reviewing content${isDebugMode() ? ' for task: ' + task : ''}`, { agentId: 'reviewer', sessionId });
     this.socketManager?.emitAgentStatus('reviewer', 'working', `Reviewing: ${task}`);
 
@@ -107,7 +107,7 @@ export class ReviewerAgent {
 
     try {
       const prompt = ChatPromptTemplate.fromMessages([
-        ['system', getSystemPrompt()],
+        ['system', getSystemPrompt(skill)],
         new MessagesPlaceholder('chat_history'),
         ['human', 'Task: {task}\n\nSubmission:\n{content}'],
       ]);

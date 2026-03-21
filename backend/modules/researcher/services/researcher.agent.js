@@ -6,7 +6,7 @@ import { createLogger } from '../../../core/logger/winston.logger.js';
 import { getDb } from '../../../core/database/db.js';
 import { getAbortSignal } from '../../../core/abort/abort.registry.js';
 import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
-import { getRawSkillPrompt } from '../../../core/skills/skill.loader.js';
+import { getRawLibrarySkillPrompt } from '../../../core/skills/skill.loader.js';
 import { extractKeywords, SEARCH_ADAPTERS } from '../../../core/browser/web.search.tools.js';
 
 const logger = createLogger('researcher');
@@ -23,8 +23,8 @@ const logger = createLogger('researcher');
  *   2. Web context  — live search results (MCP mode only)
  *   3. Skill content — RESEARCHER.md expert persona + instructions
  */
-function buildMessages(goal, histMessages = [], webContext = null, ltmContext = null) {
-  const skillContent  = getRawSkillPrompt('researcher');
+function buildMessages(goal, histMessages = [], webContext = null, ltmContext = null, skill = null) {
+  const skillContent  = getRawLibrarySkillPrompt('researcher', skill);
   const parts = [];
   if (ltmContext) parts.push(ltmContext);
   if (webContext) parts.push(`=== WEB RESEARCH CONTEXT ===\n${webContext}\n=== END WEB RESEARCH CONTEXT ===`);
@@ -139,25 +139,25 @@ export class ResearcherAgent {
     return row?.value === '1';
   }
 
-  async research(goal, sessionId, runId = null) {
+  async research(goal, sessionId, runId = null, skill = null) {
     logger.info(`Researching goal${isDebugMode() ? ': ' + goal : ''}`, { agentId: 'researcher', sessionId });
     this.socketManager?.emitAgentStatus('researcher', 'working', goal);
 
     if (this._isMCPEnabled()) {
       try {
-        return await this._researchWithMCP(goal, sessionId, runId);
+        return await this._researchWithMCP(goal, sessionId, runId, skill);
       } catch (err) {
         if (err.name === 'AbortError') throw err;
         logger.error(`MCP research failed, falling back to plain: ${err.message}`, { agentId: 'researcher' });
         this.socketManager?.emitAgentStatus('researcher', 'working', 'Web search unavailable, using plain research...');
       }
     }
-    return this._researchPlain(goal, sessionId, runId);
+    return this._researchPlain(goal, sessionId, runId, skill);
   }
 
   // ── Plain research (no web search) ──────────────────────────────────────────
 
-  async _researchPlain(goal, sessionId, runId) {
+  async _researchPlain(goal, sessionId, runId, skill = null) {
     const adapter = getAdapter('researcher');
     const memory  = memoryStore.getMemory('researcher', sessionId);
     let rawOutput = '';
@@ -167,7 +167,7 @@ export class ResearcherAgent {
         ? []
         : toLMStudioMessages((await memory.loadMemoryVariables({})).chat_history || []);
       const ltmContext   = await memoryStore.getLTMContext('researcher', goal, 3);
-      const messages     = buildMessages(compressString(goal, 4096), histMessages, null, ltmContext || null);
+      const messages     = buildMessages(compressString(goal, 4096), histMessages, null, ltmContext || null, skill);
       const signal      = runId ? getAbortSignal(runId) : undefined;
       rawOutput = await streamAndEmit(adapter._settings, messages, signal, this.socketManager, sessionId, 'researcher');
       await memory.saveContext({ input: goal }, { output: rawOutput });
@@ -190,7 +190,7 @@ export class ResearcherAgent {
   // All expert analysis guidelines, output schema, and grounding rules
   // come from the skill file — nothing domain-specific is hardcoded here.
 
-  async _researchWithMCP(goal, sessionId, runId) {
+  async _researchWithMCP(goal, sessionId, runId, skill = null) {
     const sm     = this.socketManager;
     const signal = runId ? getAbortSignal(runId) : undefined;
 
@@ -388,7 +388,7 @@ export class ResearcherAgent {
         : toLMStudioMessages((await memory.loadMemoryVariables({})).chat_history || []);
       // ltmContextPromise was started concurrently with Phase 1 — just await the result
       const ltmContext   = await ltmContextPromise.catch(() => null);
-      const messages     = buildMessages(compressString(goal, 2048), histMessages, webContext, ltmContext || null);
+      const messages     = buildMessages(compressString(goal, 2048), histMessages, webContext, ltmContext || null, skill);
 
       const rawOutput = await streamAndEmit(adapter._settings, messages, signal, sm, sessionId, 'researcher');
       await memory.saveContext({ input: goal }, { output: rawOutput });

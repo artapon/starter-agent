@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { writeFileTool } from '../../../core/tools/tool.implementations.js';
 import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
 import { getWorkspacePath } from '../../../core/workspace/workspace.path.js';
-import { getSkillPrompt } from '../../../core/skills/skill.loader.js';
+import { getSkillPrompt, getRawLibrarySkillPrompt, getLibrarySkillPrompt } from '../../../core/skills/skill.loader.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -61,8 +61,9 @@ If the task contains "=== EXISTING WORKSPACE PROJECT ===":
 Your final output MUST be the JSON object — emit it immediately after closing any thinking block.`;
 
 
-function getSystemPrompt() {
-  return BASE_PROMPT + getSkillPrompt('worker') + getRLStore().buildWorkerContext();
+function getSystemPrompt(skill = null) {
+  // Used by _executeSingleCall via ChatPromptTemplate — must be brace-escaped
+  return BASE_PROMPT + getLibrarySkillPrompt('worker', skill) + getRLStore().buildWorkerContext();
 }
 
 // ── File-by-file mode prompts ──────────────────────────────────────────────
@@ -96,12 +97,14 @@ After reasoning, output ONLY this JSON — immediately after closing any <think>
 
 Your final output MUST be the JSON object.`;
 
-function getPlanSystemPrompt() {
-  return PLAN_PROMPT + getSkillPrompt('worker');
+function getPlanSystemPrompt(skill = null) {
+  // Plain messages — use raw (no brace-escaping)
+  return PLAN_PROMPT + getRawLibrarySkillPrompt('worker', skill);
 }
 
-function getFileSystemPrompt() {
-  return FILE_PROMPT + getSkillPrompt('worker') + getRLStore().buildWorkerContext();
+function getFileSystemPrompt(skill = null) {
+  // Plain messages — use raw (no brace-escaping)
+  return FILE_PROMPT + getRawLibrarySkillPrompt('worker', skill) + getRLStore().buildWorkerContext();
 }
 
 /**
@@ -399,8 +402,8 @@ export class WorkerAgent {
     return { written, summary: '' };
   }
 
-  async execute(task, sessionId, planId = null, runId = null) {
-    logger.info(`Executing task${isDebugMode() ? ': ' + task : ''}`, { agentId: 'worker', sessionId });
+  async execute(task, sessionId, planId = null, runId = null, skill = null) {
+    logger.info(`Executing task${isDebugMode() ? ': ' + task : ''}${skill ? ` [skill: ${skill}]` : ''}`, { agentId: 'worker', sessionId });
     this.socketManager?.emitAgentStatus('worker', 'working', task);
 
     const compressedTask = compressString(task, 2000);
@@ -414,7 +417,7 @@ export class WorkerAgent {
     try {
       // ── Phase 1: Ask the model which files it will create ─────────────────
       const planMessages = [
-        { role: 'system', content: getPlanSystemPrompt() },
+        { role: 'system', content: getPlanSystemPrompt(skill) },
         { role: 'user',   content: `Task:\n${compressedTask}\n\nOutput ONLY the JSON file plan.` },
       ];
       const planStream = await streamAndEmit(
@@ -429,7 +432,7 @@ export class WorkerAgent {
       if (!filePlan?.files?.length) {
         // Plan parsing failed — fall back to single-call mode
         logger.warn('File plan not parseable — falling back to single-call mode', { agentId: 'worker' });
-        return await this._executeSingleCall(task, compressedTask, sessionId, planId, runId, signal, memory);
+        return await this._executeSingleCall(task, compressedTask, sessionId, planId, runId, signal, memory, skill);
       }
 
       this.socketManager?.emitChatChunk(sessionId,
@@ -451,7 +454,7 @@ export class WorkerAgent {
           : '';
 
         const fileMessages = [
-          { role: 'system', content: getFileSystemPrompt() },
+          { role: 'system', content: getFileSystemPrompt(skill) },
           { role: 'user',   content: [
               `## Overall Task\n${compressedTask}`,
               `## File to write now (${label})\nPath: ${fileSpec.path}\nPurpose: ${fileSpec.description || fileSpec.path}`,
@@ -527,14 +530,14 @@ export class WorkerAgent {
    * Fallback: write all files in a single LLM call (used when file-plan parsing fails).
    * Kept for resilience — file-by-file mode is preferred.
    */
-  async _executeSingleCall(task, compressedTask, sessionId, planId, runId, signal, memory) {
+  async _executeSingleCall(task, compressedTask, sessionId, planId, runId, signal, memory, skill = null) {
     const adapter = getAdapter('worker');
     let result = '';
     let fullRawOutput = '';
     let truncated = false;
 
     const prompt = ChatPromptTemplate.fromMessages([
-      ['system', getSystemPrompt()],
+      ['system', getSystemPrompt(skill)],
       new MessagesPlaceholder('chat_history'),
       ['human', 'Task: {task}\n\nRemember: output ONLY the JSON blueprint starting with {{"files":[. No explanations, no markdown fences around the JSON, no prose.'],
     ]);

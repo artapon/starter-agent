@@ -23,4 +23,5 @@ export const AgentStateAnnotation = Annotation.Root({
   workspaceSummary: Annotation({ reducer: (_, b) => b, default: () => null }),
   projectId: Annotation({ reducer: (_, b) => b, default: () => null }),
   workspaceFolder: Annotation({ reducer: (_, b) => b, default: () => null }),
+  agentSkills: Annotation({ reducer: (_, b) => b, default: () => null }),
 });
