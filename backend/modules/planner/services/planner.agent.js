@@ -19,7 +19,7 @@ The JSON must appear OUTSIDE and AFTER any reasoning/thinking block — never in
 Close all thinking first, then immediately output the JSON on the very next line.
 
 Output format — a single valid JSON object, nothing else:
-{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<detailed actionable description>","dependsOn":[],"agentHint":"worker"}}],"priority":"<low|medium|high|critical>","estimatedSteps":<number>}}
+{{"goal":"<original goal>","steps":[{{"id":"<uuid>","description":"<detailed actionable description>","researchQuery":"<focused research question the Researcher should answer before this step is implemented>","dependsOn":[],"agentHint":"worker"}}],"priority":"<low|medium|high|critical>","estimatedSteps":<number>}}
 
 ## ⚠️ CRITICAL: Working with an Existing Project
 
@@ -61,6 +61,12 @@ If the prompt contains an "=== EXISTING WORKSPACE PROJECT ===" section, you MUST
 - high: core feature, blocks other work
 - medium: standard feature (default)
 - low: enhancement, nice-to-have
+
+### researchQuery
+- Write a focused, specific question the Researcher Agent should answer before this step is implemented
+- Good: "What is the best approach to implement JWT refresh token rotation in Express.js? What packages and security patterns should be used?"
+- Bad: "Research authentication" (too vague)
+- The query should target what the Worker needs to know to implement this step correctly
 
 ### agentHint
 - Always "worker" — the Worker Agent handles all implementation
@@ -128,6 +134,7 @@ export class PlannerAgent {
         ...s,
         id: s.id || uuidv4(),
         description: (s.description || '').replace(/\s+/g, ' ').trim(),
+        researchQuery: (s.researchQuery || '').replace(/\s+/g, ' ').trim() || undefined,
       }));
     } catch {
       // Strip research/workspace context injected for the LLM — use only the user's original goal

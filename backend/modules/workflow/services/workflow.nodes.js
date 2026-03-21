@@ -52,8 +52,8 @@ export function createNodes(socketManager) {
   async function researcherNode(state) {
     const steps = state.plan?.steps || [];
     const step  = steps[state.currentStepIdx];
-    // Research the current step's specific requirements; fall back to overall goal
-    const researchGoal = step?.description || state.userGoal;
+    // Use planner-defined research query if available, fall back to step description then overall goal
+    const researchGoal = step?.researchQuery || step?.description || state.userGoal;
 
     memoryStore.setWorkingContext('researcher', state.runId, { goal: researchGoal, sessionId: state.sessionId });
     socketManager?.emitWorkflowNode(state.runId, 'researcher', { status: 'running' });
