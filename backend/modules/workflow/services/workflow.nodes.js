@@ -107,7 +107,7 @@ export function createNodes(socketManager) {
       totalSteps:  steps.length,
     });
     socketManager?.emitWorkflowNode(state.runId, 'worker', {
-      status: 'running', step: step.description, stepIdx: state.currentStepIdx,
+      status: 'running', step: step.description, stepIdx: state.currentStepIdx, totalSteps: steps.length,
     });
     emitStatus(state.sessionId, 'worker', `\n---\n💻 **${label}:** ${step.description}\n\n`);
 

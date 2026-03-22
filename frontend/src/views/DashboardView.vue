@@ -410,20 +410,31 @@ onMounted(() => {
 
   socket.on('dashboard:stats', (data) => { stats.value = { ...stats.value, ...data }; });
 
+  socket.on('workflow:started', () => {
+    stats.value = { ...stats.value, activeRuns: (stats.value.activeRuns || 0) + 1 };
+    fetchRecentRuns();
+  });
+
   socket.on('workflow:complete', (data) => {
     fetchTokenUsage();
+    stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
     const run = recentRuns.value.find(r => r.id === data.runId);
     if (run) run.status = 'complete';
+    else fetchRecentRuns();
   });
 
   socket.on('workflow:stopped', (data) => {
+    stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
     const run = recentRuns.value.find(r => r.id === data.runId);
     if (run) run.status = 'stopped';
+    else fetchRecentRuns();
   });
 
   socket.on('workflow:error', (data) => {
+    stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
     const run = recentRuns.value.find(r => r.id === data.runId);
     if (run) run.status = 'error';
+    else fetchRecentRuns();
   });
 
   const interval = setInterval(fetchStats, 30000);
@@ -433,6 +444,7 @@ onMounted(() => {
     socket.off('log:entry');
     socket.off('agent:status');
     socket.off('dashboard:stats');
+    socket.off('workflow:started');
     socket.off('workflow:complete');
     socket.off('workflow:stopped');
     socket.off('workflow:error');

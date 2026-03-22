@@ -62,7 +62,15 @@ export class WorkflowRunner {
       started_at: Math.floor(Date.now() / 1000),
     });
 
-    this.socketManager?.emit(SocketEvents.WORKFLOW_STARTED, { runId, goal, sessionId });
+    // Read workflow loop settings from global_settings
+    const globalRows = this.db.table('global_settings').all();
+    const globalMap  = Object.fromEntries(globalRows.map(r => [r.key, r.value]));
+    const loopEnabled = globalMap.workflow_loop_enabled === '1';
+    const maxLoops    = Math.max(1, parseInt(globalMap.workflow_max_loops || '3', 10));
+    const rawLimit    = parseInt(globalMap.workflow_recursion_limit || '200', 10);
+    const recursionLimit = (!rawLimit || rawLimit <= 0) ? 99999 : rawLimit;
+
+    this.socketManager?.emit(SocketEvents.WORKFLOW_STARTED, { runId, goal, sessionId, maxLoops });
 
     // Register abort controller
     const controller = createAbortController(runId);
@@ -87,14 +95,6 @@ export class WorkflowRunner {
         sm.emitChatChunk(sid, chunk, agentId);
       },
     } : null;
-
-    // Read workflow loop settings from global_settings
-    const globalRows = this.db.table('global_settings').all();
-    const globalMap  = Object.fromEntries(globalRows.map(r => [r.key, r.value]));
-    const loopEnabled = globalMap.workflow_loop_enabled === '1';
-    const maxLoops    = Math.max(1, parseInt(globalMap.workflow_max_loops || '3', 10));
-    const rawLimit    = parseInt(globalMap.workflow_recursion_limit || '200', 10);
-    const recursionLimit = (!rawLimit || rawLimit <= 0) ? 99999 : rawLimit;
 
     // Rebuild graph with buffering socket manager so agents use it for this run
     const graph = buildWorkflowGraph(bufferingSocketManager);

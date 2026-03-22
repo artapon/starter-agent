@@ -282,7 +282,7 @@ onUnmounted(() => {
 .wf-top-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
 }
-@media (max-width: 760px) { .wf-top-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1024px) { .wf-top-grid { grid-template-columns: 1fr; } }
 
 .panel {
   background: #12121E;

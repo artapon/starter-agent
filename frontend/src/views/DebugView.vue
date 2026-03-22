@@ -637,6 +637,18 @@ curl -s "https://api.github.com/search/repositories?q=nodejs&per_page=1" | node 
             <span class="plan-skill-chip plan-skill-chip--reviewer">🔍 reviewer: <strong>{{ pPlan.agentSkills.reviewer || 'general' }}</strong></span>
           </div>
 
+          <!-- Missing skills warning -->
+          <div v-if="pMissingSkills.length" class="plan-missing-skills">
+            <v-icon size="13" color="#F59E0B">mdi-alert-outline</v-icon>
+            <span class="plan-missing-skills__label">Requested skills not in library — falling back to general:</span>
+            <span v-for="r in pMissingSkills" :key="r.id" class="plan-missing-skill-chip">
+              {{ r.agent_id }}: {{ r.skill_name }}
+            </span>
+            <router-link to="/skills" class="plan-missing-skills__link">
+              <v-icon size="11">mdi-arrow-right</v-icon> Create files
+            </router-link>
+          </div>
+
           <!-- Steps -->
           <div class="steps-list">
             <div v-for="(step, i) in (pPlan.steps || [])" :key="step.id || i" class="step-card">
@@ -1789,6 +1801,7 @@ const pPlan          = ref(null);
 const pShowRaw       = ref(false);
 const pRecentPlans   = ref([]);
 const pSelectedHistoryPlan = ref(null);
+const pMissingSkills = ref([]); // skill requests that match the current plan's agentSkills
 
 function setPRunBadge(color, text, pulse = false) {
   pRunBadgeClass.value = `badge-${color}`;
@@ -1832,12 +1845,24 @@ async function fetchRecentPlans() {
     pRecentPlans.value = data;
   } catch { /* keep existing */ }
 }
+async function checkPlanMissingSkills(plan) {
+  if (!plan?.agentSkills) { pMissingSkills.value = []; return; }
+  try {
+    const { data } = await axios.get('/api/skills/requests');
+    const skills = plan.agentSkills;
+    pMissingSkills.value = (data || []).filter(r =>
+      skills[r.agent_id] && skills[r.agent_id] === r.skill_name
+    );
+  } catch { pMissingSkills.value = []; }
+}
+
 async function runPlanner() {
   const goal = pGoalInput.value.trim();
   if (!goal) return;
   pAgentLog.value = [];
   pPlan.value     = null;
   pShowRaw.value  = false;
+  pMissingSkills.value = [];
   pRunning.value  = true;
   setPRunBadge('cyan', '● Planning…', true);
   pProgressPct.value   = 5;
@@ -1852,6 +1877,7 @@ async function runPlanner() {
     pRunning.value       = false;
     pAppendLog('✅', 'tag-done', `Plan complete — ${(data.steps || []).length} steps generated`);
     fetchRecentPlans();
+    checkPlanMissingSkills(data);
   } catch (e) {
     pAppendLog('❌', 'tag-error', `Planner failed: ${e.response?.data?.error || e.message}`);
     setPRunBadge('red', '✗ Failed');
@@ -2007,6 +2033,15 @@ function onChatChunk(data) {
     nextTick(() => { if (wChatStreamEl.value) wChatStreamEl.value.scrollTop = wChatStreamEl.value.scrollHeight; });
   }
 }
+function onWorkerAction(data) {
+  if (data.type === 'writing') {
+    const label = data.label ? ` (${data.label})` : '';
+    wAppendLog('📝', 'tag-wf', `Writing${label}: ${data.path}`);
+  } else if (data.type === 'written') {
+    wAppendLog('✓', 'tag-done', `Written: ${data.path}`);
+    wWrittenFiles.value = [...new Set([...wWrittenFiles.value, data.path])];
+  }
+}
 function onWorkflowStarted(data) {
   appendLog('🔄', 'tag-wf', `workflow:started runId=${data.runId}`);
   setRunBadge('cyan', '● Running', true);
@@ -2015,11 +2050,68 @@ function onWorkflowStarted(data) {
   chatBuffer.value    = '';
 }
 function onNodeComplete(data) {
+  const st = data.state?.status;
+
+  if (data.node === 'planner') {
+    if (st === 'running') {
+      pProgressIndet.value = true;
+      setPRunBadge('cyan', '● Planning…', true);
+      pAppendLog('📋', 'tag-wf', 'Planner started');
+    } else if (st === 'complete') {
+      pProgressPct.value   = 100;
+      pProgressIndet.value = false;
+      setPRunBadge('green', '✓ Complete');
+      pAppendLog('✅', 'tag-done', `Plan ready — ${data.state.plan?.steps?.length || 0} step(s)`);
+    }
+    return;
+  }
+
   if (data.node === 'researcher') {
-    appendLog('✅', 'tag-done', `researcher node complete`);
-    progressPct.value   = 40;
-    progressIndet.value = false;
-    if (data.state?.researchFindings) findings.value = data.state.researchFindings;
+    if (st === 'running') {
+      progressIndet.value = true;
+      setRunBadge('cyan', '● Researching…', true);
+      appendLog('🔬', 'tag-wf', 'Researcher started');
+    } else if (st === 'complete') {
+      appendLog('✅', 'tag-done', `Researcher complete`);
+      progressPct.value   = 40;
+      progressIndet.value = false;
+      if (data.state?.findings) findings.value = data.state.findings;
+    }
+    return;
+  }
+
+  if (data.node === 'worker') {
+    if (st === 'running') {
+      const stepNum = (data.state.stepIdx ?? 0) + 1;
+      wAppendLog('💻', 'tag-wf', `Step ${stepNum} started: ${data.state.step || ''}`);
+      wProgressIndet.value = true;
+      setWRunBadge('cyan', `● Step ${stepNum}…`, true);
+    } else if (st === 'complete') {
+      const stepNum = (data.state.stepIdx ?? 0) + 1;
+      wAppendLog('✅', 'tag-done', `Step ${stepNum} finished`);
+    }
+    return;
+  }
+
+  if (data.node === 'reviewer') {
+    if (st === 'running') {
+      rvProgressIndet.value = true;
+      setRvRunBadge('cyan', '● Reviewing…', true);
+      rvAppendLog('🔍', 'tag-wf', 'Reviewer started');
+    } else if (st === 'complete') {
+      const score    = data.state.score ?? '?';
+      const approved = data.state.approved;
+      rvProgressPct.value   = 100;
+      rvProgressIndet.value = false;
+      setRvRunBadge(approved ? 'green' : 'red', approved ? '✓ Approved' : '✗ Needs revision');
+      rvAppendLog(approved ? '✅' : '❌', approved ? 'tag-done' : 'tag-error',
+        `Review complete — score: ${score}/10 — ${approved ? 'Approved' : 'Revision needed'}`);
+    } else if (st === 'loop') {
+      rvAppendLog('🔄', 'tag-wf', `Improvement loop ${data.state.loop} triggered — score: ${data.state.score}/10`);
+    } else if (st === 'assembled') {
+      rvAppendLog('🏁', 'tag-done', 'Final assembly complete');
+    }
+    return;
   }
 }
 function onWorkflowComplete() {
@@ -2084,6 +2176,7 @@ onMounted(async () => {
   socket.on('researcher:deep_context',  onDeepContext);
   socket.on('researcher:memory_saved',  onMemorySaved);
   socket.on('log:entry',               onLogEntry);
+  socket.on('worker:action',           onWorkerAction);
 
   if (socket.connected) onConnect();
 
@@ -2110,6 +2203,7 @@ onUnmounted(() => {
   socket.off('researcher:deep_context',  onDeepContext);
   socket.off('researcher:memory_saved',  onMemorySaved);
   socket.off('log:entry',               onLogEntry);
+  socket.off('worker:action',           onWorkerAction);
 });
 </script>
 
@@ -2666,6 +2760,25 @@ input:checked + .slider::before { transform: translateX(18px); background: #22D3
 .plan-skill-chip--researcher { border-color: rgba(34,211,238,0.35); color: #22D3EE; }
 .plan-skill-chip--worker     { border-color: rgba(52,211,153,0.35);  color: #34D399; }
 .plan-skill-chip--reviewer   { border-color: rgba(251,191,36,0.35);  color: #FBBF24; }
+
+.plan-missing-skills {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  padding: 8px 16px;
+  background: rgba(245,158,11,0.05);
+  border-top: 1px solid rgba(245,158,11,0.15);
+  font-size: 11px;
+}
+.plan-missing-skills__label { color: #F59E0B; font-weight: 600; }
+.plan-missing-skill-chip {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 5px;
+  background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: #F59E0B;
+}
+.plan-missing-skills__link {
+  margin-left: auto; font-size: 10px; font-weight: 700; color: #F59E0B;
+  display: flex; align-items: center; gap: 3px; text-decoration: none;
+  opacity: 0.8;
+}
+.plan-missing-skills__link:hover { opacity: 1; text-decoration: underline; }
 
 .steps-list { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; }
 .step-card {
