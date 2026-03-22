@@ -1,6 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { config } from '../../config/index.js';
+import { createLogger } from '../logger/winston.logger.js';
+
+const dbLogger = createLogger('db');
 
 const DB_PATH = path.resolve(config.dbPath.replace(/\.db$/, '.json'));
 
@@ -139,7 +142,7 @@ class JsonDb {
     this._data.logs = this._data.logs.filter(r => (r.ts || 0) > cutoff);
     const pruned = before - this._data.logs.length;
     if (pruned > 0) {
-      console.log(`[db] Pruned ${pruned} log entries older than 7 days`);
+      dbLogger.info(`Pruned ${pruned} log entries older than 7 days`);
       this._schedulePersist();
     }
   }
@@ -151,7 +154,7 @@ class JsonDb {
       this._persistTimer = null;
       const json = JSON.stringify(this._data);
       fs.writeFile(this._filePath, json, 'utf-8', (err) => {
-        if (err) console.error('[db] persist failed:', err.message);
+        if (err) dbLogger.error('Persist failed', { error: err.message });
       });
     }, 200);
   }
@@ -161,7 +164,7 @@ class JsonDb {
     try {
       fs.writeFileSync(this._filePath, JSON.stringify(this._data), 'utf-8');
     } catch (err) {
-      console.error('[db] final flush failed:', err.message);
+      dbLogger.error('Final flush failed', { error: err.message });
     }
   }
 

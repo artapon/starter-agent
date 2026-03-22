@@ -1,3 +1,6 @@
+// Agent defaults (model names, temperatures, token limits) are seeded once into
+// the DB by core/database/migrator.js and then managed via the Settings UI.
+// Do NOT add them here — config.js is the process-level env layer only.
 export const config = {
   port: Number(process.env.PORT) || 3000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -7,22 +10,5 @@ export const config = {
   lmStudio: {
     baseUrl: process.env.LM_STUDIO_BASE_URL || 'http://localhost:1234/v1',
     apiKey: process.env.LM_STUDIO_API_KEY || 'lm-studio',
-  },
-  agents: {
-    planner: {
-      model: process.env.PLANNER_MODEL || 'qwen2.5-7b-instruct',
-      temperature: 0.3,
-      maxTokens: 4096,
-    },
-    worker: {
-      model: process.env.WORKER_MODEL || 'qwen2.5-coder-7b-instruct',
-      temperature: 0.2,
-      maxTokens: 8192,
-    },
-    reviewer: {
-      model: process.env.REVIEWER_MODEL || 'qwen2.5-7b-instruct',
-      temperature: 0.1,
-      maxTokens: 4096,
-    },
   },
 };

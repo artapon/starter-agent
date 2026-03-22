@@ -41,6 +41,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error('Fatal bootstrap error:', err);
+  logger.error('Fatal bootstrap error', { error: err.message, stack: err.stack });
   process.exit(1);
 });

@@ -24,7 +24,7 @@ import { getRLStore }     from './core/rl/rl.store.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { QueueModule } from './modules/queue/queue.module.js';
 import { CronModule } from './modules/cron/cron.module.js';
-import skillsModule from './modules/skills/module.js';
+import { SkillsModule } from './modules/skills/module.js';
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const REPORTS_DIR = path.resolve(__dirname, '..', 'reports');
@@ -75,7 +75,7 @@ export function createApp() {
   app.use('/api/projects', ProjectsModule.router);
   app.use('/api/queue', QueueModule.router);
   app.use('/api/cron', CronModule.router);
-  app.use('/api/skills', skillsModule.router);
+  app.use('/api/skills', SkillsModule.router);
 
   // Health check
   app.get('/api/health', (req, res) => {

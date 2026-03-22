@@ -90,7 +90,7 @@ export async function* rawLMStream(settings, messages, signal) {
       lastErr = err;
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_DELAY_MS * attempt;
-        console.warn(`LM Studio connection failed (attempt ${attempt}/${MAX_RETRIES}), retrying in ${delay}ms: ${err.message}`);
+        streamLogger.warn(`LM Studio connection failed (attempt ${attempt}/${MAX_RETRIES}), retrying in ${delay}ms`, { error: err.message });
         await new Promise(res => setTimeout(res, delay));
       }
     }

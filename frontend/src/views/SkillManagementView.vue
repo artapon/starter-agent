@@ -222,6 +222,15 @@
         </div>
       </v-card>
     </v-dialog>
+
+    <!-- ── Error snackbar ────────────────────────────────────────────── -->
+    <v-snackbar :model-value="!!errorMsg" :timeout="4000" color="error" location="bottom right"
+      @update:model-value="v => { if (!v) errorMsg = '' }">
+      {{ errorMsg }}
+      <template #actions>
+        <v-btn variant="text" @click="errorMsg = ''">Dismiss</v-btn>
+      </template>
+    </v-snackbar>
   </div>
 </template>
 
@@ -235,6 +244,7 @@ const skills      = ref([]);
 const loading     = ref(false);
 const agentFilter = ref('');
 const categoryFilter = ref('');
+const errorMsg    = ref('');
 
 const dialogOpen   = ref(false);
 const editingSkill = ref(null);   // skill object when editing, null when creating
@@ -287,7 +297,7 @@ async function fetchSkills() {
     const { data } = await axios.get('/api/skills');
     skills.value = data;
   } catch (err) {
-    console.error('fetchSkills error:', err);
+    errorMsg.value = err.response?.data?.error || err.message;
   } finally {
     loading.value = false;
   }
@@ -341,7 +351,7 @@ async function openEdit(skill) {
     const { data } = await axios.get(`/api/skills/${skill.agentId}/${skill.name}`);
     form.value.content = data.content || '';
   } catch (err) {
-    console.error('openEdit fetch error:', err);
+    errorMsg.value = err.response?.data?.error || err.message;
   }
 }
 
@@ -372,7 +382,7 @@ async function saveSkill() {
     await fetchSkills();
     closeDialog();
   } catch (err) {
-    console.error('saveSkill error:', err);
+    errorMsg.value = err.response?.data?.error || err.message;
   } finally {
     saving.value = false;
   }
@@ -394,7 +404,7 @@ async function executeDelete() {
     skillToDelete.value = null;
     await fetchSkills();
   } catch (err) {
-    console.error('executeDelete error:', err);
+    errorMsg.value = err.response?.data?.error || err.message;
   } finally {
     deleting.value = false;
   }
@@ -407,7 +417,7 @@ async function dismissRequest(id) {
     await axios.delete(`/api/skills/requests/${id}`);
     await fetchSkills();
   } catch (err) {
-    console.error('dismissRequest error:', err);
+    errorMsg.value = err.response?.data?.error || err.message;
   }
 }
 

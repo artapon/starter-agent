@@ -1,18 +1,8 @@
 import { Router } from 'express';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { WorkerController } from './controllers/worker.controller.js';
 import { getAdapter } from '../../core/adapters/llm/adapter.registry.js';
-import { getWorkspacePath } from '../../core/workspace/workspace.path.js';
+import { ensureDebugWorkspace, getDebugWorkspacePath } from '../../core/workspace/debug.workspace.js';
 import { setActiveRunWorkspace, clearActiveRunWorkspace } from '../../core/tools/tool.implementations.js';
-
-const DEBUG_FOLDER = 'debug';
-
-function ensureDebugWorkspace() {
-  const debugPath = join(getWorkspacePath(), DEBUG_FOLDER);
-  mkdirSync(debugPath, { recursive: true });
-  return debugPath;
-}
 
 export const WorkerModule = {
   _router: null,
@@ -24,7 +14,7 @@ export const WorkerModule = {
       router.get('/status', (req, res) => {
         try {
           const adapter        = getAdapter('worker');
-          const debugWorkspace = join(getWorkspacePath(), DEBUG_FOLDER);
+          const debugWorkspace = getDebugWorkspacePath();
           res.json({ agentId: 'worker', status: 'ready', model: adapter?._settings?.model_name || 'unknown', debugWorkspace });
         } catch {
           res.json({ agentId: 'worker', status: 'error', model: 'unknown' });

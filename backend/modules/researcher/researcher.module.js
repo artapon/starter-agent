@@ -1,22 +1,12 @@
 import { Router } from 'express';
-import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { ResearcherAgent } from './services/researcher.agent.js';
-import { getWorkspacePath } from '../../core/workspace/workspace.path.js';
+import { ensureDebugWorkspace, getDebugWorkspacePath } from '../../core/workspace/debug.workspace.js';
 import { v4 as uuidv4 } from 'uuid';
-
-const DEBUG_FOLDER = 'debug';
-
-function ensureDebugWorkspace() {
-  const debugPath = join(getWorkspacePath(), DEBUG_FOLDER);
-  mkdirSync(debugPath, { recursive: true });
-  return debugPath;
-}
 
 const router = Router();
 
 router.get('/status', (req, res) => {
-  const debugWorkspace = join(getWorkspacePath(), DEBUG_FOLDER);
+  const debugWorkspace = getDebugWorkspacePath();
   res.json({ agentId: 'researcher', status: 'ready', debugWorkspace });
 });
 

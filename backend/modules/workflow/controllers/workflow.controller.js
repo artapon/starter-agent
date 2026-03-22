@@ -1,6 +1,9 @@
 import { WorkflowRunner, stopWorkflowRun } from '../services/workflow.runner.js';
 import { agentQueue } from '../../../core/queue/agent.queue.js';
+import { createLogger } from '../../../core/logger/winston.logger.js';
 import { v4 as uuidv4 } from 'uuid';
+
+const logger = createLogger('workflow-controller');
 
 export class WorkflowController {
   constructor(socketManager) {
@@ -34,7 +37,7 @@ export class WorkflowController {
         (id) => { jobId = id; },
         projectId,
       ).catch(err => {
-        if (!err.cancelled) console.error('Workflow queue error:', err.message);
+        if (!err.cancelled) logger.error('Workflow queue error', { error: err.message });
       });
     } catch (e) { next(e); }
   };
