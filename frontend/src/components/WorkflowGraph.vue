@@ -84,14 +84,8 @@
         <g :class="['graph-node-g', nodeClass('reviewer')]">
           <rect x="441" y="20" width="110" height="44" rx="8"
             :fill="nodeFill('reviewer')" :stroke="nodeStroke('reviewer')" stroke-width="1.5"/>
-          <text x="496" y="34" class="node-icon" text-anchor="middle">🔍</text>
-          <text x="496" y="48" class="node-label" text-anchor="middle">Reviewer</text>
-          <!-- Score inside node — only when a score is available -->
-          <text v-if="graphReviewerScore !== null"
-                x="496" y="60" class="node-sub-label" text-anchor="middle"
-                :style="{ fill: reviewerScoreColor }">
-            {{ graphReviewerScore }}/10
-          </text>
+          <text x="496" y="37" class="node-icon" text-anchor="middle">🔍</text>
+          <text x="496" y="53" class="node-label" text-anchor="middle">Reviewer</text>
         </g>
 
         <!-- Loop Reset (bottom row, under Worker) -->

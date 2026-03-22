@@ -110,6 +110,19 @@
             </div>
             <div v-else class="idle-badge">{{ agentLiveStatus[agent.agentId] || 'idle' }}</div>
           </div>
+          <!-- Reviewer score — shown after review completes -->
+          <template v-if="agent.agentId === 'reviewer' && reviewerScore !== null">
+            <div class="reviewer-score-label">
+              <span class="reviewer-score-val"
+                :style="`color:${reviewerScore >= 9 ? '#10B981' : reviewerScore >= 7 ? '#F59E0B' : '#EF4444'}`">
+                {{ reviewerScore }}/10
+              </span>
+              <span class="reviewer-score-bar-wrap">
+                <span class="reviewer-score-bar"
+                  :style="`width:${reviewerScore * 10}%;background:${reviewerScore >= 9 ? '#10B981' : reviewerScore >= 7 ? '#F59E0B' : '#EF4444'}`" />
+              </span>
+            </div>
+          </template>
           <!-- Step progress — worker only -->
           <template v-if="agent.agentId === 'worker' && agentLiveStatus['worker'] === 'working' && workerStep.total">
             <div class="worker-step-label">
@@ -318,6 +331,7 @@ const tokenUsage = ref({ today: 0, weekly: 0, monthly: 0, total: 0, byAgent: {} 
 const agentLiveStatus = ref({});
 const agentCurrentTask = ref({});
 const workerStep = ref({ dev: null, total: null, finished: 0 });
+const reviewerScore = ref(null);
 const logContainer = ref(null);
 
 const statCards = computed(() => [
@@ -438,15 +452,24 @@ function onWorkflowNodeComplete(data) {
       workerStep.value = { ...workerStep.value, dev: null, finished: workerStep.value.finished + 1 };
     }
   }
+  if (data.node === 'reviewer') {
+    if (data.state?.status === 'running') {
+      reviewerScore.value = null; // clear while reviewing
+    } else if (data.state?.score != null) {
+      reviewerScore.value = data.state.score;
+    }
+  }
 }
 function onWorkflowStarted() {
   stats.value = { ...stats.value, activeRuns: (stats.value.activeRuns || 0) + 1 };
   workerStep.value = { dev: null, total: null, finished: 0 };
+  reviewerScore.value = null;
   fetchRecentRuns();
 }
 function onWorkflowComplete(data) {
   fetchTokenUsage();
   workerStep.value = { dev: null, total: null, finished: 0 };
+  reviewerScore.value = null;
   stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
   const run = recentRuns.value.find(r => r.id === data.runId);
   if (run) run.status = 'complete';
@@ -454,6 +477,7 @@ function onWorkflowComplete(data) {
 }
 function onWorkflowStopped(data) {
   workerStep.value = { dev: null, total: null, finished: 0 };
+  reviewerScore.value = null;
   stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
   const run = recentRuns.value.find(r => r.id === data.runId);
   if (run) run.status = 'stopped';
@@ -461,6 +485,7 @@ function onWorkflowStopped(data) {
 }
 function onWorkflowError(data) {
   workerStep.value = { dev: null, total: null, finished: 0 };
+  reviewerScore.value = null;
   stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
   const run = recentRuns.value.find(r => r.id === data.runId);
   if (run) run.status = 'error';
@@ -626,6 +651,20 @@ onMounted(() => {
 .idle-badge {
   font-size: 11px; color: rgba(226,232,240,0.3) !important;
   text-transform: capitalize;
+}
+
+/* Reviewer score */
+.reviewer-score-label {
+  display: flex; align-items: center; gap: 7px; margin-top: 3px;
+}
+.reviewer-score-val {
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0;
+}
+.reviewer-score-bar-wrap {
+  flex: 1; height: 2px; background: rgba(255,255,255,0.07); border-radius: 1px; overflow: hidden;
+}
+.reviewer-score-bar {
+  display: block; height: 100%; border-radius: 1px; transition: width 0.4s ease;
 }
 
 /* Worker step progress */
