@@ -181,11 +181,6 @@
               </span>
               <div class="queue-row__status">
                 <span v-if="job.status === 'running'" class="q-running-badge">
-                  <svg viewBox="0 0 16 16" style="width:11px;height:11px;flex-shrink:0">
-                    <circle cx="8" cy="8" r="6" fill="none" stroke="#22D3EE"
-                      stroke-width="2" stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"
-                      style="animation:spin 1s linear infinite"/>
-                  </svg>
                   Running
                 </span>
                 <span v-else class="q-waiting-badge">Waiting</span>
@@ -397,7 +392,7 @@ function agentChipColor(id) {
   return { researcher: 'secondary', planner: 'accent', worker: 'success', reviewer: 'warning' }[id] || 'default';
 }
 function agentColor(id) {
-  return { researcher: '#22D3EE', planner: '#818CF8', worker: '#34D399', reviewer: '#34D399' }[id] || '#A78BFA';
+  return { researcher: '#34D399', planner: '#818CF8', worker: '#34D399', reviewer: '#34D399' }[id] || '#A78BFA';
 }
 function agentWorkingVars(id) {
   const c = agentColor(id);

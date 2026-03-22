@@ -94,10 +94,6 @@
             :fill="nodeFill('loop_reset')" :stroke="nodeStroke('loop_reset')" stroke-width="1.5"/>
           <text x="352" y="163" class="node-icon" text-anchor="middle">🔄</text>
           <text x="352" y="178" class="node-label" text-anchor="middle">Loop Reset</text>
-          <text v-if="graphLoopCount > 0" x="352" y="190"
-                class="node-sub-label" text-anchor="middle" style="fill:#F59E0B">
-            Pass {{ graphLoopCount }}/{{ graphMaxLoops }}
-          </text>
         </g>
 
         <!-- Assembler (bottom row, under Reviewer) -->

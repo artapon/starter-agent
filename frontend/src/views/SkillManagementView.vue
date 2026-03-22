@@ -18,6 +18,21 @@
 
     <!-- ── Filters ────────────────────────────────────────────────────── -->
     <div class="sm-filters">
+      <!-- Search -->
+      <div class="sm-filter-row">
+        <span class="sm-filter-label">Search</span>
+        <div class="sm-search-wrap" :class="{ 'sm-search-wrap--active': searchQuery }">
+          <v-icon size="13" :color="searchQuery ? '#818CF8' : 'rgba(226,232,240,0.3)'">mdi-magnify</v-icon>
+          <input class="sm-search-input" v-model="searchQuery"
+            placeholder="Search skills…"
+            @keydown.escape="searchQuery = ''"
+            autocomplete="off" spellcheck="false" />
+          <button v-if="searchQuery" class="sm-search-clear" @click="searchQuery = ''">
+            <v-icon size="12">mdi-close</v-icon>
+          </button>
+        </div>
+      </div>
+
       <!-- Agent filter -->
       <div class="sm-filter-row">
         <span class="sm-filter-label">Agent</span>
@@ -244,6 +259,7 @@ const skills      = ref([]);
 const loading     = ref(false);
 const agentFilter = ref('');
 const categoryFilter = ref('');
+const searchQuery = ref('');
 const errorMsg    = ref('');
 
 const dialogOpen   = ref(false);
@@ -276,14 +292,16 @@ const categories = computed(() =>
   [...new Set(skills.value.map(s => s.category).filter(Boolean))].sort()
 );
 
-const filteredSkills = computed(() =>
-  skills.value.filter(s => {
-    if (!s.exists) return false;  // missing-file skills shown in "Requested" section below
+const filteredSkills = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  return skills.value.filter(s => {
+    if (!s.exists) return false;
     if (agentFilter.value && s.agentId !== agentFilter.value) return false;
     if (categoryFilter.value && s.category !== categoryFilter.value) return false;
+    if (q && !`${s.name} ${s.description || ''} ${s.category || ''}`.toLowerCase().includes(q)) return false;
     return true;
-  })
-);
+  });
+});
 
 const pendingRequests = computed(() =>
   skills.value.filter(s => s.requested && !s.exists)
@@ -478,6 +496,25 @@ onMounted(fetchSkills);
   min-width: 62px;
 }
 .sm-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Search */
+.sm-search-wrap {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 7px; padding: 0 10px; height: 30px;
+  transition: border-color 0.15s ease; flex: 1; max-width: 340px;
+}
+.sm-search-wrap--active { border-color: rgba(129,140,248,0.5); }
+.sm-search-input {
+  flex: 1; background: none; border: none; outline: none;
+  font-size: 12px; color: #E2E8F0; caret-color: #818CF8;
+}
+.sm-search-input::placeholder { color: rgba(226,232,240,0.25); }
+.sm-search-clear {
+  background: none; border: none; cursor: pointer; padding: 0;
+  color: rgba(226,232,240,0.35); display: flex; align-items: center;
+}
+.sm-search-clear:hover { color: #E2E8F0; }
 .sm-chip {
   padding: 3px 11px;
   border-radius: 20px;

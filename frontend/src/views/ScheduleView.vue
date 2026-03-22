@@ -18,8 +18,22 @@
 
       <span class="stat-chip">
         <v-icon size="11">mdi-calendar-clock</v-icon>
-        {{ jobs.length }} job{{ jobs.length !== 1 ? 's' : '' }}
+        {{ filteredJobs.length }}{{ filteredJobs.length !== jobs.length ? `/${jobs.length}` : '' }} job{{ jobs.length !== 1 ? 's' : '' }}
       </span>
+
+      <div class="toolbar-sep" />
+
+      <!-- Search -->
+      <div class="search-wrap" :class="{ 'search-wrap--active': searchQuery }">
+        <v-icon size="14" :color="searchQuery ? '#818CF8' : 'rgba(226,232,240,0.3)'">mdi-magnify</v-icon>
+        <input class="search-input" v-model="searchQuery"
+          placeholder="Search jobs…"
+          @keydown.escape="searchQuery = ''"
+          autocomplete="off" spellcheck="false" />
+        <button v-if="searchQuery" class="search-clear" @click="searchQuery = ''">
+          <v-icon size="12">mdi-close</v-icon>
+        </button>
+      </div>
 
       <div class="toolbar-spacer" />
 
@@ -51,13 +65,13 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="!jobs.length">
+          <tr v-if="!filteredJobs.length">
             <td colspan="9" class="td-empty">
               <v-icon size="32" color="rgba(255,255,255,0.07)">mdi-clock-plus-outline</v-icon>
-              <span>No cron jobs yet — create one to schedule recurring tasks.</span>
+              <span>{{ jobs.length ? 'No jobs match your search.' : 'No cron jobs yet — create one to schedule recurring tasks.' }}</span>
             </td>
           </tr>
-          <tr v-else v-for="job in jobs" :key="job.id"
+          <tr v-else v-for="job in filteredJobs" :key="job.id"
             class="sched-row" :class="{ 'sched-row--disabled': !job.enabled }">
             <td class="col-name">
               <span class="job-name">{{ job.name }}</span>
@@ -239,6 +253,7 @@ const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const jobs         = ref([]);
+const searchQuery  = ref('');
 const projects     = ref([]);
 const dialog       = ref(false);
 const deleteDialog = ref(false);
@@ -277,6 +292,11 @@ const SCHEDULE_OPTIONS = [
   { value: 'monthly_1st',     label: 'Monthly — 1st day',   expr: '0 9 1 * *' },
   { value: 'custom',          label: '— Custom schedule —', expr: '' },
 ];
+
+const filteredJobs = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  return q ? jobs.value.filter(j => `${j.name} ${j.target} ${j.schedule} ${j.prompt || ''}`.toLowerCase().includes(q)) : jobs.value;
+});
 
 const canSave = computed(() =>
   form.value.name.trim() &&
@@ -512,6 +532,33 @@ function targetIcon(target) {
   background: rgba(255,255,255,0.07); margin: 0 14px;
 }
 .toolbar-spacer { flex: 1; }
+
+.search-wrap {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 10px; height: 28px;
+  width: 30%; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.03);
+  transition: border-color .15s;
+}
+.search-wrap--active, .search-wrap:focus-within {
+  border-color: rgba(129,140,248,0.45);
+  background: rgba(129,140,248,0.06);
+}
+.search-input {
+  background: none; border: none; outline: none;
+  font-size: 12px; color: rgba(226,232,240,0.85);
+  width: 100%; flex: 1;
+}
+.search-input::placeholder { color: rgba(226,232,240,0.3); }
+.search-clear {
+  background: none; border: none; padding: 0; cursor: pointer;
+  display: flex; align-items: center;
+  color: rgba(226,232,240,0.4);
+  line-height: 1;
+}
+.search-clear:hover { color: rgba(226,232,240,0.8); }
 
 .stat-chip {
   display: flex; align-items: center; gap: 5px;

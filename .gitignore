@@ -5,11 +5,8 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 
-# Database
-backend/data/*.db
-backend/data/*.db-shm
-backend/data/*.db-wal
-backend/data/agent.json
+# Data (DB files, LTM vectors, runtime JSON)
+backend/data/
 
 # Logs
 backend/logs/
