@@ -10,6 +10,7 @@ import { isDebugMode }        from '../../../core/utils/stream.utils.js';
 import { memoryStore }        from '../../memory/services/memory.store.js';
 import { deleteSTM }         from '../../../core/memory/stm.store.js';
 import { setActiveRunWorkspace, clearActiveRunWorkspace } from '../../../core/tools/tool.implementations.js';
+import { setActiveRunProject, clearActiveRunProject } from '../../../core/context/run.context.js';
 import { projectStore }       from '../../../core/projects/project.store.js';
 import { getWorkspacePath, toFolderName } from '../../../core/workspace/workspace.path.js';
 import { v4 as uuidv4 }       from 'uuid';
@@ -42,6 +43,7 @@ export class WorkflowRunner {
     // Resolve the project's workspace subfolder (if a project is selected)
     let workspaceFolder = null;
     if (projectId) {
+      setActiveRunProject(projectId);
       const project = projectStore.get(projectId);
       if (project) {
         const folderName = project.folderName || toFolderName(project.title);
@@ -207,6 +209,7 @@ export class WorkflowRunner {
       clearAbortController(runId);
       memoryStore.clearWorkingMemory(runId);
       clearActiveRunWorkspace();
+      clearActiveRunProject();
       // Release per-session STM so memory doesn't accumulate across runs
       for (const agentId of ['researcher', 'planner', 'worker', 'reviewer']) {
         deleteSTM(agentId, sessionId);

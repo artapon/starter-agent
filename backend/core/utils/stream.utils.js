@@ -1,5 +1,6 @@
 import { getDb } from '../database/db.js';
 import { createLogger } from '../logger/winston.logger.js';
+import { getActiveRunProject } from '../context/run.context.js';
 
 const streamLogger = createLogger('stream');
 
@@ -40,6 +41,7 @@ function recordTokenUsage(agentId, promptTokens, completionTokens) {
   try {
     getDb().table('token_usage').insert({
       agent_id:          agentId,
+      project_id:        getActiveRunProject() || null,
       prompt_tokens:     promptTokens,
       completion_tokens: completionTokens,
       total_tokens:      promptTokens + completionTokens,

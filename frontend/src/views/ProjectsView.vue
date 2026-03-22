@@ -52,6 +52,13 @@
             <div class="proj-card__meta">
               Created {{ formatDate(project.createdAt) }}
             </div>
+            <div v-if="tokensByProject[project.id]?.total" class="proj-card__tokens">
+              <v-icon size="11" color="#818CF8">mdi-flash-outline</v-icon>
+              {{ formatTokens(tokensByProject[project.id].total) }} tokens
+              <span v-if="tokensByProject[project.id].today" class="proj-tokens__today">
+                +{{ formatTokens(tokensByProject[project.id].today) }} today
+              </span>
+            </div>
           </div>
         </div>
         <div class="proj-card__actions">
@@ -170,15 +177,31 @@ const loading         = ref(true);
 const redirectPath    = ref(null);
 const folderRecreating = ref({});  // projectId → true while request is in flight
 const folderStatus     = ref({});  // projectId → 'ok' | 'created'
+const tokensByProject  = ref({});  // projectId → { total, today }
 
 const dialog = ref({ show: false, mode: 'create', id: null, title: '', description: '', saving: false });
 const deleteDialog = ref({ show: false, project: null, deleting: false });
 
 async function fetchProjects() {
   loading.value = true;
-  try { projects.value = await axios.get('/api/projects').then(r => r.data); }
-  catch { projects.value = []; }
-  finally { loading.value = false; }
+  try {
+    const [projs, tokens] = await Promise.all([
+      axios.get('/api/projects').then(r => r.data),
+      axios.get('/api/dashboard/tokens').then(r => r.data).catch(() => ({})),
+    ]);
+    projects.value = projs;
+    tokensByProject.value = tokens.byProject || {};
+  } catch {
+    projects.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function formatTokens(n) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
 }
 
 function formatDate(ts) {
@@ -305,6 +328,16 @@ onMounted(fetchProjects);
   margin-top: 6px;
 }
 .proj-card__meta   { font-size: 11px; color: rgba(226,232,240,0.25); margin-top: 4px; }
+.proj-card__tokens {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; color: rgba(129,140,248,0.7);
+  margin-top: 5px; font-weight: 500;
+}
+.proj-tokens__today {
+  color: rgba(226,232,240,0.3);
+  font-weight: 400;
+  margin-left: 2px;
+}
 
 .proj-card__actions {
   display: flex; align-items: center; gap: 4px;

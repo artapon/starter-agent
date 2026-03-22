@@ -53,24 +53,31 @@ router.get('/stats', async (req, res, next) => {
 
 router.get('/tokens', (req, res, next) => {
   try {
-    const now     = Date.now();
-    const DAY     = 24 * 60 * 60 * 1000;
-    const all     = db.table('token_usage').all();
+    const now = Date.now();
+    const DAY = 24 * 60 * 60 * 1000;
+    const all = db.table('token_usage').all();
 
-    // Single pass: accumulate totals and per-agent sums
+    // Single pass: accumulate global totals, per-agent sums, and per-project sums
     let today = 0, weekly = 0, monthly = 0, total = 0;
-    const byAgent = {};
+    const byAgent   = {};
+    const byProject = {};
+
     for (const r of all) {
       const t  = r.total_tokens || 0;
       const dt = now - (r.ts || 0);
       total  += t;
-      if (dt < DAY)       today   += t;
-      if (dt < 7 * DAY)   weekly  += t;
-      if (dt < 30 * DAY)  monthly += t;
+      if (dt < DAY)      today   += t;
+      if (dt < 7 * DAY)  weekly  += t;
+      if (dt < 30 * DAY) monthly += t;
       if (r.agent_id) byAgent[r.agent_id] = (byAgent[r.agent_id] || 0) + t;
+      if (r.project_id) {
+        if (!byProject[r.project_id]) byProject[r.project_id] = { total: 0, today: 0 };
+        byProject[r.project_id].total += t;
+        if (dt < DAY) byProject[r.project_id].today += t;
+      }
     }
 
-    res.json({ today, weekly, monthly, total, byAgent });
+    res.json({ today, weekly, monthly, total, byAgent, byProject });
   } catch (e) { next(e); }
 });
 
