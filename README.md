@@ -64,8 +64,9 @@ starter-agent/
 │   └── src/
 │       ├── views/             # Page components
 │       │   ├── DashboardView        # Live stats, agent cards with step/score progress, workflow graph, job queue, recent runs
-│       │   ├── ProjectsView         # Project management — select active project, workspace folder per project
+│       │   ├── ProjectsView         # Project management — select active project, workspace folder, per-project token usage
 │       │   ├── WorkflowView         # Run + monitor pipelines, project selector, run history
+│       │   ├── SwimlaneView         # Realtime 5-lane task tracker (Planner/Researcher/Worker Doing/Worker Done/Reviewer)
 │       │   ├── SkillManagementView  # Skill library — browse/create/edit/delete skill files + pending Planner requests
 │       │   ├── ScheduleView         # Cron job scheduler — create, edit, run-now, live status, search
 │       │   ├── ChatView             # Real-time chat with typing animation + agent avatars
@@ -334,6 +335,8 @@ cd frontend && npm run dev
 |---|---|
 | **Projects** | Create/edit/delete projects; each project gets an isolated `workspace/<Name>/` folder. Required before using Chat, Workflow, Memory, or Schedule. |
 | **Project Workspace** | Files written by agents go into `workspace/<Project>/`. Folder is auto-created on project creation, can be recreated from the Projects page if deleted. |
+| **Per-project Token Usage** | Token consumption is tracked per project and displayed on each project card — total tokens and today's usage shown on the right side of the card. |
+| **Swimlane View** | Realtime 5-lane board (Planner / Researcher / Worker Doing / Worker Done / Reviewer). Opens from the Workflow graph when a run is active. Shows goal, skills, steps, research summary, file writes, score, feedback, and suggestions per agent in real time. Recovers missed events via snapshot loader when opened mid-run. |
 | **Dynamic Skill Selection** | Planner analyzes each goal and selects the best skill from the library for Researcher, Worker, and Reviewer. Skills shown in chat stream, plan result, and HTML report. |
 | **Skill Library** | Named skill files in `skills/library/<agent>/<skill>.md`. Create/edit/delete skills directly in the **Skills** page — no manual file editing needed. |
 | **Skills Page** | Browse all skills by agent and category with search. Create new skills, edit content, delete unused ones. Shows pending Planner skill requests (skills selected but not yet created) with exact file paths. |
@@ -416,6 +419,7 @@ DELETE /api/queue/:jobId                    Cancel a queued job
 POST   /api/workflow/start                  Start a workflow run { goal, projectId? }
 POST   /api/workflow/stop/:runId            Stop a running workflow
 GET    /api/workflow/runs                   List workflow run history
+GET    /api/workflow/runs/:runId            Get a single run record (used by Swimlane snapshot loader)
 
 # Chat
 POST   /api/chat/message                    Send a message { content, sessionId, projectId? }
@@ -448,6 +452,11 @@ POST   /api/settings/reset                  Reset application data (preserves se
 # Logs
 DELETE /api/logs/files                      Clear all log files on disk
 
+# Dashboard
+GET    /api/dashboard/stats                 Live stats (agent availability, run counts, settings)
+GET    /api/dashboard/tokens                Token usage — today/weekly/monthly/total, byAgent, byProject { total, today }
+GET    /api/dashboard/recent-runs           Last 20 workflow runs
+
 # Other
 GET    /api/rl/stats                        Reinforcement learning outcome stats
 GET    /api/reports/sessions                List sessions with reports
@@ -461,11 +470,12 @@ GET    /api/health                          Backend health check
 
 | Event | Direction | Payload | Description |
 |---|---|---|---|
-| `workflow:started` | server → client | `{ runId, sessionId }` | Workflow run began |
+| `workflow:started` | server → client | `{ runId, goal, sessionId, maxLoops }` | Workflow run began |
 | `workflow:complete` | server → client | `{ runId, finalAnswer }` | Run finished successfully |
 | `workflow:stopped` | server → client | `{ runId }` | Run was aborted |
 | `workflow:error` | server → client | `{ runId, error }` | Run failed |
-| `workflow:node_complete` | server → client | `{ runId, node, status, state }` | Individual graph node finished; `state` carries step index, score, etc. |
+| `workflow:node_complete` | server → client | `{ runId, node, state }` | Individual graph node update; `state.status` is `running`/`complete`/`loop`/`assembled`; running state includes `goal` (planner), `query` (researcher), `step`/`stepIdx`/`totalSteps` (worker), `step` (reviewer); complete state includes `plan` (planner), `findings` (researcher), `approved`/`score`/`feedback`/`suggestions` (reviewer) |
+| `worker:action` | server → client | `{ type, path }` | Worker wrote a file (`type: "written"`) |
 | `queue:updated` | server → client | `{ queue, ts }` | Job queue changed |
 | `agent:status` | server → client | `{ agentId, status, currentTask }` | Agent busy/idle update |
 | `cron:status` | server → client | `{ id, status, error? }` | Cron job running / success / error |
