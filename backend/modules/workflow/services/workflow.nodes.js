@@ -32,7 +32,7 @@ export function createNodes(socketManager) {
     }
 
     memoryStore.setWorkingContext('planner', state.runId, { goal: state.userGoal, sessionId: state.sessionId });
-    socketManager?.emitWorkflowNode(state.runId, 'planner', { status: 'running' });
+    socketManager?.emitWorkflowNode(state.runId, 'planner', { status: 'running', goal: state.userGoal });
     emitStatus(state.sessionId, 'planner', `\n📋 **Planning:** ${state.userGoal}\n\n`);
 
     // Planner receives goal + workspace summary (no research context — researcher runs after)
@@ -77,7 +77,7 @@ export function createNodes(socketManager) {
     const researchGoal = step?.researchQuery || step?.description || state.userGoal;
 
     memoryStore.setWorkingContext('researcher', state.runId, { goal: researchGoal, sessionId: state.sessionId });
-    socketManager?.emitWorkflowNode(state.runId, 'researcher', { status: 'running' });
+    socketManager?.emitWorkflowNode(state.runId, 'researcher', { status: 'running', query: researchGoal });
     emitStatus(state.sessionId, 'researcher', `\n🔬 **Researching:** ${researchGoal}\n\n`);
 
     const researcherSkill = state.agentSkills?.researcher || null;
@@ -175,7 +175,7 @@ export function createNodes(socketManager) {
       stepDescription: step?.description || '',
       loopCount:       state.loopCount,
     });
-    socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'running' });
+    socketManager?.emitWorkflowNode(state.runId, 'reviewer', { status: 'running', step: step?.description || null });
     emitStatus(state.sessionId, 'reviewer', `\n---\n🔍 **Reviewing:** ${step?.description || 'output'}\n\n`);
 
     // Use current workspace state (after worker wrote files) so reviewer sees actual output
@@ -224,6 +224,8 @@ export function createNodes(socketManager) {
     );
     socketManager?.emitWorkflowNode(state.runId, 'reviewer', {
       status: 'complete', approved: review.approved, score,
+      feedback: review.feedback || null,
+      suggestions: review.suggestions || [],
     });
 
     // Route: approved → next step (researcher) or final assembly; revision_needed → retry same step

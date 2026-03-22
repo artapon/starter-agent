@@ -64,19 +64,25 @@
             <div v-if="card.task" class="card-task">{{ card.task }}</div>
 
             <!-- Planner complete details -->
-            <template v-if="card.status === 'complete' && card.skills">
-              <div class="card-section-label">Agent Skills</div>
-              <div class="skill-chips">
-                <template v-for="(skills, agent) in card.skills" :key="agent">
+            <template v-if="card.status === 'complete'">
+              <template v-if="card.skills">
+                <div class="card-section-label">Agent Skills</div>
+                <div class="skill-chips">
                   <span
-                    v-for="skill in skills"
-                    :key="`${agent}:${skill}`"
+                    v-for="(skill, agent) in card.skills"
+                    :key="agent"
                     class="skill-chip"
                     :class="`skill-chip--${agent}`"
-                  >{{ skill }}</span>
-                </template>
-              </div>
-              <div v-if="card.stepCount" class="card-meta">
+                  >{{ agent }}: {{ skill }}</span>
+                </div>
+              </template>
+              <template v-if="card.steps && card.steps.length">
+                <div class="card-section-label" style="margin-top:8px">Steps</div>
+                <ol class="plan-steps">
+                  <li v-for="(s, i) in card.steps" :key="i">{{ s }}</li>
+                </ol>
+              </template>
+              <div v-else-if="card.stepCount" class="card-meta">
                 <v-icon size="11" color="rgba(226,232,240,0.4)">mdi-format-list-numbered</v-icon>
                 {{ card.stepCount }} steps
               </div>
@@ -129,30 +135,27 @@
         </div>
       </div>
 
-      <!-- WORKER lane -->
+      <!-- WORKER DOING lane -->
       <div class="lane">
-        <div class="lane-header lane-header--worker">
+        <div class="lane-header lane-header--worker-doing">
           <div class="lane-header__left">
-            <v-icon size="16" color="#60A5FA">mdi-code-braces</v-icon>
-            <span class="lane-name">Worker</span>
+            <v-icon size="16" color="#22D3EE">mdi-progress-wrench</v-icon>
+            <span class="lane-name">Worker Doing</span>
           </div>
           <span class="lane-status-dot" :class="`dot--${laneStatus('worker')}`" />
         </div>
         <div class="lane-body">
-          <div v-if="lanes.worker.length === 0" class="lane-empty">Waiting…</div>
+          <div v-if="workerDoing.length === 0" class="lane-empty">Waiting…</div>
           <div
-            v-for="card in lanes.worker"
+            v-for="card in workerDoing"
             :key="card.id"
-            class="task-card"
-            :class="cardClass(card)"
+            class="task-card task-card--running"
           >
             <div class="card-header">
               <span class="card-label">{{ card.label }}</span>
-              <span v-if="card.duration != null" class="duration-badge">{{ card.duration }}</span>
             </div>
             <div v-if="card.task" class="card-task">{{ card.task }}</div>
 
-            <!-- Step progress -->
             <template v-if="card.totalSteps > 0">
               <div class="step-label">
                 Step {{ (card.stepIdx ?? 0) + 1 }} / {{ card.totalSteps }}
@@ -165,24 +168,52 @@
               </div>
             </template>
 
-            <!-- Written files -->
             <template v-if="card.writtenFiles && card.writtenFiles.length">
               <div class="card-section-label" style="margin-top:8px">Written files</div>
               <div class="written-files">
-                <span
-                  v-for="f in card.writtenFiles"
-                  :key="f"
-                  class="file-chip"
-                >
+                <span v-for="f in card.writtenFiles" :key="f" class="file-chip">
                   <v-icon size="10" color="#10B981">mdi-check</v-icon>
                   {{ f }}
                 </span>
               </div>
             </template>
 
-            <div v-if="card.status === 'running'" class="card-pulse-dots">
-              <span /><span /><span />
+            <div class="card-pulse-dots"><span /><span /><span /></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORKER DONE lane -->
+      <div class="lane">
+        <div class="lane-header lane-header--worker-done">
+          <div class="lane-header__left">
+            <v-icon size="16" color="#10B981">mdi-check-all</v-icon>
+            <span class="lane-name">Worker Done</span>
+          </div>
+          <span class="lane-count-badge" v-if="workerDone.length > 0">{{ workerDone.length }}</span>
+        </div>
+        <div class="lane-body">
+          <div v-if="workerDone.length === 0" class="lane-empty">No tasks yet</div>
+          <div
+            v-for="card in workerDone"
+            :key="card.id"
+            class="task-card task-card--complete"
+          >
+            <div class="card-header">
+              <span class="card-label">{{ card.label }}</span>
+              <span v-if="card.duration != null" class="duration-badge">{{ card.duration }}</span>
             </div>
+            <div v-if="card.task" class="card-task">{{ card.task }}</div>
+
+            <template v-if="card.writtenFiles && card.writtenFiles.length">
+              <div class="card-section-label" style="margin-top:8px">Written files</div>
+              <div class="written-files">
+                <span v-for="f in card.writtenFiles" :key="f" class="file-chip">
+                  <v-icon size="10" color="#10B981">mdi-check</v-icon>
+                  {{ f }}
+                </span>
+              </div>
+            </template>
           </div>
         </div>
       </div>
@@ -225,6 +256,13 @@
                   :style="`width:${card.score * 10}%`"
                 />
               </div>
+              <div v-if="card.feedback" class="review-feedback">{{ card.feedback }}</div>
+              <template v-if="card.suggestions && card.suggestions.length">
+                <div class="card-section-label" style="margin-top:8px">Suggestions</div>
+                <ul class="review-suggestions">
+                  <li v-for="(s, i) in card.suggestions" :key="i">{{ s }}</li>
+                </ul>
+              </template>
             </template>
 
             <!-- Loop badge -->
@@ -282,6 +320,9 @@ const hasAnyCards = computed(() =>
   lanes.planner.length || lanes.researcher.length ||
   lanes.worker.length  || lanes.reviewer.length
 );
+
+const workerDoing = computed(() => lanes.worker.filter(c => c.status === 'running'));
+const workerDone  = computed(() => lanes.worker.filter(c => c.status !== 'running'));
 
 function laneStatus(name) {
   const cards = lanes[name];
@@ -343,6 +384,7 @@ function getOrCreateCard(node, index = 0) {
       // planner
       skills: null,
       stepCount: null,
+      steps: [],
       // researcher
       summary: null,
       approach: null,
@@ -354,6 +396,7 @@ function getOrCreateCard(node, index = 0) {
       score: null,
       approved: null,
       feedback: null,
+      suggestions: [],
       loop: null,
     };
     list.push(card);
@@ -387,10 +430,16 @@ function resetLanes() {
 // ─── Socket event handlers ────────────────────────────────────────────────────
 
 function onWorkflowStarted(data) {
-  const id = data?.runId ?? data?.run_id ?? null;
+  const id   = data?.runId ?? data?.run_id ?? null;
+  const goal = data?.goal ?? null;
   if (runId.value && id && runId.value !== id) return; // wrong run
   if (!runId.value) runId.value = id;
   resetLanes();
+  // Pre-populate planner card with goal immediately — avoids blank card during planning
+  if (goal) {
+    const card = getOrCreateCard('planner', 0);
+    card.task = goal;
+  }
 }
 
 function onNodeComplete(data) {
@@ -412,6 +461,15 @@ function onNodeComplete(data) {
     const card = getOrCreateCard(node, runIdx);
     card.status = 'running';
     card.startedAt = Date.now();
+    if (node === 'planner') {
+      if (state.goal) card.task = state.goal;
+    }
+    if (node === 'researcher') {
+      if (state.query) card.task = state.query;
+    }
+    if (node === 'reviewer') {
+      if (state.step) card.task = state.step;
+    }
     // worker running: update step info
     if (node === 'worker') {
       if (state.step)      card.task      = state.step;
@@ -429,9 +487,11 @@ function onNodeComplete(data) {
 
       if (node === 'planner' && state.plan) {
         const plan = state.plan;
-        card.task      = plan.goal ?? null;
+        if (plan.goal) card.task = plan.goal;   // don't overwrite if already set from running event
         card.skills    = plan.agentSkills ?? null;
-        card.stepCount = Array.isArray(plan.steps) ? plan.steps.length : null;
+        const planSteps = Array.isArray(plan.steps) ? plan.steps : [];
+        card.stepCount = planSteps.length || null;
+        card.steps     = planSteps.map(s => s.description ?? s).filter(Boolean);
       }
       if (node === 'researcher' && state.findings) {
         card.summary  = state.findings.summary ?? null;
@@ -441,8 +501,12 @@ function onNodeComplete(data) {
         card.status = 'complete';
       }
       if (node === 'reviewer') {
-        card.approved = state.approved ?? null;
-        card.score    = state.score    ?? null;
+        card.approved     = state.approved     ?? null;
+        card.score        = state.score        ?? null;
+        card.feedback     = state.feedback     ?? null;
+        card.suggestions  = state.suggestions  ?? [];
+        // Fallback: set task from step field if it arrived with complete (or was missed on running)
+        if (!card.task && state.step) card.task = state.step;
       }
 
     } else if (status === 'loop') {
@@ -506,9 +570,81 @@ function finalizeAllRunning(finalStatus) {
   }
 }
 
+// ─── Snapshot loader (recover state when page opens mid-run or after run) ────
+
+async function loadRunSnapshot() {
+  if (!runId.value) return;
+  try {
+    const res = await fetch(`/api/workflow/runs/${runId.value}`);
+    if (!res.ok) return;
+    const run = await res.json();
+    const state = run.graph_state_json ? JSON.parse(run.graph_state_json) : {};
+    const goal = state.goal || state.userGoal || null;
+
+    // Always pre-populate planner card with goal so it never shows blank
+    if (goal) {
+      const pCard = getOrCreateCard('planner', 0);
+      if (!pCard.task) pCard.task = goal;
+    }
+
+    // If the run is finished, reconstruct all lanes from final state
+    if (run.status === 'complete' || run.status === 'stopped') {
+      globalStatus.value = run.status === 'complete' ? 'complete' : 'stopped';
+
+      // Planner
+      if (state.plan) {
+        const pCard = getOrCreateCard('planner', 0);
+        pCard.status    = 'complete';
+        pCard.task      = goal;
+        pCard.skills    = state.plan.agentSkills ?? null;
+        const snapSteps = Array.isArray(state.plan.steps) ? state.plan.steps : [];
+        pCard.stepCount = snapSteps.length || null;
+        pCard.steps     = snapSteps.map(s => s.description ?? s).filter(Boolean);
+        nodeRunCount.planner = 1;
+      }
+
+      // Researcher
+      if (state.researchFindings) {
+        const rCard = getOrCreateCard('researcher', 0);
+        rCard.status  = 'complete';
+        rCard.task    = state.researchFindings.topic ?? null;
+        rCard.summary = state.researchFindings.summary ?? null;
+        rCard.approach = state.researchFindings.recommendedApproach ?? null;
+        nodeRunCount.researcher = 1;
+      }
+
+      // Worker: one card per completed step
+      const steps = state.plan?.steps || [];
+      const results = Array.isArray(state.subtaskResults) ? state.subtaskResults : [];
+      results.forEach((r, i) => {
+        const wCard = getOrCreateCard('worker', i);
+        wCard.status     = 'complete';
+        wCard.task       = steps[i]?.description ?? null;
+        wCard.stepIdx    = i;
+        wCard.totalSteps = steps.length;
+        nodeRunCount.worker = i + 1;
+      });
+
+      // Reviewer: reconstruct from final reviewFeedback if available
+      const rf = state.reviewFeedback;
+      if (rf) {
+        const lastStep = steps[Math.max(0, steps.length - 1)];
+        const rvCard = getOrCreateCard('reviewer', 0);
+        rvCard.status      = 'complete';
+        rvCard.task        = lastStep?.description ?? null;
+        rvCard.approved    = rf.approved    ?? null;
+        rvCard.score       = rf.score       ?? null;
+        rvCard.feedback    = rf.feedback    ?? null;
+        rvCard.suggestions = rf.suggestions ?? [];
+        nodeRunCount.reviewer = 1;
+      }
+    }
+  } catch { /* ignore */ }
+}
+
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
-onMounted(() => {
+onMounted(async () => {
   socket.on('workflow:started',      onWorkflowStarted);
   socket.on('workflow:node_complete', onNodeComplete);
   socket.on('workflow:complete',     onWorkflowComplete);
@@ -516,9 +652,9 @@ onMounted(() => {
   socket.on('workflow:error',        onWorkflowError);
   socket.on('worker:action',         onWorkerAction);
 
-  // If runId is pre-set via query, we're already listening for events on that run
   if (runId.value) {
     globalStatus.value = 'running';
+    await loadRunSnapshot();
   }
 });
 
@@ -671,7 +807,7 @@ onUnmounted(() => {
 .lanes-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 0;
   min-height: 0;
   overflow: hidden;
@@ -695,10 +831,22 @@ onUnmounted(() => {
   border-bottom: 2px solid transparent;
   flex-shrink: 0;
 }
-.lane-header--planner    { border-bottom-color: rgba(129,140,248,0.35); }
-.lane-header--researcher { border-bottom-color: rgba(52,211,153,0.35); }
-.lane-header--worker     { border-bottom-color: rgba(96,165,250,0.35); }
-.lane-header--reviewer   { border-bottom-color: rgba(244,114,182,0.35); }
+.lane-header--planner      { border-bottom-color: rgba(129,140,248,0.35); }
+.lane-header--researcher   { border-bottom-color: rgba(52,211,153,0.35); }
+.lane-header--worker-doing { border-bottom-color: rgba(34,211,238,0.35); }
+.lane-header--worker-done  { border-bottom-color: rgba(16,185,129,0.35); }
+.lane-header--reviewer     { border-bottom-color: rgba(244,114,182,0.35); }
+
+.lane-count-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: #10B981;
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.25);
+  border-radius: 10px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
 
 .lane-header__left {
   display: flex;
@@ -854,6 +1002,20 @@ onUnmounted(() => {
   color: #A5B4FC;
   white-space: nowrap;
 }
+/* ── Plan steps list (planner) ───────────────────────────────────────────── */
+.plan-steps {
+  margin: 4px 0 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.plan-steps li {
+  font-size: 11px;
+  color: rgba(226,232,240,0.5);
+  line-height: 1.4;
+}
+
 .skill-chip--researcher {
   background: rgba(52,211,153,0.1);
   border-color: rgba(52,211,153,0.2);
@@ -982,6 +1144,31 @@ onUnmounted(() => {
 .score-bar-fill--green { background: #10B981; }
 .score-bar-fill--amber { background: #F59E0B; }
 .score-bar-fill--red   { background: #EF4444; }
+
+/* ── Reviewer feedback ───────────────────────────────────────────────────── */
+.review-feedback {
+  font-size: 11px;
+  color: rgba(226,232,240,0.5);
+  line-height: 1.5;
+  margin-top: 7px;
+  padding: 5px 8px;
+  background: rgba(255,255,255,0.03);
+  border-left: 2px solid rgba(244,114,182,0.35);
+  border-radius: 0 4px 4px 0;
+  word-break: break-word;
+}
+.review-suggestions {
+  margin: 4px 0 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.review-suggestions li {
+  font-size: 11px;
+  color: rgba(226,232,240,0.45);
+  line-height: 1.4;
+}
 
 .loop-badge {
   display: inline-flex;
