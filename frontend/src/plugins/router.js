@@ -6,6 +6,7 @@ const routes = [
   { path: '/projects',  component: () => import('../views/ProjectsView.vue'),  meta: { title: 'Projects',  icon: 'mdi-folder-multiple-outline' } },
   { path: '/chat',      component: () => import('../views/ChatView.vue'),      meta: { title: 'Chat',      icon: 'mdi-chat' } },
   { path: '/workflow',  component: () => import('../views/WorkflowView.vue'),  meta: { title: 'Workflow',  icon: 'mdi-graph' } },
+  { path: '/swimlane',  component: () => import('../views/SwimlaneView.vue'),  meta: { nav: false } },
   { path: '/skills', component: () => import('../views/SkillManagementView.vue'), meta: { title: 'Skills', icon: 'mdi-book-open-outline' } },
   { path: '/schedule',  component: () => import('../views/ScheduleView.vue'),  meta: { title: 'Schedule',  icon: 'mdi-clock-outline' } },
   { path: '/memory',    component: () => import('../views/MemoryView.vue'),    meta: { title: 'Memory',    icon: 'mdi-brain' } },

@@ -11,6 +11,12 @@
         <span :class="['graph-status-dot', `graph-status-dot--${graphOverallStatus}`]" />
         <span class="graph-overall-label">{{ graphOverallStatus }}</span>
       </div>
+      <router-link v-if="graphRunId"
+        :to="`/swimlane?runId=${graphRunId}`"
+        class="swimlane-btn">
+        <v-icon size="12">mdi-view-week-outline</v-icon>
+        Swimlane
+      </router-link>
       <slot name="actions" />
     </div>
 
@@ -486,6 +492,20 @@ onUnmounted(() => {
 }
 .panel__header > div { display: flex; align-items: center; gap: 7px; }
 .section-title { font-size: 13px; font-weight: 600; color: rgba(226,232,240,0.85); }
+
+.swimlane-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 600; text-decoration: none;
+  color: rgba(99,102,241,0.85);
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.2);
+  padding: 3px 9px; border-radius: 5px;
+  transition: background .15s, border-color .15s;
+}
+.swimlane-btn:hover {
+  background: rgba(99,102,241,0.15);
+  border-color: rgba(99,102,241,0.4);
+}
 
 .run-id-badge {
   font-size: 10px; color: rgba(226,232,240,0.35);
