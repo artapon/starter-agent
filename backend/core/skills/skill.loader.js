@@ -344,11 +344,12 @@ export function getLibrarySkillPrompt(agentId, skillName) {
 export function buildSkillMenu() {
   const agents = ['researcher', 'worker', 'reviewer'];
   const lines = ['\n\n---\n## Agent Skill Selection\n'];
-  lines.push('Choose the most specific available skill for each agent.');
+  lines.push('Choose ONE skill name per agent — a single string, never a comma-separated list.');
   lines.push('Rules:');
   lines.push('1. Pick the skill whose name/description best matches the task domain.');
   lines.push('2. Only fall back to "general" if no other skill is a reasonable match.');
   lines.push('3. If no existing skill fits well, **propose a new descriptive name** (e.g. `react-ts`, `python-fastapi`, `data-pipeline`). The new skill will be created — do not force "general" when a specialist name better describes the work.');
+  lines.push('⚠️ Each value must be exactly ONE skill name — e.g. "backend", not "backend, general".');
   lines.push('Add an `"agentSkills"` key to your JSON output.\n');
 
   for (const agent of agents) {

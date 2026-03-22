@@ -141,12 +141,14 @@ export class PlannerAgent {
         description: (s.description || '').replace(/\s+/g, ' ').trim(),
         researchQuery: (s.researchQuery || '').replace(/\s+/g, ' ').trim() || undefined,
       }));
-      // Normalise agentSkills — keep only recognised keys
+      // Normalise agentSkills — keep only recognised keys; sanitize comma-separated
+      // values (model sometimes outputs "backend, general" — take the first token only)
       if (plan.agentSkills && typeof plan.agentSkills === 'object') {
+        const sanitizeSkill = v => (typeof v === 'string' ? v.split(',')[0].trim() : '') || null;
         plan.agentSkills = {
-          researcher: plan.agentSkills.researcher || null,
-          worker:     plan.agentSkills.worker     || null,
-          reviewer:   plan.agentSkills.reviewer   || null,
+          researcher: sanitizeSkill(plan.agentSkills.researcher),
+          worker:     sanitizeSkill(plan.agentSkills.worker),
+          reviewer:   sanitizeSkill(plan.agentSkills.reviewer),
         };
       } else {
         plan.agentSkills = null;

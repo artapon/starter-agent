@@ -16,7 +16,9 @@ export function checkAndRecordSkillRequests(agentSkills, goal = '') {
   if (!agentSkills) return;
   const agents = ['researcher', 'worker', 'reviewer'];
   for (const agentId of agents) {
-    const skillName = agentSkills[agentId];
+    // Sanitize: planner may have emitted "backend, general" — take the first token
+    const raw = agentSkills[agentId];
+    const skillName = typeof raw === 'string' ? raw.split(',')[0].trim() : raw;
     if (!skillName || skillName === 'general') continue; // general always exists
     const content = getLibrarySkillRaw(agentId, skillName);
     if (!content) {
