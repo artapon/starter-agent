@@ -50,7 +50,7 @@
           <span class="lane-status-dot" :class="`dot--${laneStatus('planner')}`" />
         </div>
         <div class="lane-body">
-          <div v-if="lanes.planner.length === 0" class="lane-empty">Waiting…</div>
+          <div v-if="lanes.planner.length === 0" class="lane-empty">No task</div>
           <div
             v-for="card in lanes.planner"
             :key="card.id"
@@ -106,7 +106,7 @@
           <span class="lane-status-dot" :class="`dot--${laneStatus('researcher')}`" />
         </div>
         <div class="lane-body">
-          <div v-if="lanes.researcher.length === 0" class="lane-empty">Waiting…</div>
+          <div v-if="lanes.researcher.length === 0" class="lane-empty">No task</div>
           <div
             v-for="card in lanes.researcher"
             :key="card.id"
@@ -145,7 +145,7 @@
           <span class="lane-status-dot" :class="`dot--${laneStatus('worker')}`" />
         </div>
         <div class="lane-body">
-          <div v-if="workerDoing.length === 0" class="lane-empty">Waiting…</div>
+          <div v-if="workerDoing.length === 0" class="lane-empty">No task</div>
           <div
             v-for="card in workerDoing"
             :key="card.id"
@@ -193,7 +193,7 @@
           <span class="lane-count-badge" v-if="workerDone.length > 0">{{ workerDone.length }}</span>
         </div>
         <div class="lane-body">
-          <div v-if="workerDone.length === 0" class="lane-empty">No tasks yet</div>
+          <div v-if="workerDone.length === 0" class="lane-empty">No task</div>
           <div
             v-for="card in workerDone"
             :key="card.id"
@@ -228,7 +228,7 @@
           <span class="lane-status-dot" :class="`dot--${laneStatus('reviewer')}`" />
         </div>
         <div class="lane-body">
-          <div v-if="lanes.reviewer.length === 0" class="lane-empty">Waiting…</div>
+          <div v-if="lanes.reviewer.length === 0" class="lane-empty">No task</div>
           <div
             v-for="card in lanes.reviewer"
             :key="card.id"
