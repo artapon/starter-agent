@@ -110,6 +110,16 @@
             </div>
             <div v-else class="idle-badge">{{ agentLiveStatus[agent.agentId] || 'idle' }}</div>
           </div>
+          <!-- Step progress — worker only -->
+          <template v-if="agent.agentId === 'worker' && agentLiveStatus['worker'] === 'working' && workerStep.total">
+            <div class="worker-step-label">
+              Step {{ workerStep.dev || workerStep.finished + 1 }} / {{ workerStep.total }}
+            </div>
+            <div class="worker-step-bar">
+              <div class="worker-step-bar__fill"
+                :style="`width:${Math.round((workerStep.finished / workerStep.total) * 100)}%`" />
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -307,6 +317,7 @@ const queueHasPending = computed(() => queue.value.some(j => j.status === 'queue
 const tokenUsage = ref({ today: 0, weekly: 0, monthly: 0, total: 0, byAgent: {} });
 const agentLiveStatus = ref({});
 const agentCurrentTask = ref({});
+const workerStep = ref({ dev: null, total: null, finished: 0 });
 const logContainer = ref(null);
 
 const statCards = computed(() => [
@@ -372,7 +383,7 @@ function agentChipColor(id) {
   return { researcher: 'secondary', planner: 'accent', worker: 'success', reviewer: 'warning' }[id] || 'default';
 }
 function agentColor(id) {
-  return { researcher: '#22D3EE', planner: '#818CF8', worker: '#34D399', reviewer: '#F59E0B' }[id] || '#A78BFA';
+  return { researcher: '#22D3EE', planner: '#818CF8', worker: '#34D399', reviewer: '#34D399' }[id] || '#A78BFA';
 }
 function agentWorkingVars(id) {
   const c = agentColor(id);
@@ -412,24 +423,44 @@ function onAgentStatus(data) {
   }
 }
 function onDashboardStats(data) { stats.value = { ...stats.value, ...data }; }
+function onWorkflowNodeComplete(data) {
+  if (data.node === 'planner' && data.state?.status === 'complete' && data.state?.plan?.steps) {
+    workerStep.value = { ...workerStep.value, total: data.state.plan.steps.length };
+  }
+  if (data.node === 'worker') {
+    if (data.state?.status === 'running') {
+      workerStep.value = {
+        dev:      (data.state.stepIdx ?? 0) + 1,
+        total:    data.state.totalSteps || workerStep.value.total,
+        finished: workerStep.value.finished,
+      };
+    } else if (data.state?.status === 'complete') {
+      workerStep.value = { ...workerStep.value, dev: null, finished: workerStep.value.finished + 1 };
+    }
+  }
+}
 function onWorkflowStarted() {
   stats.value = { ...stats.value, activeRuns: (stats.value.activeRuns || 0) + 1 };
+  workerStep.value = { dev: null, total: null, finished: 0 };
   fetchRecentRuns();
 }
 function onWorkflowComplete(data) {
   fetchTokenUsage();
+  workerStep.value = { dev: null, total: null, finished: 0 };
   stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
   const run = recentRuns.value.find(r => r.id === data.runId);
   if (run) run.status = 'complete';
   else fetchRecentRuns();
 }
 function onWorkflowStopped(data) {
+  workerStep.value = { dev: null, total: null, finished: 0 };
   stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
   const run = recentRuns.value.find(r => r.id === data.runId);
   if (run) run.status = 'stopped';
   else fetchRecentRuns();
 }
 function onWorkflowError(data) {
+  workerStep.value = { dev: null, total: null, finished: 0 };
   stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
   const run = recentRuns.value.find(r => r.id === data.runId);
   if (run) run.status = 'error';
@@ -443,10 +474,11 @@ onMounted(() => {
   socket.on('log:entry',        onLogEntry);
   socket.on('agent:status',     onAgentStatus);
   socket.on('dashboard:stats',  onDashboardStats);
-  socket.on('workflow:started', onWorkflowStarted);
-  socket.on('workflow:complete', onWorkflowComplete);
-  socket.on('workflow:stopped', onWorkflowStopped);
-  socket.on('workflow:error',   onWorkflowError);
+  socket.on('workflow:started',       onWorkflowStarted);
+  socket.on('workflow:node_complete', onWorkflowNodeComplete);
+  socket.on('workflow:complete',      onWorkflowComplete);
+  socket.on('workflow:stopped',       onWorkflowStopped);
+  socket.on('workflow:error',         onWorkflowError);
 
   const interval = setInterval(fetchStats, 30000);
   onUnmounted(() => {
@@ -455,10 +487,11 @@ onMounted(() => {
     socket.off('log:entry',        onLogEntry);
     socket.off('agent:status',     onAgentStatus);
     socket.off('dashboard:stats',  onDashboardStats);
-    socket.off('workflow:started', onWorkflowStarted);
-    socket.off('workflow:complete', onWorkflowComplete);
-    socket.off('workflow:stopped', onWorkflowStopped);
-    socket.off('workflow:error',   onWorkflowError);
+    socket.off('workflow:started',       onWorkflowStarted);
+    socket.off('workflow:node_complete', onWorkflowNodeComplete);
+    socket.off('workflow:complete',      onWorkflowComplete);
+    socket.off('workflow:stopped',       onWorkflowStopped);
+    socket.off('workflow:error',         onWorkflowError);
   });
 });
 </script>
@@ -593,6 +626,20 @@ onMounted(() => {
 .idle-badge {
   font-size: 11px; color: rgba(226,232,240,0.3) !important;
   text-transform: capitalize;
+}
+
+/* Worker step progress */
+.worker-step-label {
+  font-size: 10px; color: rgba(226,232,240,0.4);
+  margin-top: 3px; font-variant-numeric: tabular-nums;
+}
+.worker-step-bar {
+  height: 2px; background: rgba(255,255,255,0.07); border-radius: 1px;
+  overflow: hidden; margin-top: 3px;
+}
+.worker-step-bar__fill {
+  height: 100%; background: #10B981; border-radius: 1px;
+  transition: width 0.4s ease;
 }
 
 /* Status dots */

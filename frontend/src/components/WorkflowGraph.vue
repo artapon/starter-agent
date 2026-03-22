@@ -80,16 +80,6 @@
           <text x="352" y="37" class="node-icon" text-anchor="middle">💻</text>
           <text x="352" y="53" class="node-label" text-anchor="middle">Worker</text>
         </g>
-        <!-- Worker step info — placed in the inter-row gap below the node -->
-        <text v-if="graphDevStep" x="352" y="74"
-              class="node-sub-label node-sub-label--step" text-anchor="middle">
-          Step {{ graphDevStep }}{{ graphTotalSteps ? ' / ' + graphTotalSteps : '' }}
-        </text>
-        <!-- Step progress bar -->
-        <rect v-if="graphTotalSteps" x="305" y="80" width="94" height="3" rx="1.5" fill="rgba(255,255,255,0.08)"/>
-        <rect v-if="graphTotalSteps && graphFinishedSteps > 0"
-              x="305" y="80" :width="progressBarWidth" height="3" rx="1.5" fill="#10B981"/>
-
         <!-- Reviewer -->
         <g :class="['graph-node-g', nodeClass('reviewer')]">
           <rect x="441" y="20" width="110" height="44" rx="8"
@@ -211,12 +201,6 @@ const activeBarText = computed(() => {
   if (node === 'loop_reset')
     return `Loop Reset — Pass ${graphLoopCount.value} / ${graphMaxLoops.value}`;
   return node.charAt(0).toUpperCase() + node.slice(1);
-});
-
-// Step progress bar width (pixels in SVG units, track = 94 wide)
-const progressBarWidth = computed(() => {
-  if (!graphTotalSteps.value) return 0;
-  return 94 * Math.min(graphFinishedSteps.value / graphTotalSteps.value, 1);
 });
 
 // ── RAF animation ─────────────────────────────────────────────────────────────
@@ -555,7 +539,6 @@ onUnmounted(() => {
 /* SVG text classes */
 .node-label      { font-size: 11px; font-weight: 600; fill: rgba(226,232,240,0.8); font-family: 'Segoe UI', sans-serif; }
 .node-sub-label  { font-size: 9px;  font-weight: 500; fill: #22D3EE; font-family: 'Segoe UI', sans-serif; }
-.node-sub-label--step { font-size: 11px; font-weight: 700; }
 .node-icon       { font-size: 13px; font-family: 'Segoe UI Emoji', sans-serif; }
 .node-done-label { font-size: 12px; font-weight: 700; fill: rgba(226,232,240,0.9); font-family: 'Segoe UI', sans-serif; }
 .edge-label      { font-size: 9px;  fill: rgba(226,232,240,0.3); font-family: 'Segoe UI', sans-serif; }
