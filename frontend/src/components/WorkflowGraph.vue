@@ -326,175 +326,177 @@ function acceptRun(data) {
   return data.runId === graphRunId.value;
 }
 
+// ── Named socket handlers (so off() only removes this component's listeners) ──
+
+function onWorkflowStarted(data) {
+  // Don't re-reset if we are already tracking this same run
+  // (handles reconnect scenarios where node events arrived first)
+  if (data.runId === graphRunId.value) return;
+  graphRunId.value         = data.runId;
+  graphOverallStatus.value = 'running';
+  graphMaxLoops.value      = data.maxLoops ?? 3;
+  resetGraph();
+}
+
+// PRIMARY source of truth — all node state transitions happen here.
+// No guards — nodes legitimately cycle back to running in multi-step workflows.
+function onWorkflowNodeComplete(data) {
+  if (!acceptRun(data)) return;
+  const node = data.node;
+  const st   = data.state?.status;
+
+  if (node === 'planner') {
+    if (st === 'running') {
+      graphNodeStatus['planner'] = 'running';
+    } else if (st === 'complete') {
+      graphNodeStatus['planner'] = 'complete';
+      if (data.state?.plan?.steps) {
+        graphTotalSteps.value = data.state.plan.steps.length;
+        graphPlanSteps.value  = data.state.plan.steps;
+      }
+    }
+    return;
+  }
+
+  if (node === 'researcher') {
+    if (st === 'running') {
+      // Loop pass starting: loop_reset can now be marked complete
+      if (graphNodeStatus['loop_reset'] === 'running')
+        graphNodeStatus['loop_reset'] = 'complete';
+      graphNodeStatus['researcher'] = 'running';
+    } else if (st === 'complete') {
+      graphNodeStatus['researcher'] = 'complete';
+    }
+    return;
+  }
+
+  if (node === 'worker') {
+    if (st === 'running') {
+      graphNodeStatus['worker'] = 'running';
+      const stepIdx = data.state?.stepIdx ?? 0;
+      graphDevStep.value    = stepIdx + 1;
+      if (data.state?.totalSteps) graphTotalSteps.value = data.state.totalSteps;
+      graphCurrentStep.value = data.state?.step
+        || graphPlanSteps.value[stepIdx]?.description
+        || null;
+    } else if (st === 'complete') {
+      graphNodeStatus['worker'] = 'complete';
+      graphFinishedSteps.value++;
+      graphDevStep.value     = null;
+      graphCurrentStep.value = null;
+    }
+    return;
+  }
+
+  if (node === 'reviewer') {
+    if (st === 'running') {
+      graphNodeStatus['reviewer'] = 'running';
+      graphReviewerScore.value    = null; // clear previous score while reviewing
+    } else if (st === 'complete') {
+      graphNodeStatus['reviewer'] = 'complete';
+      if (data.state?.score != null) graphReviewerScore.value = data.state.score;
+    } else if (st === 'loop') {
+      graphNodeStatus['reviewer'] = 'complete';
+      if (data.state?.score != null) graphReviewerScore.value = data.state.score;
+      graphLoopCount.value = data.state?.loop ?? (graphLoopCount.value + 1);
+      // Begin loop: reset downstream nodes, activate loop_reset node
+      graphNodeStatus['loop_reset'] = 'running';
+      graphNodeStatus['researcher'] = 'pending';
+      graphNodeStatus['worker']     = 'pending';
+      graphDevStep.value            = null;
+      graphCurrentStep.value        = null;
+      // Note: loop_reset transitions to 'complete' when researcher:running arrives next
+    } else if (st === 'assembled') {
+      graphNodeStatus['assembler'] = 'complete';
+      graphNodeStatus['done']      = 'complete';
+    }
+    return;
+  }
+}
+
+function onWorkflowComplete(data) {
+  if (!acceptRun(data)) return;
+  graphOverallStatus.value = 'complete';
+  GRAPH_NODES.forEach(n => { graphNodeStatus[n] = 'complete'; });
+}
+
+function onWorkflowStopped(data) {
+  if (!acceptRun(data)) return;
+  graphOverallStatus.value = 'stopped';
+  GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'idle'; });
+  graphDevStep.value     = null;
+  graphCurrentStep.value = null;
+}
+
+function onWorkflowError(data) {
+  if (!acceptRun(data)) return;
+  graphOverallStatus.value = 'error';
+  GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'error'; });
+}
+
+// Secondary fallback — only nudges a pending/idle node to running.
+// Never completes nodes (that is workflow:node_complete's job).
+function onAgentStatus(data) {
+  if (graphOverallStatus.value !== 'running') return;
+  const gNode = AGENT_NODES.has(data.agentId) ? data.agentId : null;
+  if (!gNode) return;
+  if (data.status === 'working') {
+    const cur = graphNodeStatus[gNode];
+    if (cur === 'pending' || cur === 'idle') {
+      graphNodeStatus[gNode] = 'running';
+    }
+  }
+  // 'idle' events intentionally ignored — let workflow:node_complete handle completion
+}
+
+// Fallback for overall workflow lifecycle only.
+// No per-agent state mutations — those are workflow:node_complete's responsibility.
+function onLogEntry(entry) {
+  if (entry.agentId !== 'workflow') return;
+  const msg = entry.message || '';
+
+  if (/Starting workflow run/i.test(msg)) {
+    if (graphOverallStatus.value !== 'running') {
+      graphOverallStatus.value = 'running';
+      resetGraph();
+    }
+    return;
+  }
+  if (/Workflow .+ complete$/i.test(msg)) {
+    if (graphOverallStatus.value !== 'complete') {
+      graphOverallStatus.value = 'complete';
+      GRAPH_NODES.forEach(n => { graphNodeStatus[n] = 'complete'; });
+    }
+    return;
+  }
+  if (/Workflow .+ (stopped|aborted)/i.test(msg)) {
+    if (graphOverallStatus.value !== 'stopped') {
+      graphOverallStatus.value = 'stopped';
+      GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'idle'; });
+    }
+  }
+}
+
 // ── Socket listeners ──────────────────────────────────────────────────────────
 onMounted(() => {
-
-  // ── workflow:started ───────────────────────────────────────────────────
-  socket.on('workflow:started', (data) => {
-    // Don't re-reset if we are already tracking this same run
-    // (handles reconnect scenarios where node events arrived first)
-    if (data.runId === graphRunId.value) return;
-    graphRunId.value         = data.runId;
-    graphOverallStatus.value = 'running';
-    graphMaxLoops.value      = data.maxLoops ?? 3;
-    resetGraph();
-  });
-
-  // ── workflow:node_complete ─────────────────────────────────────────────
-  // PRIMARY source of truth — all node state transitions happen here.
-  // No guards — nodes legitimately cycle back to running in multi-step workflows.
-  socket.on('workflow:node_complete', (data) => {
-    if (!acceptRun(data)) return;
-    const node = data.node;
-    const st   = data.state?.status;
-
-    if (node === 'planner') {
-      if (st === 'running') {
-        graphNodeStatus['planner'] = 'running';
-      } else if (st === 'complete') {
-        graphNodeStatus['planner'] = 'complete';
-        if (data.state?.plan?.steps) {
-          graphTotalSteps.value = data.state.plan.steps.length;
-          graphPlanSteps.value  = data.state.plan.steps;
-        }
-      }
-      return;
-    }
-
-    if (node === 'researcher') {
-      if (st === 'running') {
-        // Loop pass starting: loop_reset can now be marked complete
-        if (graphNodeStatus['loop_reset'] === 'running')
-          graphNodeStatus['loop_reset'] = 'complete';
-        graphNodeStatus['researcher'] = 'running';
-      } else if (st === 'complete') {
-        graphNodeStatus['researcher'] = 'complete';
-      }
-      return;
-    }
-
-    if (node === 'worker') {
-      if (st === 'running') {
-        graphNodeStatus['worker'] = 'running';
-        const stepIdx = data.state?.stepIdx ?? 0;
-        graphDevStep.value    = stepIdx + 1;
-        if (data.state?.totalSteps) graphTotalSteps.value = data.state.totalSteps;
-        graphCurrentStep.value = data.state?.step
-          || graphPlanSteps.value[stepIdx]?.description
-          || null;
-      } else if (st === 'complete') {
-        graphNodeStatus['worker'] = 'complete';
-        graphFinishedSteps.value++;
-        graphDevStep.value     = null;
-        graphCurrentStep.value = null;
-      }
-      return;
-    }
-
-    if (node === 'reviewer') {
-      if (st === 'running') {
-        graphNodeStatus['reviewer'] = 'running';
-        graphReviewerScore.value    = null; // clear previous score while reviewing
-      } else if (st === 'complete') {
-        graphNodeStatus['reviewer'] = 'complete';
-        if (data.state?.score != null) graphReviewerScore.value = data.state.score;
-      } else if (st === 'loop') {
-        graphNodeStatus['reviewer'] = 'complete';
-        if (data.state?.score != null) graphReviewerScore.value = data.state.score;
-        graphLoopCount.value = data.state?.loop ?? (graphLoopCount.value + 1);
-        // Begin loop: reset downstream nodes, activate loop_reset node
-        graphNodeStatus['loop_reset'] = 'running';
-        graphNodeStatus['researcher'] = 'pending';
-        graphNodeStatus['worker']     = 'pending';
-        graphDevStep.value            = null;
-        graphCurrentStep.value        = null;
-        // Note: loop_reset transitions to 'complete' when researcher:running arrives next
-      } else if (st === 'assembled') {
-        graphNodeStatus['assembler'] = 'complete';
-        graphNodeStatus['done']      = 'complete';
-      }
-      return;
-    }
-  });
-
-  // ── workflow:complete ──────────────────────────────────────────────────
-  socket.on('workflow:complete', (data) => {
-    if (!acceptRun(data)) return;
-    graphOverallStatus.value = 'complete';
-    GRAPH_NODES.forEach(n => { graphNodeStatus[n] = 'complete'; });
-  });
-
-  // ── workflow:stopped ───────────────────────────────────────────────────
-  socket.on('workflow:stopped', (data) => {
-    if (!acceptRun(data)) return;
-    graphOverallStatus.value = 'stopped';
-    GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'idle'; });
-    graphDevStep.value     = null;
-    graphCurrentStep.value = null;
-  });
-
-  // ── workflow:error ─────────────────────────────────────────────────────
-  socket.on('workflow:error', (data) => {
-    if (!acceptRun(data)) return;
-    graphOverallStatus.value = 'error';
-    GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'error'; });
-  });
-
-  // ── agent:status ───────────────────────────────────────────────────────
-  // Secondary fallback — only nudges a pending/idle node to running.
-  // Never completes nodes (that is workflow:node_complete's job).
-  socket.on('agent:status', (data) => {
-    if (graphOverallStatus.value !== 'running') return;
-    const gNode = AGENT_NODES.has(data.agentId) ? data.agentId : null;
-    if (!gNode) return;
-    if (data.status === 'working') {
-      const cur = graphNodeStatus[gNode];
-      if (cur === 'pending' || cur === 'idle') {
-        graphNodeStatus[gNode] = 'running';
-      }
-    }
-    // 'idle' events intentionally ignored — let workflow:node_complete handle completion
-  });
-
-  // ── log:entry ──────────────────────────────────────────────────────────
-  // Fallback for overall workflow lifecycle only.
-  // No per-agent state mutations — those are workflow:node_complete's responsibility.
-  socket.on('log:entry', (entry) => {
-    if (entry.agentId !== 'workflow') return;
-    const msg = entry.message || '';
-
-    if (/Starting workflow run/i.test(msg)) {
-      if (graphOverallStatus.value !== 'running') {
-        graphOverallStatus.value = 'running';
-        resetGraph();
-      }
-      return;
-    }
-    if (/Workflow .+ complete$/i.test(msg)) {
-      if (graphOverallStatus.value !== 'complete') {
-        graphOverallStatus.value = 'complete';
-        GRAPH_NODES.forEach(n => { graphNodeStatus[n] = 'complete'; });
-      }
-      return;
-    }
-    if (/Workflow .+ (stopped|aborted)/i.test(msg)) {
-      if (graphOverallStatus.value !== 'stopped') {
-        graphOverallStatus.value = 'stopped';
-        GRAPH_NODES.forEach(n => { if (graphNodeStatus[n] === 'running') graphNodeStatus[n] = 'idle'; });
-      }
-    }
-  });
+  socket.on('workflow:started',      onWorkflowStarted);
+  socket.on('workflow:node_complete', onWorkflowNodeComplete);
+  socket.on('workflow:complete',     onWorkflowComplete);
+  socket.on('workflow:stopped',      onWorkflowStopped);
+  socket.on('workflow:error',        onWorkflowError);
+  socket.on('agent:status',          onAgentStatus);
+  socket.on('log:entry',             onLogEntry);
 });
 
 onUnmounted(() => {
   if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
-  socket.off('workflow:started');
-  socket.off('workflow:node_complete');
-  socket.off('workflow:complete');
-  socket.off('workflow:stopped');
-  socket.off('workflow:error');
-  socket.off('agent:status');
-  socket.off('log:entry');
+  socket.off('workflow:started',      onWorkflowStarted);
+  socket.off('workflow:node_complete', onWorkflowNodeComplete);
+  socket.off('workflow:complete',     onWorkflowComplete);
+  socket.off('workflow:stopped',      onWorkflowStopped);
+  socket.off('workflow:error',        onWorkflowError);
+  socket.off('agent:status',          onAgentStatus);
+  socket.off('log:entry',             onLogEntry);
 });
 </script>
 

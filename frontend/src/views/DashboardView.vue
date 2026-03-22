@@ -391,72 +391,74 @@ async function scrollLogs() {
   if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight;
 }
 
+// Named handlers so socket.off removes only this component's listeners
+function onQueueUpdated(data) {
+  const hadRunning = queue.value.some(j => j.status === 'running');
+  queue.value = data.queue || [];
+  const hasRunning = queue.value.some(j => j.status === 'running');
+  if (hadRunning && !hasRunning) fetchRecentRuns();
+}
+function onLogEntry(entry) {
+  logs.value.push(entry);
+  if (logs.value.length > 200) logs.value.shift();
+  scrollLogs();
+}
+function onAgentStatus(data) {
+  agentLiveStatus.value = { ...agentLiveStatus.value, [data.agentId]: data.status };
+  if (data.status === 'working' && data.currentTask) {
+    agentCurrentTask.value = { ...agentCurrentTask.value, [data.agentId]: data.currentTask };
+  } else if (data.status === 'idle') {
+    agentCurrentTask.value = { ...agentCurrentTask.value, [data.agentId]: null };
+  }
+}
+function onDashboardStats(data) { stats.value = { ...stats.value, ...data }; }
+function onWorkflowStarted() {
+  stats.value = { ...stats.value, activeRuns: (stats.value.activeRuns || 0) + 1 };
+  fetchRecentRuns();
+}
+function onWorkflowComplete(data) {
+  fetchTokenUsage();
+  stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
+  const run = recentRuns.value.find(r => r.id === data.runId);
+  if (run) run.status = 'complete';
+  else fetchRecentRuns();
+}
+function onWorkflowStopped(data) {
+  stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
+  const run = recentRuns.value.find(r => r.id === data.runId);
+  if (run) run.status = 'stopped';
+  else fetchRecentRuns();
+}
+function onWorkflowError(data) {
+  stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
+  const run = recentRuns.value.find(r => r.id === data.runId);
+  if (run) run.status = 'error';
+  else fetchRecentRuns();
+}
+
 onMounted(() => {
   fetchStats();
   fetchQueue();
-  socket.on('queue:updated', (data) => {
-    const hadRunning = queue.value.some(j => j.status === 'running');
-    queue.value = data.queue || [];
-    const hasRunning = queue.value.some(j => j.status === 'running');
-    // A job just finished — refresh Recent Runs immediately
-    if (hadRunning && !hasRunning) fetchRecentRuns();
-  });
-
-  socket.on('log:entry', (entry) => {
-    logs.value.push(entry);
-    if (logs.value.length > 200) logs.value.shift();
-    scrollLogs();
-  });
-
-  socket.on('agent:status', (data) => {
-    agentLiveStatus.value = { ...agentLiveStatus.value, [data.agentId]: data.status };
-    if (data.status === 'working' && data.currentTask) {
-      agentCurrentTask.value = { ...agentCurrentTask.value, [data.agentId]: data.currentTask };
-    } else if (data.status === 'idle') {
-      agentCurrentTask.value = { ...agentCurrentTask.value, [data.agentId]: null };
-    }
-  });
-
-  socket.on('dashboard:stats', (data) => { stats.value = { ...stats.value, ...data }; });
-
-  socket.on('workflow:started', () => {
-    stats.value = { ...stats.value, activeRuns: (stats.value.activeRuns || 0) + 1 };
-    fetchRecentRuns();
-  });
-
-  socket.on('workflow:complete', (data) => {
-    fetchTokenUsage();
-    stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
-    const run = recentRuns.value.find(r => r.id === data.runId);
-    if (run) run.status = 'complete';
-    else fetchRecentRuns();
-  });
-
-  socket.on('workflow:stopped', (data) => {
-    stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
-    const run = recentRuns.value.find(r => r.id === data.runId);
-    if (run) run.status = 'stopped';
-    else fetchRecentRuns();
-  });
-
-  socket.on('workflow:error', (data) => {
-    stats.value = { ...stats.value, activeRuns: Math.max(0, (stats.value.activeRuns || 1) - 1) };
-    const run = recentRuns.value.find(r => r.id === data.runId);
-    if (run) run.status = 'error';
-    else fetchRecentRuns();
-  });
+  socket.on('queue:updated',    onQueueUpdated);
+  socket.on('log:entry',        onLogEntry);
+  socket.on('agent:status',     onAgentStatus);
+  socket.on('dashboard:stats',  onDashboardStats);
+  socket.on('workflow:started', onWorkflowStarted);
+  socket.on('workflow:complete', onWorkflowComplete);
+  socket.on('workflow:stopped', onWorkflowStopped);
+  socket.on('workflow:error',   onWorkflowError);
 
   const interval = setInterval(fetchStats, 30000);
   onUnmounted(() => {
     clearInterval(interval);
-    socket.off('queue:updated');
-    socket.off('log:entry');
-    socket.off('agent:status');
-    socket.off('dashboard:stats');
-    socket.off('workflow:started');
-    socket.off('workflow:complete');
-    socket.off('workflow:stopped');
-    socket.off('workflow:error');
+    socket.off('queue:updated',    onQueueUpdated);
+    socket.off('log:entry',        onLogEntry);
+    socket.off('agent:status',     onAgentStatus);
+    socket.off('dashboard:stats',  onDashboardStats);
+    socket.off('workflow:started', onWorkflowStarted);
+    socket.off('workflow:complete', onWorkflowComplete);
+    socket.off('workflow:stopped', onWorkflowStopped);
+    socket.off('workflow:error',   onWorkflowError);
   });
 });
 </script>

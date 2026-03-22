@@ -60,23 +60,30 @@ async function stopWorkflow() {
   finally { stopping.value = false; }
 }
 
+function onConnect()    { connected.value = true; }
+function onDisconnect() { connected.value = false; }
+function onWorkflowStarted(d)  { activeRunId.value = d.runId; stopping.value = false; }
+function onWorkflowComplete(d) { if (d.runId === activeRunId.value) activeRunId.value = null; }
+function onWorkflowStopped(d)  { if (!d.runId || d.runId === activeRunId.value) activeRunId.value = null; }
+function onWorkflowError(d)    { if (d.runId === activeRunId.value) activeRunId.value = null; }
+
 onMounted(() => {
-  socket.on('connect',    () => { connected.value = true; });
-  socket.on('disconnect', () => { connected.value = false; });
+  socket.on('connect',           onConnect);
+  socket.on('disconnect',        onDisconnect);
   if (socket.connected) connected.value = true;
 
-  socket.on('workflow:started',  (d) => { activeRunId.value = d.runId; stopping.value = false; });
-  socket.on('workflow:complete', (d) => { if (d.runId === activeRunId.value) activeRunId.value = null; });
-  socket.on('workflow:stopped',  (d) => { if (!d.runId || d.runId === activeRunId.value) activeRunId.value = null; });
-  socket.on('workflow:error',    (d) => { if (d.runId === activeRunId.value) activeRunId.value = null; });
+  socket.on('workflow:started',  onWorkflowStarted);
+  socket.on('workflow:complete', onWorkflowComplete);
+  socket.on('workflow:stopped',  onWorkflowStopped);
+  socket.on('workflow:error',    onWorkflowError);
 });
 onUnmounted(() => {
-  socket.off('connect');
-  socket.off('disconnect');
-  socket.off('workflow:started');
-  socket.off('workflow:complete');
-  socket.off('workflow:stopped');
-  socket.off('workflow:error');
+  socket.off('connect',          onConnect);
+  socket.off('disconnect',       onDisconnect);
+  socket.off('workflow:started', onWorkflowStarted);
+  socket.off('workflow:complete', onWorkflowComplete);
+  socket.off('workflow:stopped', onWorkflowStopped);
+  socket.off('workflow:error',   onWorkflowError);
 });
 </script>
 

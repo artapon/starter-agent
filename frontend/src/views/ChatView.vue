@@ -548,6 +548,46 @@ watch(sessionId, () => {
 watch(showWorkspace, v => { if (v) loadWorkspace(); });
 
 // ── Socket ─────────────────────────────────────────────────────────────────
+function onAgentStatus(data) {
+  if (data.status === 'working') activeAgent.value = data.agentId;
+  else if (data.status === 'idle' && activeAgent.value === data.agentId) activeAgent.value = null;
+}
+function onChatChunk(data) {
+  if (data.sessionId !== sessionId.value) return;
+  if (!isStreaming.value) {
+    isStreaming.value = true;
+    streamingContent.value = '';
+    displayContent.value = '';
+    streamingAgentId.value = data.agentId || 'assistant';
+    _drainQueue();
+  }
+  streamingContent.value += data.chunk;
+  streamingAgentId.value = data.agentId || streamingAgentId.value;
+  _enqueueChunk(data.chunk);
+}
+function onChatResponse(data) {
+  if (data.sessionId !== sessionId.value) return;
+  isStreaming.value = false;
+  activeAgent.value = null;
+}
+function onChatTyping(data) {
+  if (!data.sessionId || data.sessionId === sessionId.value) {
+    typing.value = data.typing;
+    if (data.typing) scrollBottom();
+  }
+}
+function onChatStopped(data) {
+  if (data.sessionId !== sessionId.value) return;
+  _drainQueue();
+  isStreaming.value = false;
+  streamingContent.value = '';
+  displayContent.value = '';
+  typing.value = false;
+  sending.value = false;
+  activeAgent.value = null;
+}
+function onWorkspaceChanged() { if (showWorkspace.value) loadWorkspace(); }
+
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const urlProjectId = urlParams.get('projectId');
@@ -561,61 +601,22 @@ onMounted(() => {
   loadHistory();
   loadSessions();
 
-  socket.on('agent:status', (data) => {
-    if (data.status === 'working') activeAgent.value = data.agentId;
-    else if (data.status === 'idle' && activeAgent.value === data.agentId) activeAgent.value = null;
-  });
-
-  socket.on('chat:response_chunk', (data) => {
-    if (data.sessionId !== sessionId.value) return;
-    if (!isStreaming.value) {
-      isStreaming.value = true;
-      streamingContent.value = '';
-      displayContent.value = '';
-      streamingAgentId.value = data.agentId || 'assistant';
-      _drainQueue();
-    }
-    streamingContent.value += data.chunk;
-    streamingAgentId.value = data.agentId || streamingAgentId.value;
-    _enqueueChunk(data.chunk);
-  });
-
-  socket.on('chat:response', (data) => {
-    if (data.sessionId !== sessionId.value) return;
-    isStreaming.value = false;
-    activeAgent.value = null;
-  });
-
-  socket.on('chat:typing', (data) => {
-    if (!data.sessionId || data.sessionId === sessionId.value) {
-      typing.value = data.typing;
-      if (data.typing) scrollBottom();
-    }
-  });
-
-  socket.on('chat:stopped', (data) => {
-    if (data.sessionId !== sessionId.value) return;
-    _drainQueue();
-    isStreaming.value = false;
-    streamingContent.value = '';
-    displayContent.value = '';
-    typing.value = false;
-    sending.value = false;
-    activeAgent.value = null;
-  });
-
-  socket.on('workspace:changed', () => { if (showWorkspace.value) loadWorkspace(); });
-
+  socket.on('agent:status',        onAgentStatus);
+  socket.on('chat:response_chunk', onChatChunk);
+  socket.on('chat:response',       onChatResponse);
+  socket.on('chat:typing',         onChatTyping);
+  socket.on('chat:stopped',        onChatStopped);
+  socket.on('workspace:changed',   onWorkspaceChanged);
 });
 
 onUnmounted(() => {
   _drainQueue();
-  socket.off('agent:status');
-  socket.off('chat:response');
-  socket.off('chat:response_chunk');
-  socket.off('chat:typing');
-  socket.off('chat:stopped');
-  socket.off('workspace:changed');
+  socket.off('agent:status',        onAgentStatus);
+  socket.off('chat:response_chunk', onChatChunk);
+  socket.off('chat:response',       onChatResponse);
+  socket.off('chat:typing',         onChatTyping);
+  socket.off('chat:stopped',        onChatStopped);
+  socket.off('workspace:changed',   onWorkspaceChanged);
 });
 </script>
 

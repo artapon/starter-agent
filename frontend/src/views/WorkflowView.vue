@@ -222,6 +222,33 @@ async function fetchRuns() {
   reportSessions.value = new Set(rpt.sessions || []);
 }
 
+function patchRunStatus(runId, status) {
+  const run = runs.value.find(r => r.id === runId);
+  if (run) run.status = status;
+}
+
+function onWorkflowStarted(data)  { activeRun.value = { runId: data.runId, status: 'running' }; }
+function onWorkflowComplete(data) {
+  if (activeRun.value?.runId === data.runId) activeRun.value.status = 'complete';
+  patchRunStatus(data.runId, 'complete');
+  setTimeout(fetchRuns, 800);
+}
+function onWorkflowStopped(data) {
+  if (activeRun.value?.runId === data.runId || !data.runId)
+    activeRun.value = activeRun.value ? { ...activeRun.value, status: 'stopped' } : null;
+  patchRunStatus(data.runId, 'stopped');
+  setTimeout(fetchRuns, 800);
+}
+function onWorkflowError(data) {
+  if (activeRun.value?.runId === data.runId) activeRun.value.status = 'error';
+  patchRunStatus(data.runId, 'error');
+  setTimeout(fetchRuns, 800);
+}
+function onQueueUpdated(data) {
+  const hadRunning = (data.queue || []).some(j => j.status === 'running');
+  if (!hadRunning) setTimeout(fetchRuns, 500);
+}
+
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const urlProjectId = urlParams.get('projectId');
@@ -232,46 +259,19 @@ onMounted(() => {
   fetchRuns();
   loadProjects();
 
-  function patchRunStatus(runId, status) {
-    const run = runs.value.find(r => r.id === runId);
-    if (run) run.status = status;
-  }
-
-  socket.on('workflow:started', (data) => {
-    activeRun.value = { runId: data.runId, status: 'running' };
-  });
-
-  socket.on('workflow:complete', (data) => {
-    if (activeRun.value?.runId === data.runId) activeRun.value.status = 'complete';
-    patchRunStatus(data.runId, 'complete');
-    setTimeout(fetchRuns, 800);
-  });
-
-  socket.on('workflow:stopped', (data) => {
-    if (activeRun.value?.runId === data.runId || !data.runId)
-      activeRun.value = activeRun.value ? { ...activeRun.value, status: 'stopped' } : null;
-    patchRunStatus(data.runId, 'stopped');
-    setTimeout(fetchRuns, 800);
-  });
-
-  socket.on('workflow:error', (data) => {
-    if (activeRun.value?.runId === data.runId) activeRun.value.status = 'error';
-    patchRunStatus(data.runId, 'error');
-    setTimeout(fetchRuns, 800);
-  });
-
-  socket.on('queue:updated', (data) => {
-    const hadRunning = (data.queue || []).some(j => j.status === 'running');
-    if (!hadRunning) setTimeout(fetchRuns, 500);
-  });
+  socket.on('workflow:started',  onWorkflowStarted);
+  socket.on('workflow:complete', onWorkflowComplete);
+  socket.on('workflow:stopped',  onWorkflowStopped);
+  socket.on('workflow:error',    onWorkflowError);
+  socket.on('queue:updated',     onQueueUpdated);
 });
 
 onUnmounted(() => {
-  socket.off('workflow:started');
-  socket.off('workflow:complete');
-  socket.off('workflow:stopped');
-  socket.off('workflow:error');
-  socket.off('queue:updated');
+  socket.off('workflow:started',  onWorkflowStarted);
+  socket.off('workflow:complete', onWorkflowComplete);
+  socket.off('workflow:stopped',  onWorkflowStopped);
+  socket.off('workflow:error',    onWorkflowError);
+  socket.off('queue:updated',     onQueueUpdated);
 });
 </script>
 
