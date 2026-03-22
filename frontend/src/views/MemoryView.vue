@@ -359,7 +359,7 @@ const sessionResults = computed(() => {
   return out;
 });
 
-const AGENT_COLORS = { researcher: '#6366F1', planner: '#22D3EE', worker: '#4ADE80', reviewer: '#F59E0B' };
+const AGENT_COLORS = { researcher: '#22D3EE', planner: '#818CF8', worker: '#34D399', reviewer: '#F59E0B' };
 const STM_WINDOWS  = { researcher: 6, planner: 8, worker: 10, reviewer: 6 };
 const WM_SCHEMA    = {
   researcher: ['goal', 'sessionId'],
@@ -708,8 +708,8 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 .mem-header__left {}
-.mem-header__title { font-size: 20px; font-weight: 700; color: #E2E8F0; }
-.mem-header__sub   { font-size: 12px; color: rgba(226,232,240,0.35); margin-top: 2px; }
+.mem-header__title { font-size: 17px; font-weight: 700; letter-spacing: -0.4px; color: #E2E8F0; }
+.mem-header__sub   { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
 
 .icon-btn {
   width: 32px; height: 32px; border-radius: 8px;

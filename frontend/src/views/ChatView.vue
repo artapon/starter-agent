@@ -343,14 +343,14 @@ function _drainQueue() {
 
 // ── Agent styling ──────────────────────────────────────────────────────────
 const AGENT_STYLES = {
-  researcher: { bg: 'rgba(99,102,241,0.1)',  border: 'rgba(99,102,241,0.25)',  accent: '#A5B4FC', icon: 'mdi-magnify' },
-  planner:    { bg: 'rgba(34,211,238,0.08)', border: 'rgba(34,211,238,0.2)',   accent: '#67E8F9', icon: 'mdi-sitemap-outline' },
-  worker:     { bg: 'rgba(74,222,128,0.08)', border: 'rgba(74,222,128,0.2)',   accent: '#86EFAC', icon: 'mdi-code-braces' },
-  reviewer:   { bg: 'rgba(251,191,36,0.08)', border: 'rgba(251,191,36,0.2)',   accent: '#FDE68A', icon: 'mdi-check-decagram-outline' },
-  workflow:   { bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)', accent: '#C4B5FD', icon: 'mdi-graph-outline' },
-  system:     { bg: 'rgba(239,68,68,0.08)',  border: 'rgba(239,68,68,0.2)',    accent: '#FCA5A5', icon: 'mdi-alert-circle-outline' },
+  researcher: { bg: 'rgba(34,211,238,0.08)',  border: 'rgba(34,211,238,0.2)',   accent: '#67E8F9', icon: 'mdi-magnify' },
+  planner:    { bg: 'rgba(129,140,248,0.08)', border: 'rgba(129,140,248,0.2)',  accent: '#A5B4FC', icon: 'mdi-sitemap-outline' },
+  worker:     { bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.2)',   accent: '#6EE7B7', icon: 'mdi-code-braces' },
+  reviewer:   { bg: 'rgba(245,158,11,0.08)',  border: 'rgba(245,158,11,0.2)',   accent: '#FDE68A', icon: 'mdi-check-decagram-outline' },
+  workflow:   { bg: 'rgba(167,139,250,0.1)',  border: 'rgba(167,139,250,0.25)', accent: '#C4B5FD', icon: 'mdi-graph-outline' },
+  system:     { bg: 'rgba(239,68,68,0.08)',   border: 'rgba(239,68,68,0.2)',    accent: '#FCA5A5', icon: 'mdi-alert-circle-outline' },
 };
-const DEFAULT_STYLE = { bg: 'rgba(99,102,241,0.1)', border: 'rgba(99,102,241,0.25)', accent: '#A5B4FC', icon: 'mdi-robot-outline' };
+const DEFAULT_STYLE = { bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)', accent: '#C4B5FD', icon: 'mdi-robot-outline' };
 
 function agentStyle(id)   { return AGENT_STYLES[id] || DEFAULT_STYLE; }
 function agentBg(id)      { return agentStyle(id).bg; }

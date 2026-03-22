@@ -59,7 +59,7 @@
         <div class="token-card">
           <div class="token-card__label">This Month</div>
           <div class="token-card__value">{{ fmtTokens(tokenUsage.monthly) }}</div>
-          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.monthly)}%;background:#10B981`" /></div>
+          <div class="token-card__bar"><div class="token-card__fill" :style="`width:${tokenPct(tokenUsage.monthly)}%;background:#34D399`" /></div>
         </div>
         <div class="token-card">
           <div class="token-card__label">All Time</div>
@@ -87,11 +87,13 @@
       <div class="agent-h-list">
         <div v-for="agent in agentStatuses" :key="agent.agentId"
           class="agent-h-card"
-          :class="{ 'agent-h-card--working': agentLiveStatus[agent.agentId] === 'working' }">
+          :class="{ 'agent-h-card--working': agentLiveStatus[agent.agentId] === 'working' }"
+          :style="agentLiveStatus[agent.agentId] === 'working' ? agentWorkingVars(agent.agentId) : {}">
           <div class="agent-h-card__top">
             <span :class="['status-dot',
               agentLiveStatus[agent.agentId] === 'working' ? 'status-dot--working'
-              : agent.available ? 'status-dot--online' : 'status-dot--offline']" />
+              : agent.available ? 'status-dot--online' : 'status-dot--offline']"
+              :style="agentLiveStatus[agent.agentId] === 'working' ? { background: agentColor(agent.agentId) } : {}" />
             <span class="agent-h-card__name">{{ agent.agentId }}</span>
             <v-chip :color="agent.available ? 'success' : 'error'" size="x-small" variant="tonal" class="ml-auto">
               {{ agent.available ? 'Online' : 'Offline' }}
@@ -101,7 +103,7 @@
           <div class="agent-h-card__bottom">
             <div v-if="agentLiveStatus[agent.agentId] === 'working'" class="working-badge">
               <svg class="working-spinner" viewBox="0 0 16 16">
-                <circle cx="8" cy="8" r="6" fill="none" stroke="#F59E0B" stroke-width="2"
+                <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="2"
                   stroke-dasharray="28" stroke-dashoffset="10" stroke-linecap="round"/>
               </svg>
               <span>Running</span>
@@ -222,7 +224,7 @@
       <div class="panel__header">
         <div class="d-flex align-center gap-2">
           <span class="live-dot" />
-          <v-icon size="15" color="#10B981">mdi-console</v-icon>
+          <v-icon size="15" color="#34D399">mdi-console</v-icon>
           <span class="section-title">Live Logs</span>
         </div>
         <v-btn size="x-small" variant="text" @click="logs = []"
@@ -331,7 +333,7 @@ function tokenPct(n) {
   return Math.min(100, Math.round(n / max * 100));
 }
 function agentTokenColor(id) {
-  return { researcher: '#22D3EE', planner: '#6366F1', worker: '#10B981', reviewer: '#F59E0B' }[id] || '#A78BFA';
+  return { researcher: '#22D3EE', planner: '#818CF8', worker: '#34D399', reviewer: '#F59E0B' }[id] || '#A78BFA';
 }
 
 async function fetchTokenUsage() {
@@ -367,7 +369,14 @@ function statusColor(s) {
   return { complete: 'success', running: 'warning', error: 'error', pending: 'default', stopped: 'default' }[s] || 'default';
 }
 function agentChipColor(id) {
-  return { researcher: 'info', planner: 'primary', worker: 'success', reviewer: 'warning' }[id] || 'default';
+  return { researcher: 'secondary', planner: 'accent', worker: 'success', reviewer: 'warning' }[id] || 'default';
+}
+function agentColor(id) {
+  return { researcher: '#22D3EE', planner: '#818CF8', worker: '#34D399', reviewer: '#F59E0B' }[id] || '#A78BFA';
+}
+function agentWorkingVars(id) {
+  const c = agentColor(id);
+  return { '--agent-color': c };
 }
 function levelBg(l) {
   return { error: 'rgba(239,68,68,0.12)', warn: 'rgba(245,158,11,0.12)', info: 'rgba(56,189,248,0.1)', debug: 'rgba(255,255,255,0.06)' }[l] || 'rgba(255,255,255,0.06)';
@@ -467,11 +476,12 @@ onMounted(() => {
   border: 1px solid rgba(245,158,11,0.2);
   font-size: 13px;
   min-width: 0;
+  animation: fade-in 0.2s ease;
 }
 .run-banner__dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: #F59E0B;
-  animation: pulse-dot 1.2s ease-in-out infinite;
+  animation: pulse-warn 1.2s ease-in-out infinite;
 }
 .run-banner__label { font-weight: 600; color: #F59E0B !important; }
 .run-banner__task  { font-size: 12px; color: rgba(226,232,240,0.5) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; max-width: 90%; }
@@ -539,13 +549,13 @@ onMounted(() => {
   padding: 12px 16px;
   display: flex; flex-direction: column; gap: 4px;
   border-right: 1px solid rgba(255,255,255,0.04);
-  transition: background 0.15s;
+  transition: background 0.3s ease, border-top-color 0.3s ease, border-top-width 0.3s ease;
 }
 .agent-h-card:last-child { border-right: none; }
 .agent-h-card:hover { background: rgba(255,255,255,0.02); }
 .agent-h-card--working {
-  background: rgba(245,158,11,0.04) !important;
-  border-top: 2px solid #F59E0B;
+  background: color-mix(in srgb, var(--agent-color, #F59E0B) 5%, transparent) !important;
+  border-top: 2px solid var(--agent-color, #F59E0B);
   padding-top: 10px;
 }
 
@@ -568,15 +578,15 @@ onMounted(() => {
 .working-badge {
   display: flex; align-items: center; gap: 5px;
   padding: 3px 8px; border-radius: 6px;
-  background: rgba(245,158,11,0.12);
-  border: 1px solid rgba(245,158,11,0.3);
-  font-size: 11px; font-weight: 600; color: #F59E0B !important;
+  background: color-mix(in srgb, var(--agent-color, #F59E0B) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--agent-color, #F59E0B) 30%, transparent);
+  font-size: 11px; font-weight: 600;
+  color: var(--agent-color, #F59E0B) !important;
 }
 .working-spinner {
   width: 13px; height: 13px; flex-shrink: 0;
   animation: spin 1s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
 
 .idle-badge {
   font-size: 11px; color: rgba(226,232,240,0.3) !important;
@@ -586,10 +596,16 @@ onMounted(() => {
 /* Status dots */
 .status-dot {
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  transition: background 0.3s ease;
 }
-.status-dot--online  { background: #10B981; box-shadow: 0 0 6px rgba(16,185,129,0.5); }
-.status-dot--offline { background: #EF4444; }
-.status-dot--working { background: #F59E0B; animation: pulse-dot 1.2s ease-in-out infinite; }
+.status-dot--online  {
+  background: #34D399;
+  animation: pulse-live 2.5s ease-in-out infinite;
+}
+.status-dot--offline { background: rgba(239,68,68,0.7); }
+.status-dot--working {
+  animation: pulse-scale 1s ease-in-out infinite;
+}
 
 /* Run list */
 .run-list { padding: 6px 0; }
@@ -646,6 +662,7 @@ onMounted(() => {
 .log-line {
   display: flex; align-items: baseline; gap: 8px;
   padding: 3px 14px;
+  animation: fade-in 0.15s ease;
 }
 .log-line__time  { color: rgba(226,232,240,0.3) !important; flex-shrink: 0; font-size: 11px; }
 .log-line__badge { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; text-transform: uppercase; }
@@ -655,17 +672,12 @@ onMounted(() => {
 /* Live dot */
 .live-dot {
   width: 7px; height: 7px; border-radius: 50%;
-  background: #10B981; box-shadow: 0 0 6px rgba(16,185,129,0.6);
-  animation: pulse-dot 2s ease-in-out infinite;
+  background: #34D399;
+  animation: pulse-live 2.5s ease-in-out infinite;
 }
 
 /* Empty state */
 .empty-state { padding: 16px 14px; font-size: 13px; color: rgba(226,232,240,0.3) !important; }
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.4; transform: scale(0.75); }
-}
 
 .gap-2 { gap: 8px; }
 
@@ -734,8 +746,8 @@ onMounted(() => {
 }
 .q-running-dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: #22D3EE; box-shadow: 0 0 6px #22D3EE;
-  animation: pulse-dot 1.2s ease-in-out infinite;
+  background: #22D3EE;
+  animation: pulse-info 1.2s ease-in-out infinite;
 }
 .q-running-badge {
   display: inline-flex; align-items: center; gap: 4px;
@@ -774,4 +786,14 @@ onMounted(() => {
   outline: none;
 }
 .repeat-btn:hover { background: rgba(245,158,11,0.18); border-color: rgba(245,158,11,0.45); }
+
+/* Local keyframes not covered by App.vue globals */
+@keyframes pulse-info {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,211,238,0.5); }
+  50%       { box-shadow: 0 0 0 4px rgba(34,211,238,0); }
+}
+@keyframes pulse-scale {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(1.35); }
+}
 </style>

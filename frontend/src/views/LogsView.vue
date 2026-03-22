@@ -170,9 +170,9 @@ const LEVELS = [
   { key: 'debug', label: 'Debug', color: '#94A3B8' },
 ];
 const AGENT_COLORS = {
-  researcher: '#818CF8', planner: '#22D3EE', worker: '#4ADE80',
+  researcher: '#22D3EE', planner: '#818CF8', worker: '#34D399',
   reviewer: '#F59E0B', http: '#94A3B8', memory: '#A78BFA',
-  workflow: '#F472B6', ltm: '#34D399', stm: '#60A5FA', app: '#94A3B8',
+  workflow: '#A78BFA', ltm: '#34D399', stm: '#60A5FA', app: '#94A3B8',
 };
 const PER_PAGE = 25;
 

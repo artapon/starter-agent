@@ -448,14 +448,14 @@ onMounted(fetchSkills);
 }
 .sm-header__left { display: flex; flex-direction: column; gap: 3px; }
 .sm-header__title {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: -0.4px;
   color: #E2E8F0;
 }
 .sm-header__sub {
   font-size: 12px;
-  color: rgba(226,232,240,0.4);
+  color: var(--c-muted);
 }
 .sm-new-btn { font-size: 12px !important; font-weight: 600 !important; }
 
