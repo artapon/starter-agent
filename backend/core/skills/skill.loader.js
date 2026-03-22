@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync, watchFile } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, watchFile, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDb } from '../database/db.js';
@@ -11,7 +11,7 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..'
 const SKILLS_ROOT   = join(PROJECT_ROOT, 'skills');
 const LIBRARY_ROOT  = join(SKILLS_ROOT, 'library');
 
-// Skill library metadata — descriptions used in the planner skill menu
+// Fallback descriptions used only when a skill file has no leading `> description` line
 const LIBRARY_SKILL_DESCRIPTIONS = {
   researcher: {
     'design':   'HTML/CSS/UI/UX, portfolio, landing page, visual design, typography, accessibility',
@@ -210,11 +210,39 @@ export function getSkillPrompt(agentId) {
 
 /**
  * List available skill names for an agent from the library.
+ * Scans the filesystem — only returns skills that actually have a file.
+ * Always includes 'general' even if no general.md exists (it's the default fallback).
  * @param {'researcher'|'worker'|'reviewer'} agentId
  * @returns {string[]}
  */
 export function listLibrarySkills(agentId) {
-  return Object.keys(LIBRARY_SKILL_DESCRIPTIONS[agentId] || {});
+  const dir = join(LIBRARY_ROOT, agentId);
+  try {
+    const files = readdirSync(dir).filter(f => f.endsWith('.md'));
+    const names = files.map(f => f.replace(/\.md$/, ''));
+    if (!names.includes('general')) names.push('general');
+    return names.sort();
+  } catch {
+    // Directory doesn't exist yet — only offer general
+    return ['general'];
+  }
+}
+
+/**
+ * Extract a one-line description from a library skill file.
+ * Reads the first blockquote line (`> ...`) in the file.
+ * Falls back to LIBRARY_SKILL_DESCRIPTIONS metadata, then to the skill name itself.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string} skillName
+ * @returns {string}
+ */
+function getSkillFileDescription(agentId, skillName) {
+  const content = getLibrarySkillRaw(agentId, skillName);
+  if (content) {
+    const match = content.match(/^>\s+(.+)/m);
+    if (match) return match[1].trim();
+  }
+  return LIBRARY_SKILL_DESCRIPTIONS[agentId]?.[skillName] || skillName;
 }
 
 /**
@@ -259,9 +287,21 @@ export function getLibrarySkillRaw(agentId, skillName) {
 export function getRawLibrarySkillPrompt(agentId, skillName) {
   const name    = skillName || 'general';
   const content = getLibrarySkillRaw(agentId, name);
-  if (!content) return getRawSkillPrompt(agentId);
-  const label = agentId.charAt(0).toUpperCase() + agentId.slice(1);
-  return `\n\n---\n## ${label} Expert Skills — ${name}\n${content}`;
+  const label   = agentId.charAt(0).toUpperCase() + agentId.slice(1);
+
+  if (content) {
+    return `\n\n---\n## ${label} Expert Skills — ${name}\n${content}`;
+  }
+
+  // Skill file missing: build a targeted directive so the agent doesn't silently
+  // behave as general. Prepend a focused instruction, then fall back to general content.
+  const generalContent = getLibrarySkillRaw(agentId, 'general');
+  const baseText = (generalContent || getRawSkillPrompt(agentId)).trim();
+  if (name === 'general') {
+    return `\n\n---\n## ${label} Expert Skills — general\n${baseText}`;
+  }
+  const focusDirective = `**Skill focus: "${name}"** — This task requires specialised expertise in "${name}". Apply your deepest knowledge of ${name}-related tools, patterns, and best practices throughout your work. Treat every decision through the lens of a ${name} specialist.`;
+  return `\n\n---\n## ${label} Expert Skills — ${name} (focused)\n${focusDirective}\n\n${baseText}`;
 }
 
 /**
@@ -275,28 +315,144 @@ export function getRawLibrarySkillPrompt(agentId, skillName) {
 export function getLibrarySkillPrompt(agentId, skillName) {
   const name    = skillName || 'general';
   const content = getLibrarySkillRaw(agentId, name);
-  if (!content) return getSkillPrompt(agentId);
-  const escaped = content.replace(/\{/g, '{{').replace(/\}/g, '}}');
-  const label = agentId.charAt(0).toUpperCase() + agentId.slice(1);
-  return `\n\n---\n## ${label} Expert Skills — ${name}\n${escaped}`;
+  const label   = agentId.charAt(0).toUpperCase() + agentId.slice(1);
+
+  if (content) {
+    const escaped = content.replace(/\{/g, '{{').replace(/\}/g, '}}');
+    return `\n\n---\n## ${label} Expert Skills — ${name}\n${escaped}`;
+  }
+
+  // Skill file missing: targeted directive + general content (brace-escaped)
+  const generalContent = getLibrarySkillRaw(agentId, 'general');
+  const rawBase = (generalContent || '').replace(/\{/g, '{{').replace(/\}/g, '}}').trim()
+                  || getSkillPrompt(agentId).trim();
+  if (name === 'general') {
+    return `\n\n---\n## ${label} Expert Skills — general\n${rawBase}`;
+  }
+  const focusDirective = `**Skill focus: "${name}"** — This task requires specialised expertise in "${name}". Apply your deepest knowledge of ${name}-related tools, patterns, and best practices throughout your work. Treat every decision through the lens of a ${name} specialist.`;
+  return `\n\n---\n## ${label} Expert Skills — ${name} (focused)\n${focusDirective}\n\n${rawBase}`;
 }
 
 /**
  * Build a formatted skill selection menu for injection into the Planner prompt.
- * Lists every available library skill with its description.
+ * Lists only skills that actually exist as files in skills/library/<agent>/.
+ * Descriptions are extracted from the file's first `> ` blockquote line.
  * @returns {string}
  */
 export function buildSkillMenu() {
+  const agents = ['researcher', 'worker', 'reviewer'];
   const lines = ['\n\n---\n## Agent Skill Selection\n'];
-  lines.push('Choose the best skill for each agent based on the task type.');
+  lines.push('Choose the most specific available skill for each agent.');
+  lines.push('Rules:');
+  lines.push('1. Pick the skill whose name/description best matches the task domain.');
+  lines.push('2. Only fall back to "general" if no other skill is a reasonable match.');
+  lines.push('3. If no existing skill fits well, **propose a new descriptive name** (e.g. `react-ts`, `python-fastapi`, `data-pipeline`). The new skill will be created — do not force "general" when a specialist name better describes the work.');
   lines.push('Add an `"agentSkills"` key to your JSON output.\n');
-  for (const [agent, skills] of Object.entries(LIBRARY_SKILL_DESCRIPTIONS)) {
+
+  for (const agent of agents) {
+    const skills = listLibrarySkills(agent);
     lines.push(`### ${agent} skills`);
-    for (const [name, desc] of Object.entries(skills)) {
+    for (const name of skills) {
+      const desc = getSkillFileDescription(agent, name);
       lines.push(`- "${name}" — ${desc}`);
     }
     lines.push('');
   }
+
   lines.push('Example: {{"agentSkills":{{"researcher":"design","worker":"html-css","reviewer":"design"}}}}');
   return lines.join('\n');
+}
+
+// ── Library CRUD (management API) ─────────────────────────────────────────────
+
+/**
+ * Parse the category from a skill file's first <!-- category: X --> comment.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string} skillName
+ * @returns {string|null}
+ */
+export function getSkillCategory(agentId, skillName) {
+  const content = getLibrarySkillRaw(agentId, skillName);
+  if (!content) return null;
+  const m = content.match(/^<!--\s*category:\s*(.+?)\s*-->/m);
+  return m ? m[1].trim() : null;
+}
+
+/**
+ * Return metadata for a single library skill.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string} skillName
+ * @returns {object}
+ */
+export function getSkillMeta(agentId, skillName) {
+  const content = getLibrarySkillRaw(agentId, skillName);
+  return {
+    agentId,
+    name: skillName,
+    exists: !!content,
+    description: getSkillFileDescription(agentId, skillName),
+    category: getSkillCategory(agentId, skillName),
+    path: `skills/library/${agentId}/${skillName}.md`,
+  };
+}
+
+/**
+ * List all library skills across all agents with metadata.
+ * Returns array sorted by agentId then name.
+ * @returns {object[]}
+ */
+export function listAllLibrarySkills() {
+  const agents = ['researcher', 'worker', 'reviewer'];
+  const result = [];
+  for (const agentId of agents) {
+    for (const name of listLibrarySkills(agentId)) {
+      result.push(getSkillMeta(agentId, name));
+    }
+  }
+  return result;
+}
+
+/**
+ * Write (create or update) a library skill file.
+ * Prepends <!-- category: X --> header if category is provided.
+ * Clears the library cache entry after writing.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string} skillName
+ * @param {string} content
+ * @param {string|null} category
+ */
+export function writeLibrarySkill(agentId, skillName, content, category = null) {
+  if (!agentId || !skillName) throw new Error('agentId and skillName are required');
+  const dir = join(LIBRARY_ROOT, agentId);
+  mkdirSync(dir, { recursive: true });
+  const filePath = join(dir, `${skillName}.md`);
+  // Build file content: optional category header, then user content
+  let fileContent = content || '';
+  // Remove any existing category header from the content before re-adding
+  fileContent = fileContent.replace(/^<!--\s*category:.*?-->\s*\n?/m, '').trimStart();
+  if (category) {
+    fileContent = `<!-- category: ${category} -->\n${fileContent}`;
+  }
+  writeFileSync(filePath, fileContent, 'utf8');
+  // Bust cache
+  const key = `${agentId}:${skillName}`;
+  delete libraryCache[key];
+  logger.info(`Library skill written: ${agentId}/${skillName}`, { category });
+}
+
+/**
+ * Delete a library skill file and clear its cache entry.
+ * @param {'researcher'|'worker'|'reviewer'} agentId
+ * @param {string} skillName
+ * @returns {boolean}
+ */
+export function deleteLibrarySkill(agentId, skillName) {
+  if (!agentId || !skillName) throw new Error('agentId and skillName are required');
+  const filePath = join(LIBRARY_ROOT, agentId, `${skillName}.md`);
+  if (!existsSync(filePath)) return false;
+  unlinkSync(filePath);
+  const key = `${agentId}:${skillName}`;
+  delete libraryCache[key];
+  logger.info(`Library skill deleted: ${agentId}/${skillName}`);
+  return true;
 }

@@ -28,7 +28,7 @@
           <v-icon size="16" class="nav-item__icon">{{ route.meta.icon }}</v-icon>
         </div>
         <span class="nav-item__label">{{ route.meta.title }}</span>
-        <span v-if="route.path === '/skill-requests' && skillRequestCount > 0" class="nav-item__badge">
+        <span v-if="route.path === '/skills' && skillRequestCount > 0" class="nav-item__badge">
           {{ skillRequestCount }}
         </span>
         <span v-if="$route.path === route.path" class="nav-item__bar" />
@@ -67,7 +67,7 @@ const skillRequestCount = ref(0);
 
 async function fetchSkillRequestCount() {
   try {
-    const { data } = await axios.get('/api/settings/skill-requests');
+    const { data } = await axios.get('/api/skills/requests');
     skillRequestCount.value = Array.isArray(data) ? data.length : 0;
   } catch { /* ignore */ }
 }
