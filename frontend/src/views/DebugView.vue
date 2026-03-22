@@ -1291,27 +1291,30 @@ const tabs = [
 const activeTab = ref('planner');
 
 // ── Library skill selectors ───────────────────────────────────────────
-const researcherSkills = [
-  { id: 'general',  label: 'General' },
-  { id: 'design',   label: 'Design' },
-  { id: 'backend',  label: 'Backend' },
-];
-const workerSkills = [
-  { id: 'general',   label: 'General' },
-  { id: 'html-css',  label: 'HTML/CSS' },
-  { id: 'nodejs',    label: 'Node.js' },
-  { id: 'vue',       label: 'Vue' },
-  { id: 'fullstack', label: 'Full-Stack' },
-];
-const reviewerSkills = [
-  { id: 'general',   label: 'General' },
-  { id: 'design',    label: 'Design' },
-  { id: 'backend',   label: 'Backend' },
-  { id: 'fullstack', label: 'Full-Stack' },
-];
-const researcherSkill = ref('general');
-const workerSkill     = ref('general');
-const reviewerSkill   = ref('general');
+const researcherSkills = ref([]);
+const workerSkills     = ref([]);
+const reviewerSkills   = ref([]);
+const researcherSkill  = ref('general/general');
+const workerSkill      = ref('general/general');
+const reviewerSkill    = ref('general/general');
+
+async function fetchLibrarySkills() {
+  try {
+    const { data } = await axios.get('/api/skills');
+    const toChip = s => ({ id: s.skillId, label: s.name });
+    researcherSkills.value = data.filter(s => s.agentId === 'researcher' && s.exists !== false).map(toChip);
+    workerSkills.value     = data.filter(s => s.agentId === 'worker'     && s.exists !== false).map(toChip);
+    reviewerSkills.value   = data.filter(s => s.agentId === 'reviewer'   && s.exists !== false).map(toChip);
+    // Ensure defaults exist in the lists
+    if (!researcherSkills.value.length) researcherSkills.value = [{ id: 'general/general', label: 'General' }];
+    if (!workerSkills.value.length)     workerSkills.value     = [{ id: 'general/general', label: 'General' }];
+    if (!reviewerSkills.value.length)   reviewerSkills.value   = [{ id: 'general/general', label: 'General' }];
+  } catch {
+    researcherSkills.value = [{ id: 'general/general', label: 'General' }];
+    workerSkills.value     = [{ id: 'general/general', label: 'General' }];
+    reviewerSkills.value   = [{ id: 'general/general', label: 'General' }];
+  }
+}
 
 // ── Shared debug workspace path (both tabs) ───────────────────────────
 const debugWorkspacePath = ref('');
@@ -2185,6 +2188,8 @@ onMounted(async () => {
   socket.on('worker:action',           onWorkerAction);
 
   if (socket.connected) onConnect();
+
+  fetchLibrarySkills();
 
   setTimeout(async () => {
     await checkBackend();
