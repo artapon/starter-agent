@@ -83,7 +83,7 @@
       <div v-else class="sm-grid">
         <div
           v-for="skill in filteredSkills"
-          :key="`${skill.agentId}:${skill.name}`"
+          :key="`${skill.agentId}:${skill.skillId}`"
           class="sm-card"
           :class="{ 'sm-card--missing': !skill.exists }"
         >
@@ -346,11 +346,14 @@ function openCreate() {
 
 function openCreateFromRequest(req) {
   editingSkill.value = null;
+  // req.name is the bare skill name; req.category is the category (or extract from skillId)
+  const bareName = req.name;
+  const category = req.category || '';
   form.value = {
     agentId:  req.agentId,
-    name:     req.name,
-    category: '',
-    content:  `> ${req.name} skill\n\n## Overview\n\n`,
+    name:     bareName,
+    category: category,
+    content:  `> ${bareName} skill\n\n## Overview\n\n`,
   };
   dialogOpen.value = true;
 }
@@ -366,7 +369,7 @@ async function openEdit(skill) {
   dialogOpen.value = true;
   // Fetch full content
   try {
-    const { data } = await axios.get(`/api/skills/${skill.agentId}/${skill.name}`);
+    const { data } = await axios.get(`/api/skills/${skill.agentId}/${skill.skillId}`);
     form.value.content = data.content || '';
   } catch (err) {
     errorMsg.value = err.response?.data?.error || err.message;
@@ -385,9 +388,8 @@ async function saveSkill() {
   saving.value = true;
   try {
     if (editingSkill.value) {
-      await axios.put(`/api/skills/${form.value.agentId}/${form.value.name}`, {
-        content:  form.value.content,
-        category: form.value.category || null,
+      await axios.put(`/api/skills/${form.value.agentId}/${editingSkill.value.skillId}`, {
+        content: form.value.content,
       });
     } else {
       await axios.post('/api/skills', {
@@ -417,7 +419,7 @@ async function executeDelete() {
   if (!skillToDelete.value) return;
   deleting.value = true;
   try {
-    await axios.delete(`/api/skills/${skillToDelete.value.agentId}/${skillToDelete.value.name}`);
+    await axios.delete(`/api/skills/${skillToDelete.value.agentId}/${skillToDelete.value.skillId}`);
     deleteDialogOpen.value = false;
     skillToDelete.value = null;
     await fetchSkills();
