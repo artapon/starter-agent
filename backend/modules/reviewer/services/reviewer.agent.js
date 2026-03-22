@@ -119,7 +119,10 @@ export class ReviewerAgent {
         chat_history: chatHistory,
       });
 
-      const signal = runId ? getAbortSignal(runId) : undefined;
+      // runId may be a composite "projectId:runId" key used for memory isolation;
+      // the abort controller is always registered under the plain runId (last segment).
+      const abortId = runId?.split(':').pop();
+      const signal = abortId ? getAbortSignal(abortId) : undefined;
       const streamResult = await streamAndEmit(
         adapter._settings,
         toLMStudioMessages(langchainMessages),

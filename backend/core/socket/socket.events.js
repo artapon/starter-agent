@@ -27,6 +27,9 @@ export const SocketEvents = {
   WORKFLOW_STOPPED:         'workflow:stopped',
   CHAT_STOPPED:             'chat:stopped',
 
+  // Worker file actions
+  WORKER_ACTION:            'worker:action',
+
   // Researcher MCP
   RESEARCHER_WEB_SOURCES:   'researcher:web_sources',
 

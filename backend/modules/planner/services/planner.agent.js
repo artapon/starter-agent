@@ -107,7 +107,10 @@ export class PlannerAgent {
         chat_history: chatHistory,
       });
 
-      const signal = runId ? getAbortSignal(runId) : undefined;
+      // runId may be a composite "projectId:runId" key used for memory isolation;
+      // the abort controller is always registered under the plain runId (last segment).
+      const abortId = runId?.split(':').pop();
+      const signal = abortId ? getAbortSignal(abortId) : undefined;
       logger.info(`Calling LLM (model: ${adapter._settings?.model_name || 'unknown'})`, { agentId: 'planner' });
       // Suppress raw JSON streaming — only the formatted step list is shown in chat
       rawOutput = await streamAndEmit(

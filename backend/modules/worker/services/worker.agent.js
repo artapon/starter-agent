@@ -13,6 +13,7 @@ import { writeFileTool } from '../../../core/tools/tool.implementations.js';
 import { toLMStudioMessages, streamAndEmit, extractJSON, isDebugMode } from '../../../core/utils/stream.utils.js';
 import { getWorkspacePath } from '../../../core/workspace/workspace.path.js';
 import { getSkillPrompt, getRawLibrarySkillPrompt, getLibrarySkillPrompt } from '../../../core/skills/skill.loader.js';
+import { SocketEvents } from '../../../core/socket/socket.events.js';
 import { getRLStore } from '../../../core/rl/rl.store.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -390,9 +391,11 @@ export class WorkerAgent {
           logger.error(`Skipping ${filePath} — content is empty or near-empty (${contentStr.length} chars)`, { agentId: 'worker' });
           continue;
         }
+        this.socketManager?.emit(SocketEvents.WORKER_ACTION, { sessionId, type: 'writing', path: filePath });
         const result = await writeFileTool.func({ path: filePath, content: contentStr });
         written.push(filePath);
         logger.info(`Wrote: ${filePath}`, { agentId: 'worker' });
+        this.socketManager?.emit(SocketEvents.WORKER_ACTION, { sessionId, type: 'written', path: filePath });
         this.socketManager?.emitChatChunk(sessionId, `\n✓ ${result}`, 'worker');
       }
       return { written, summary: blueprint?.summary || '' };
@@ -409,7 +412,10 @@ export class WorkerAgent {
     const compressedTask = compressString(task, 2000);
     const adapter = getAdapter('worker');
     const memory  = memoryStore.getMemory('worker', runId || sessionId);
-    const signal  = runId ? getAbortSignal(runId) : undefined;
+    // runId may be a composite "projectId:runId" key used for memory isolation;
+    // the abort controller is always registered under the plain runId (last segment).
+    const abortId = runId?.split(':').pop();
+    const signal  = abortId ? getAbortSignal(abortId) : undefined;
 
     let result        = '';
     let fullRawOutput = '';
@@ -464,18 +470,51 @@ export class WorkerAgent {
           },
         ];
 
-        const fileStream = await streamAndEmit(
-          adapter._settings, fileMessages, signal,
-          this.socketManager, sessionId, 'worker', true
-        );
-        fullRawOutput += fileStream.rawOutput + '\n';
+        let fileOutput = '';
+        let fileRaw    = '';
+        try {
+          const fileStream = await streamAndEmit(
+            adapter._settings, fileMessages, signal,
+            this.socketManager, sessionId, 'worker', true
+          );
+          fileOutput = fileStream.output;
+          fileRaw    = fileStream.rawOutput;
+          fullRawOutput += fileRaw + '\n';
+
+          // Truncation retry — same approach as single-call mode
+          if (fileStream.truncated) {
+            logger.warn(`File ${fileSpec.path} response truncated — attempting continuation`, { agentId: 'worker' });
+            const tail = fileOutput.slice(-600);
+            const contMessages = [
+              { role: 'system', content: 'You are a JSON completion assistant. Output ONLY the continuation of the truncated JSON — no preamble, no explanation, no restart.' },
+              { role: 'user',   content: `Continue this truncated JSON from exactly where it stopped:\n\n...${tail}\n\nContinue immediately:` },
+            ];
+            try {
+              const contStream = await streamAndEmit(
+                adapter._settings, contMessages, signal,
+                this.socketManager, sessionId, 'worker', true
+              );
+              fileOutput    += contStream.output;
+              fileRaw       += contStream.rawOutput;
+              fullRawOutput += contStream.rawOutput + '\n';
+            } catch (contErr) {
+              if (contErr.name === 'AbortError') throw contErr;
+              logger.warn(`Continuation attempt failed for ${fileSpec.path}: ${contErr.message}`, { agentId: 'worker' });
+            }
+          }
+        } catch (streamErr) {
+          if (streamErr.name === 'AbortError') throw streamErr;
+          logger.error(`LLM call failed for ${fileSpec.path}: ${streamErr.message} — skipping`, { agentId: 'worker' });
+          this.socketManager?.emitChatChunk(sessionId, `\n⚠️ Skipped \`${fileSpec.path}\` (LLM error)\n`, 'worker');
+          continue;
+        }
 
         // Parse single-file JSON — try all extraction methods
         let fileBP = null;
-        try { fileBP = await new JsonOutputParser().parse(fileStream.output); } catch { /* fall through */ }
-        if (!fileBP) fileBP = extractJSON(fileStream.output) || extractJSON(fileStream.rawOutput);
+        try { fileBP = await new JsonOutputParser().parse(fileOutput); } catch { /* fall through */ }
+        if (!fileBP) fileBP = extractJSON(fileOutput) || extractJSON(fileRaw);
         if (!fileBP?.content) {
-          const bp = extractBlueprintByStrings(fileStream.output) || extractBlueprintByStrings(fileStream.rawOutput);
+          const bp = extractBlueprintByStrings(fileOutput) || extractBlueprintByStrings(fileRaw);
           if (bp?.files?.[0]) fileBP = bp.files[0];
         }
 
@@ -483,9 +522,11 @@ export class WorkerAgent {
           const contentStr = String(fileBP.content);
           const filePath   = fileBP.path || fileSpec.path;
           if (contentStr.trim().length >= 5) {
+            this.socketManager?.emit(SocketEvents.WORKER_ACTION, { sessionId, type: 'writing', path: filePath, label: `${i + 1}/${filePlan.files.length}` });
             const writeResult = await writeFileTool.func({ path: filePath, content: contentStr });
             allWritten.push(filePath);
             logger.info(`Wrote: ${filePath}`, { agentId: 'worker' });
+            this.socketManager?.emit(SocketEvents.WORKER_ACTION, { sessionId, type: 'written', path: filePath, label: `${i + 1}/${filePlan.files.length}` });
             this.socketManager?.emitChatChunk(sessionId, `\n✓ ${writeResult}`, 'worker');
           } else {
             logger.error(`Skipping ${fileSpec.path} — content empty or near-empty (${contentStr.length} chars)`, { agentId: 'worker' });
