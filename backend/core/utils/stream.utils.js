@@ -106,6 +106,39 @@ export async function* rawLMStream(settings, messages, signal) {
   const decoder = new TextDecoder();
   let buffer = '';
 
+  // ── Infinite-loop guards ────────────────────────────────────────────────────
+  // 1. Hard character cap: stops runaway unlimited-token generations.
+  //    4 chars ≈ 1 token; allow 6× headroom so large but legitimate files still fit.
+  //    Unlimited mode gets a 4 MB ceiling instead of none.
+  const MAX_OUTPUT_CHARS = settings.unlimited_tokens
+    ? 4 * 1024 * 1024
+    : (settings.max_tokens ?? 32768) * 6;
+
+  // 2. Repetition detector: tracks a rolling 80-char window.
+  //    Five identical consecutive windows → model is looping → break.
+  const REP_WINDOW  = 80;
+  const REP_LIMIT   = 5;
+  let repBuf        = '';
+  let repLast       = '';
+  let repCount      = 0;
+
+  // 3. Silence timeout: if no token arrives for 60 s the stream is stalled.
+  const SILENCE_MS     = 60_000;
+  let   silenceTimer   = null;
+  let   silenceAborted = false;
+  const silenceController = new AbortController();
+  function resetSilenceTimer() {
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => {
+      silenceAborted = true;
+      silenceController.abort();
+      streamLogger.warn('Stream stalled — no token received for 60 s, aborting', { agentId: settings.agent_id });
+    }, SILENCE_MS);
+  }
+  resetSilenceTimer();
+
+  let totalChars = 0;
+
   const RECOVERABLE = new Set(['ECONNABORTED', 'ECONNRESET', 'ERR_STREAM_DESTROYED', 'EPIPE']);
 
   try {
@@ -143,12 +176,52 @@ export async function* rawLMStream(settings, messages, signal) {
             const token = json.choices?.[0]?.delta?.content
                        ?? json.choices?.[0]?.message?.content
                        ?? null;
-            if (token) yield token;
+            if (!token) continue;
+
+            // ── Guard 3: reset silence timer on each received token ───────────
+            resetSilenceTimer();
+
+            // ── Guard 1: hard character cap ───────────────────────────────────
+            totalChars += token.length;
+            if (totalChars > MAX_OUTPUT_CHARS) {
+              streamLogger.warn(
+                `Stream hard-capped at ${totalChars} chars (limit ${MAX_OUTPUT_CHARS}) — possible infinite generation. ` +
+                `Increase Max Tokens or check for model repetition loops.`,
+                { agentId: settings.agent_id }
+              );
+              return; // stop the generator
+            }
+
+            // ── Guard 2: repetition detector ─────────────────────────────────
+            repBuf += token;
+            if (repBuf.length >= REP_WINDOW) {
+              const window = repBuf.slice(-REP_WINDOW);
+              if (window === repLast) {
+                repCount++;
+                if (repCount >= REP_LIMIT) {
+                  streamLogger.warn(
+                    `Repetition loop detected — same ${REP_WINDOW}-char window repeated ${REP_LIMIT}× consecutively. Stopping stream.`,
+                    { agentId: settings.agent_id }
+                  );
+                  return; // stop the generator
+                }
+              } else {
+                repLast  = window;
+                repCount = 0;
+              }
+              repBuf = repBuf.slice(-REP_WINDOW); // keep only the tail
+            }
+
+            yield token;
           } catch { /* malformed SSE line — skip */ }
         }
       }
+
+      // ── Guard 3: silence abort check ─────────────────────────────────────
+      if (silenceAborted) break;
     }
   } finally {
+    clearTimeout(silenceTimer);
     reader.releaseLock();
   }
 }
