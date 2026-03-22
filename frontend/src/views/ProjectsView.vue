@@ -52,12 +52,16 @@
             <div class="proj-card__meta">
               Created {{ formatDate(project.createdAt) }}
             </div>
-            <div v-if="tokensByProject[project.id]?.total" class="proj-card__tokens">
-              <v-icon size="11" color="#818CF8">mdi-flash-outline</v-icon>
-              {{ formatTokens(tokensByProject[project.id].total) }} tokens
-              <span v-if="tokensByProject[project.id].today" class="proj-tokens__today">
-                +{{ formatTokens(tokensByProject[project.id].today) }} today
-              </span>
+          </div>
+          <!-- Token usage — right side -->
+          <div v-if="tokensByProject[project.id]?.total" class="proj-card__token-block">
+            <div class="proj-token-block__icon">
+              <v-icon size="14" color="#818CF8">mdi-flash</v-icon>
+            </div>
+            <div class="proj-token-block__total">{{ formatTokens(tokensByProject[project.id].total) }}</div>
+            <div class="proj-token-block__label">tokens</div>
+            <div v-if="tokensByProject[project.id].today" class="proj-token-block__today">
+              +{{ formatTokens(tokensByProject[project.id].today) }} today
             </div>
           </div>
         </div>
@@ -328,15 +332,30 @@ onMounted(fetchProjects);
   margin-top: 6px;
 }
 .proj-card__meta   { font-size: 11px; color: rgba(226,232,240,0.25); margin-top: 4px; }
-.proj-card__tokens {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; color: rgba(129,140,248,0.7);
-  margin-top: 5px; font-weight: 500;
+.proj-card__token-block {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  min-width: 68px;
+  padding: 8px 10px;
+  border-left: 1px solid rgba(129,140,248,0.12);
+  border-radius: 0 8px 8px 0;
+  background: rgba(129,140,248,0.04);
+  gap: 1px;
+  text-align: center;
 }
-.proj-tokens__today {
-  color: rgba(226,232,240,0.3);
-  font-weight: 400;
-  margin-left: 2px;
+.proj-token-block__icon { line-height: 1; margin-bottom: 2px; }
+.proj-token-block__total {
+  font-size: 16px; font-weight: 700;
+  color: #A78BFA; line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.proj-token-block__label {
+  font-size: 10px; color: rgba(167,139,250,0.5);
+  font-weight: 500; text-transform: uppercase; letter-spacing: .04em;
+}
+.proj-token-block__today {
+  font-size: 10px; color: rgba(226,232,240,0.35);
+  margin-top: 4px; white-space: nowrap;
 }
 
 .proj-card__actions {
