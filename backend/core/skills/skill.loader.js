@@ -285,7 +285,8 @@ export function getLibrarySkillRaw(agentId, skillName) {
  * @returns {string}
  */
 export function getRawLibrarySkillPrompt(agentId, skillName) {
-  const name    = skillName || 'general';
+  // Planner may return comma-separated names (e.g. "backend, general") — take the first
+  const name    = (skillName || 'general').split(',')[0].trim() || 'general';
   const content = getLibrarySkillRaw(agentId, name);
   const label   = agentId.charAt(0).toUpperCase() + agentId.slice(1);
 
@@ -313,7 +314,8 @@ export function getRawLibrarySkillPrompt(agentId, skillName) {
  * @returns {string}
  */
 export function getLibrarySkillPrompt(agentId, skillName) {
-  const name    = skillName || 'general';
+  // Planner may return comma-separated names (e.g. "backend, general") — take the first
+  const name    = (skillName || 'general').split(',')[0].trim() || 'general';
   const content = getLibrarySkillRaw(agentId, name);
   const label   = agentId.charAt(0).toUpperCase() + agentId.slice(1);
 

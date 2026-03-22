@@ -19,6 +19,9 @@ import { v4 as uuidv4 } from 'uuid';
 
 const logger = createLogger('worker');
 
+// Reject paths that contain glob characters — these are not writable filenames
+function isGlobPath(p) { return /[*?[\]]/.test(p); }
+
 const BASE_PROMPT = `You are a Worker Agent — an expert full-stack implementer. Your job is to produce complete, production-ready files that precisely fulfil the given task. Every import must resolve, every function must be implemented, zero TODOs.
 
 ## ⚠️ OUTPUT INSTRUCTION
@@ -386,6 +389,11 @@ export class WorkerAgent {
       }
       for (const { path: filePath, content } of files) {
         if (!filePath || content == null) continue;
+        if (isGlobPath(filePath)) {
+          logger.warn(`Skipping glob path: ${filePath}`, { agentId: 'worker' });
+          this.socketManager?.emitChatChunk(sessionId, `\n⚠️ Skipped \`${filePath}\` (glob pattern — not a valid file path)\n`, 'worker');
+          continue;
+        }
         const contentStr = String(content);
         if (contentStr.trim().length < 5) {
           logger.error(`Skipping ${filePath} — content is empty or near-empty (${contentStr.length} chars)`, { agentId: 'worker' });
@@ -439,6 +447,13 @@ export class WorkerAgent {
         // Plan parsing failed — fall back to single-call mode
         logger.warn('File plan not parseable — falling back to single-call mode', { agentId: 'worker' });
         return await this._executeSingleCall(task, compressedTask, sessionId, planId, runId, signal, memory, skill);
+      }
+
+      // Filter out glob paths from the plan before iterating
+      const globPaths = filePlan.files.filter(f => isGlobPath(f.path));
+      if (globPaths.length) {
+        logger.warn(`Removing ${globPaths.length} glob path(s) from file plan: ${globPaths.map(f => f.path).join(', ')}`, { agentId: 'worker' });
+        filePlan.files = filePlan.files.filter(f => !isGlobPath(f.path));
       }
 
       this.socketManager?.emitChatChunk(sessionId,
@@ -521,7 +536,10 @@ export class WorkerAgent {
         if (fileBP?.content != null) {
           const contentStr = String(fileBP.content);
           const filePath   = fileBP.path || fileSpec.path;
-          if (contentStr.trim().length >= 5) {
+          if (isGlobPath(filePath)) {
+            logger.warn(`Skipping glob path: ${filePath}`, { agentId: 'worker' });
+            this.socketManager?.emitChatChunk(sessionId, `\n⚠️ Skipped \`${filePath}\` (glob pattern — not a valid file path)\n`, 'worker');
+          } else if (contentStr.trim().length >= 5) {
             this.socketManager?.emit(SocketEvents.WORKER_ACTION, { sessionId, type: 'writing', path: filePath, label: `${i + 1}/${filePlan.files.length}` });
             const writeResult = await writeFileTool.func({ path: filePath, content: contentStr });
             allWritten.push(filePath);
