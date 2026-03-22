@@ -1,6 +1,12 @@
 <template>
   <div class="debug-root">
 
+    <!-- ── Page header ─────────────────────────────────────────────── -->
+    <div class="debug-page-header">
+      <div class="page-title">Debug</div>
+      <div class="page-subtitle">Test and inspect agent connections and behavior</div>
+    </div>
+
     <!-- ── Tab bar ──────────────────────────────────────────────────── -->
     <div class="debug-tabs">
       <button
@@ -2213,6 +2219,10 @@ onUnmounted(() => {
   display: flex; flex-direction: column;
   height: 100%; overflow: hidden;
   background: #08080F;
+}
+.debug-page-header {
+  padding: 20px 24px 14px;
+  flex-shrink: 0;
 }
 
 /* ── Tab bar ─────────────────────────────────────────────────────────── */

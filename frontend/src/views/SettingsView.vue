@@ -29,6 +29,10 @@
       </button>
 
       <div class="nav-divider"></div>
+      <button class="nav-item nav-item--warn" @click="confirmClearLogs = true">
+        <v-icon size="15" color="#F59E0B">mdi-file-remove-outline</v-icon>
+        Clear Logs
+      </button>
       <button class="nav-item nav-item--danger" @click="confirmReset = true">
         <v-icon size="15" color="#EF4444">mdi-restore-alert</v-icon>
         Reset Application
@@ -460,7 +464,28 @@
 
     </main>
 
-    <!-- ── Confirm clear logs ──────────────────────────────────────── -->
+    <!-- ── Confirm clear logs dialog ──────────────────────────────── -->
+    <v-dialog v-model="confirmClearLogs" max-width="420" persistent>
+      <v-card style="background:#12121E;border:1px solid rgba(245,158,11,0.2);border-radius:14px">
+        <v-card-title class="d-flex align-center gap-2 pt-5 px-5" style="color:#F59E0B">
+          <v-icon color="#F59E0B" size="20">mdi-file-remove-outline</v-icon>
+          Clear Log Files
+        </v-card-title>
+        <v-card-text class="px-5 pb-2" style="font-size:13px;color:rgba(226,232,240,0.65)">
+          Permanently empty <strong style="color:#E2E8F0">agent-info.log</strong> and
+          <strong style="color:#E2E8F0">agent-error.log</strong>?
+          <div style="margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);color:#FCD34D;font-size:12px">
+            ⚠️ This cannot be undone. All log history will be lost.
+          </div>
+        </v-card-text>
+        <v-card-actions class="px-5 pb-5 pt-3 d-flex gap-2 justify-end">
+          <v-btn variant="tonal" size="small" @click="confirmClearLogs = false">Cancel</v-btn>
+          <v-btn color="warning" size="small" prepend-icon="mdi-file-remove-outline"
+            :loading="clearingLogs" @click="doClearLogs">Empty Log Files</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Reset Application confirm dialog -->
     <v-dialog v-model="confirmReset" max-width="460" persistent>
       <v-card style="background:#12121E;border:1px solid rgba(239,68,68,0.2);border-radius:14px">
@@ -579,6 +604,8 @@ const workspacePath = ref('./workspace');
 
 const confirmReset     = ref(false);
 const resetting        = ref(false);
+const confirmClearLogs = ref(false);
+const clearingLogs     = ref(false);
 const loopEnabled      = ref(false);
 const maxLoops         = ref(3);
 const recursionLimit   = ref(200);
@@ -868,6 +895,16 @@ async function doReset() {
   finally { resetting.value = false; }
 }
 
+async function doClearLogs() {
+  clearingLogs.value = true;
+  try {
+    await axios.delete('/api/logs/files');
+    confirmClearLogs.value = false;
+    showSnack('Log files cleared', 'success');
+  } catch (e) { showSnack(`Clear failed: ${e.message}`, 'error'); }
+  finally { clearingLogs.value = false; }
+}
+
 onMounted(async () => {
   await Promise.all([fetchGlobal(), fetchSettings(), fetchBrowserTools()]);
   for (const s of agentSettings.value) fetchModels(s.agent_id);
@@ -909,6 +946,8 @@ onMounted(async () => {
 }
 .nav-item:hover { background: rgba(255,255,255,0.04); color: rgba(226,232,240,0.85); }
 .nav-item--active { background: rgba(99,102,241,0.12) !important; color: #A78BFA !important; }
+.nav-item--warn   { color: rgba(245,158,11,0.6) !important; margin-top: 4px; }
+.nav-item--warn:hover   { background: rgba(245,158,11,0.06) !important; color: #F59E0B !important; }
 .nav-item--danger { color: rgba(239,68,68,0.6) !important; margin-top: 4px; }
 .nav-item--danger:hover { background: rgba(239,68,68,0.06) !important; color: #EF4444 !important; }
 .nav-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }

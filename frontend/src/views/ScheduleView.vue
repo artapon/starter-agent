@@ -1,6 +1,12 @@
 <template>
   <div class="sched-root">
 
+    <!-- ── Page header ─────────────────────────────────────────────────────── -->
+    <div class="sched-page-header">
+      <div class="page-title">Schedule</div>
+      <div class="page-subtitle">Automate recurring agent tasks with cron jobs</div>
+    </div>
+
     <!-- ── Toolbar ─────────────────────────────────────────────────────────── -->
     <div class="sched-toolbar">
       <div class="toolbar-title">
@@ -478,6 +484,10 @@ function targetIcon(target) {
   background: #08080F;
   color: #E2E8F0;
   font-size: 13px;
+}
+.sched-page-header {
+  padding: 20px 24px 14px;
+  flex-shrink: 0;
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */

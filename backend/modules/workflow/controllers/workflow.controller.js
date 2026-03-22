@@ -12,6 +12,9 @@ export class WorkflowController {
 
   start = async (req, res, next) => {
     try {
+      // Bind the live socket manager (available after bootstrap, not at module init)
+      this.runner.socketManager = req.app.get('socketManager') || this.runner.socketManager;
+
       const { goal, sessionId = uuidv4(), projectId = null } = req.body;
       if (!goal) return res.status(400).json({ error: 'goal is required' });
 

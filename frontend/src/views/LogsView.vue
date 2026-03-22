@@ -1,6 +1,12 @@
 <template>
   <div class="lm-root">
 
+    <!-- ── Page header ─────────────────────────────────────────────────── -->
+    <div class="lm-page-header">
+      <div class="page-title">Logs</div>
+      <div class="page-subtitle">Browse and search system and agent log files</div>
+    </div>
+
     <!-- ── Toolbar ────────────────────────────────────────────────────── -->
     <div class="lm-toolbar">
 
@@ -73,9 +79,6 @@
         <button class="action-btn" :class="{ 'action-btn--spin': loading }" @click="reload" title="Reload">
           <v-icon size="13">mdi-refresh</v-icon>
         </button>
-        <button class="action-btn action-btn--danger" @click="confirmClearFiles = true" title="Empty log files">
-          <v-icon size="13">mdi-file-remove-outline</v-icon>
-        </button>
       </div>
     </div>
 
@@ -126,31 +129,33 @@
       </table>
     </div>
 
-    <!-- ── Footer ────────────────────────────────────────────────────── -->
+    <!-- ── Footer / bottom pager ─────────────────────────────────────── -->
     <div class="lm-footer">
       <span class="footer-file">{{ activeFile === 'info' ? 'agent-info.log' : 'agent-error.log' }}</span>
       <span class="footer-size" v-if="fileSize">{{ formatSize(fileSize) }}</span>
+
+      <div class="pager" style="margin-left:auto">
+        <button class="pg-btn" :disabled="currentPage >= totalPages" @click="goPage(totalPages)" title="Oldest">
+          <v-icon size="14">mdi-page-first</v-icon>
+        </button>
+        <button class="pg-btn" :disabled="currentPage >= totalPages" @click="goPage(currentPage + 1)">
+          <v-icon size="14">mdi-chevron-left</v-icon>
+        </button>
+        <div class="pg-pages">
+          <button v-for="p in visiblePages" :key="p"
+            class="pg-num" :class="{ 'pg-num--active': p === currentPage }"
+            @click="goPage(p)">{{ p }}</button>
+        </div>
+        <button class="pg-btn" :disabled="currentPage <= 1" @click="goPage(currentPage - 1)">
+          <v-icon size="14">mdi-chevron-right</v-icon>
+        </button>
+        <button class="pg-btn" :disabled="currentPage <= 1" @click="goPage(1)" title="Newest">
+          <v-icon size="14">mdi-page-last</v-icon>
+        </button>
+        <span class="pg-info">{{ currentPage }} / {{ totalPages }}</span>
+      </div>
     </div>
 
-    <!-- ── Confirm clear dialog ───────────────────────────────────────── -->
-    <v-dialog v-model="confirmClearFiles" max-width="400">
-      <v-card rounded="lg" style="background:#12121E">
-        <div class="dialog-header">
-          <v-icon size="16" color="#EF4444">mdi-file-remove-outline</v-icon>
-          <span>Empty Log Files</span>
-        </div>
-        <div class="dialog-body">
-          Permanently clear <strong>agent-info.log</strong> and
-          <strong>agent-error.log</strong>? This cannot be undone.
-        </div>
-        <div class="dialog-footer">
-          <button class="dlg-btn dlg-btn--cancel" @click="confirmClearFiles = false">Cancel</button>
-          <button class="dlg-btn dlg-btn--danger" :disabled="clearingFiles" @click="clearLogFiles">
-            {{ clearingFiles ? 'Clearing…' : 'Empty Files' }}
-          </button>
-        </div>
-      </v-card>
-    </v-dialog>
 
   </div>
 </template>
@@ -248,19 +253,6 @@ watch(searchQuery, () => {
   _debounce = setTimeout(() => loadPage(activeFile.value, 1), 350);
 });
 
-// ── Clear files ───────────────────────────────────────────────────────────────
-const confirmClearFiles = ref(false);
-const clearingFiles = ref(false);
-async function clearLogFiles() {
-  clearingFiles.value = true;
-  try {
-    await axios.delete('/api/logs/files');
-    lines.value = []; total.value = 0; fileSize.value = 0;
-    fileCounts.value = {}; currentPage.value = 1; totalPages.value = 1;
-    confirmClearFiles.value = false;
-  } catch { /* ignore */ }
-  finally { clearingFiles.value = false; }
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatTs(ts) {
@@ -307,6 +299,10 @@ onMounted(() => {
   display: flex; flex-direction: column;
   height: 100%; overflow: hidden;
   background: #08080F;
+}
+.lm-page-header {
+  padding: 20px 24px 14px;
+  flex-shrink: 0;
 }
 
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */

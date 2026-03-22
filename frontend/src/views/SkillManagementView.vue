@@ -3,7 +3,7 @@
     <!-- ── Header ─────────────────────────────────────────────────────── -->
     <div class="sm-header">
       <div class="sm-header__left">
-        <div class="sm-header__title">Skill Library</div>
+        <div class="sm-header__title">Skills</div>
         <div class="sm-header__sub">Manage reusable skill files for each agent</div>
       </div>
       <v-btn

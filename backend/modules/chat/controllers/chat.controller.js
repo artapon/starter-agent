@@ -7,6 +7,9 @@ export class ChatController {
 
   sendMessage = async (req, res, next) => {
     try {
+      const sm = req.app.get('socketManager');
+      if (sm) { this.service.socketManager = sm; this.service.workflowRunner.socketManager = sm; }
+
       const { content, sessionId, projectId } = req.body;
       if (!content) return res.status(400).json({ error: 'content is required' });
       const result = await this.service.handleMessage(sessionId, content, projectId || null);
