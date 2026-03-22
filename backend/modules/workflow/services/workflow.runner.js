@@ -140,15 +140,16 @@ export class WorkflowRunner {
         }
         // subtaskResults uses an accumulator reducer in the state annotation —
         // apply the same logic here since the stream gives raw node deltas.
+        // null   → reset  |  array → replace (retry cleanup)  |  object → append
         if ('subtaskResults' in partialState) {
           const prev   = Array.isArray(finalState.subtaskResults) ? finalState.subtaskResults : [];
           const update = partialState.subtaskResults;
           finalState = {
             ...finalState,
             ...partialState,
-            subtaskResults: update === null
-              ? []
-              : [...prev, ...(Array.isArray(update) ? update : [update])],
+            subtaskResults: update === null  ? []
+                          : Array.isArray(update) ? update
+                          : [...prev, update],
           };
         } else {
           finalState = { ...finalState, ...partialState };

@@ -231,12 +231,14 @@ export function createNodes(socketManager) {
     const newRetryCount = (state.retryCount || 0) + 1;
 
     if (!review.approved && newRetryCount < maxRetries) {
-      // Retry the same step: decrement currentStepIdx so worker re-processes it
+      // Retry the same step: decrement currentStepIdx and drop the failed result
+      // so the retry replaces it instead of accumulating a ghost entry.
       return {
         reviewFeedback: review,
         retryCount:     newRetryCount,
         currentStepIdx: state.currentStepIdx - 1,
         status:         'revision_needed',
+        subtaskResults: (state.subtaskResults || []).slice(0, -1),
       };
     }
 

@@ -7,8 +7,10 @@ export const AgentStateAnnotation = Annotation.Root({
   plan: Annotation({ reducer: (_, b) => b, default: () => null }),
   currentStepIdx: Annotation({ reducer: (_, b) => b, default: () => 0 }),
   subtaskResults: Annotation({
-    // null acts as a reset signal (used when looping back to restart a cycle)
-    reducer: (a, b) => b === null ? [] : [...(a || []), ...(Array.isArray(b) ? b : [b])],
+    // null   → reset to []          (loop restart)
+    // array  → replace entirely     (reviewer popping a failed retry attempt)
+    // object → append single result (worker completing a step)
+    reducer: (a, b) => b === null ? [] : Array.isArray(b) ? b : [...(a || []), b],
     default: () => [],
   }),
   reviewFeedback: Annotation({ reducer: (_, b) => b, default: () => null }),
